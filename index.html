@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ferrieburrito med Hjemmelaget Cheddarsaus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #fcf8f2;
+        }
+        .checkbox-custom:checked + label {
+            text-decoration: line-through;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body class="text-slate-800 pb-12">
+
+    <!-- Container -->
+    <div class="max-w-xl mx-auto px-4 pt-6">
+
+        <!-- Header Card -->
+        <div class="bg-gradient-to-br from-amber-600 via-orange-600 to-red-600 text-white rounded-3xl p-6 shadow-xl mb-6 relative overflow-hidden">
+            <div class="relative z-10">
+                <span class="inline-block bg-white/20 backdrop-blur-md text-amber-100 text-xs uppercase tracking-widest font-bold px-3 py-1 rounded-full mb-3">
+                    Feriemetoden • Willys-Spesial
+                </span>
+                <h1 class="text-3xl font-extrabold tracking-tight mb-2">
+                    Ferrieburrito med Cheddarsaus
+                </h1>
+                <p class="text-amber-100 text-sm leading-relaxed mb-4">
+                    For 2 voksne og 2 barn. Rask, smaksrik og tilpasset feriekjøkkenet uten unødvendig ingredienssvinn.
+                </p>
+
+                <div class="grid grid-cols-3 gap-2 pt-2 border-t border-white/20 text-center">
+                    <div class="bg-black/10 rounded-xl p-2 backdrop-blur-sm">
+                        <span class="block text-xs text-amber-200 uppercase font-semibold">Tid</span>
+                        <span class="text-base font-bold">25 min</span>
+                    </div>
+                    <div class="bg-black/10 rounded-xl p-2 backdrop-blur-sm">
+                        <span class="block text-xs text-amber-200 uppercase font-semibold">Mengde</span>
+                        <span class="text-base font-bold">4 pers</span>
+                    </div>
+                    <div class="bg-black/10 rounded-xl p-2 backdrop-blur-sm">
+                        <span class="block text-xs text-amber-200 uppercase font-semibold">Nivå</span>
+                        <span class="text-base font-bold">Enkel</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Decorative circle -->
+            <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+        </div>
+
+        <!-- Share / Copy Banner -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-orange-100 mb-6 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold">
+                    📱
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm text-slate-900">Del til iPhone / SMS</h3>
+                    <p class="text-xs text-slate-500">Kopier hele oppskriften med ett trykk</p>
+                </div>
+            </div>
+            <button onclick="copyRecipeText()" id="copyBtn" class="bg-orange-600 hover:bg-orange-700 active:scale-95 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap">
+                <svg id="copyIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                <span>Kopier tekst</span>
+            </button>
+        </div>
+
+        <!-- Ingredient Checklist -->
+        <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mb-6">
+            <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <span class="text-xl">🛒</span> Ingredienser
+            </h2>
+
+            <div class="space-y-2.5 text-sm">
+                <!-- Group: Kjøtt & Bønner -->
+                <div class="text-xs font-bold uppercase tracking-wider text-orange-600 pt-1 pb-1 border-b border-orange-100">Fyll & Baser</div>
+                
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing1" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing1" class="cursor-pointer font-medium text-slate-700">500 g Kjøttdeig (Nötfärs)</label>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing2" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing2" class="cursor-pointer font-medium text-slate-700">1,5 pose Tacokrydder</label>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing3" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing3" class="cursor-pointer font-medium text-slate-700">2 kartonger Svarte Bønner (Zeta, à 380g)</label>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing4" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing4" class="cursor-pointer font-medium text-slate-700">1 pakke Tortillas (Large / Burrito size)</label>
+                </div>
+
+                <!-- Group: Grønnsaker & Smak -->
+                <div class="text-xs font-bold uppercase tracking-wider text-orange-600 pt-3 pb-1 border-b border-orange-100">Grønnsaker & Garnityr</div>
+
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing5" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing5" class="cursor-pointer font-medium text-slate-700">1 stk Løk (gul- eller rødløk)</label>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing6" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing6" class="cursor-pointer font-medium text-slate-700">2–3 fedd Fersk hvitløk</label>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing7" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing7" class="cursor-pointer font-medium text-slate-700">1 stk Fersk rød chili</label>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing8" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing8" class="cursor-pointer font-medium text-slate-700">1 stk Fersk lime</label>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing9" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing9" class="cursor-pointer font-medium text-slate-700">1 beger Gräddfil (eller rømme)</label>
+                </div>
+
+                <!-- Group: Cheddarsaus -->
+                <div class="text-xs font-bold uppercase tracking-wider text-orange-600 pt-3 pb-1 border-b border-orange-100">Hjemmelaget Cheddarsaus</div>
+
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing10" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing10" class="cursor-pointer font-medium text-slate-700">250 g Fersk Cheddar i stykke (finrevet)</label>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing11" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing11" class="cursor-pointer font-medium text-slate-700">1–2 ss Smør & 1–2 ss Hvetemel</label>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="ing12" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
+                    <label for="ing12" class="cursor-pointer font-medium text-slate-700">ca. 1,5–2 dl Melk (eller vann)</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mb-6 space-y-6">
+            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <span class="text-xl">🍳</span> Fremgangsmåte
+            </h2>
+
+            <!-- Step 1 -->
+            <div class="flex gap-4">
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500 text-white font-extrabold text-sm flex items-center justify-center shadow-md">
+                    1
+                </div>
+                <div class="space-y-1">
+                    <h3 class="font-bold text-slate-900 text-sm">Kutt og klargjør</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Finhakk løk, hvitløk og fersk chili. Riv cheddarosten grovt på et rivjern.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="flex gap-4">
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500 text-white font-extrabold text-sm flex items-center justify-center shadow-md">
+                    2
+                </div>
+                <div class="space-y-1">
+                    <h3 class="font-bold text-slate-900 text-sm">Fres løk og stek kjøttdeigen</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Varm en stor stekepanne med litt smør. Fres løk, hvitløk og chili i 2 minutter til det er mykt. Ha i 500 g kjøttdeig og brun den ordentlig.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="flex gap-4">
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500 text-white font-extrabold text-sm flex items-center justify-center shadow-md">
+                    3
+                </div>
+                <div class="space-y-1">
+                    <h3 class="font-bold text-slate-900 text-sm">Krydre og ha i bønner</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Rør inn 1,5 pose tacokrydder og ca. 0,75 dl vann. La det putre i 1 minutt. Skyll de svarte bønnene og rør dem inn til slutt slik at de blir varme. Skvis over saften av en halv lime og skru ned varmen.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="flex gap-4">
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-orange-600 text-white font-extrabold text-sm flex items-center justify-center shadow-md">
+                    4
+                </div>
+                <div class="space-y-1">
+                    <h3 class="font-bold text-slate-900 text-sm">Lag den ekte cheddarsausen</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Smelt 1,5 ss smør i en kjele og visp inn 1,5 ss hvetemel. Fres i 30 sekunder. Spe med melk/vann under omrøring til en jevn, tykk sausgrunn. <strong class="text-slate-800">Ta kjelen helt av varmen!</strong> Rør inn den revede cheddaren i omganger til den er smeltet. Smak til med noen få dråper limesaft.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Step 5 -->
+            <div class="flex gap-4">
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-red-600 text-white font-extrabold text-sm flex items-center justify-center shadow-md">
+                    5
+                </div>
+                <div class="space-y-1">
+                    <h3 class="font-bold text-slate-900 text-sm">Montering & "Sealing"</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Varm tortillaleivene et par sekunder i pannen (da sprekker de ikke). Smør på gräddfil, legg på fyll og topp med varm cheddarsaus. Brett inn sidene, rull stramt og legg rullen med skjøten ned i varm tørr panne i 30 sekunder for å "lime" den sammen!
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pro-Tips Card -->
+        <div class="bg-amber-50 rounded-2xl p-5 border border-amber-200 mb-6">
+            <h3 class="font-bold text-amber-900 text-sm mb-2 flex items-center gap-1.5">
+                💡 Pro-tips for feriekjøkkenet
+            </h3>
+            <ul class="text-xs text-amber-800 space-y-1.5 list-disc list-inside">
+                <li><strong>Oste-trikset:</strong> Aldri la cheddarsausen koke etter at osten er tilsatt – da kan den skille seg.</li>
+                <li><strong>Rulle-trikset:</strong> En varm tortilla er elastisk, en kald tortilla sprekker!</li>
+            </ul>
+        </div>
+
+        <!-- Kaffe Bonus -->
+        <div class="bg-stone-900 text-stone-200 rounded-2xl p-4 text-xs flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">☕</span>
+                <div>
+                    <span class="font-bold text-amber-400 block">Kaffe etter maten?</span>
+                    <span class="text-stone-400">Arvid Nordquist Mellan (Mellanrost, Bryggkaffe) til trakteren.</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Hidden textarea for easy clipboard copying -->
+    <textarea id="hiddenRecipeText" class="sr-only" aria-hidden="true"></textarea>
+
+    <script>
+        const recipeText = `FERIEBURRITO MED HJEMMELAGET CHEDDARSAUS (4 pers / 2 voksne, 2 barn)
+
+INGREDIENSER:
+- 500g Kjøttdeig (Nötfärs)
+- 1,5 pose Tacokrydder
+- 2 kartonger Svarte bønner (Zeta, 380g)
+- 1 pk Tortillas (Large / Burrito size)
+- 1 løk & 2-3 fedd hvitløk
+- 1 fersk rød chili
+- 1 fersk lime
+- 1 beger Gräddfil (eller rømme)
+- 250g Fersk cheddar (i stykke, finrevet)
+- 1,5 ss Smør & 1,5 ss Hvetemel
+- 1,5–2 dl Melk eller vann
+
+FREMGANGSMÅTE:
+1. Kutt løk, hvitløk og chili. Riv cheddaren.
+2. Fres løk, hvitløk og chili i smør i 2 min. Ha i kjøttdeigen og brun den.
+3. Rør inn 1,5 pk tacokrydder + 0,75 dl vann. Putre 1 min. Vend inn skylte svarte bønner og skvis over 1/2 lime.
+4. CHEDDARSAUS: Smelt 1,5 ss smør, visp inn 1,5 ss mel. Spe med melk/vann til tykk saus. TA KJELEN AV VARMEN! Rør inn cheddaren til den smelter. Tilsett et par dråper lime.
+5. Varm tortillaleiver, ha på gräddfil, fyll og cheddarsaus. Brett inn sidene, rull stramt og stikk skjøten ned i varm tørr panne i 30 sekunder.`;
+
+        function copyRecipeText() {
+            const textarea = document.getElementById('hiddenRecipeText');
+            textarea.value = recipeText;
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
+            
+            try {
+                document.execCommand('copy');
+                const btn = document.getElementById('copyBtn');
+                btn.classList.remove('bg-orange-600', 'hover:bg-orange-700');
+                btn.classList.add('bg-emerald-600');
+                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Kopiert!`;
+                
+                setTimeout(() => {
+                    btn.classList.remove('bg-emerald-600');
+                    btn.classList.add('bg-orange-600', 'hover:bg-orange-700');
+                    btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> <span>Kopier tekst</span>`;
+                }, 2500);
+            } catch (err) {
+                alert('Kunne ikke kopiere automatisk. Merk teksten manuelt.');
+            }
+        }
+    </script>
+</body>
+</html>
