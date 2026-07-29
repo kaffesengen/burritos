@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Avansert Fysikkmotor v10.8 - Startstrek & Fri</title>
+    <title>Avansert Fysikkmotor v11.0 - Kjøretøy, Dimensjoner & Elbil</title>
     <style>
         * { box-sizing: border-box; touch-action: none; margin: 0; padding: 0; }
         body { font-family: sans-serif; background: #121212; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -48,7 +48,7 @@
     <div id="hud">
         <div class="hud-row">
             <span>Fart: <span id="hud-speed" style="color: #2ecc71;">0</span> km/t</span>
-            <span>Gir: <span id="hud-gear" style="color: #3498db;">1</span></span>
+            <span>Gir: <span id="hud-gear" style="color: #3498db;">D</span></span>
             <span>RPM: <span id="hud-rpm" style="color: #e67e22;">0</span></span>
         </div>
         <div class="hud-row">
@@ -74,40 +74,51 @@
 </div>
 
 <div id="ui-panel">
+    <div class="control" style="grid-column: span 3; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 4px;">
+        <label>Velg Kjøretøy:</label>
+        <select id="preset-selector">
+            <option value="jaguar" selected>Jaguar I-PACE EV400 (Elbil, AWD)</option>
+            <option value="gokart">Proff Go-Kart (Lett, RWD)</option>
+            <option value="mx5">Mazda MX-5 (Bakhjulstrekk, ICE)</option>
+            <option value="r34">Nissan Skyline R34 (Firehjulstrekk, ICE)</option>
+            <option value="f1">Formel 1 (Ekstrem, RWD)</option>
+            <option value="custom">Egendefinert</option>
+        </select>
+    </div>
     <div class="control">
         <label>Motorkraft (hk):</label>
         <div class="input-group">
-            <input type="range" id="p-power" min="30" max="1500" value="600">
-            <input type="number" id="n-power" min="30" max="1500" value="600">
+            <input type="range" id="p-power" min="10" max="1500" value="400">
+            <input type="number" id="n-power" min="10" max="1500" value="400">
         </div>
     </div>
     <div class="control">
         <label>Vekt (kg):</label>
         <div class="input-group">
-            <input type="range" id="p-mass" min="500" max="3500" value="1200">
-            <input type="number" id="n-mass" min="500" max="3500" value="1200">
+            <input type="range" id="p-mass" min="100" max="3500" value="2200">
+            <input type="number" id="n-mass" min="100" max="3500" value="2200">
         </div>
     </div>
     <div class="control">
         <label>Drivhjul:</label>
         <select id="n-drivetrain">
-            <option value="RWD" selected>Bakhjul (RWD)</option>
+            <option value="RWD">Bakhjul (RWD)</option>
             <option value="FWD">Forhjul (FWD)</option>
-            <option value="AWD">Firehjul (AWD)</option>
+            <option value="AWD" selected>Firehjul (AWD)</option>
         </select>
     </div>
     <div class="control">
         <label>Dekkgrep:</label>
         <div class="input-group">
-            <input type="range" id="p-grip" min="0.5" max="2.0" step="0.1" value="1.0">
-            <input type="number" id="n-grip" min="0.5" max="2.0" step="0.1" value="1.0">
+            <input type="range" id="p-grip" min="0.5" max="3.0" step="0.1" value="1.2">
+            <input type="number" id="n-grip" min="0.5" max="3.0" step="0.1" value="1.2">
         </div>
     </div>
     <div class="control">
         <label>Svingrespons:</label>
         <div class="input-group">
-            <input type="range" id="p-turn" min="1.0" max="8.0" step="0.2" value="3.0">
-            <input type="number" id="n-turn" min="1.0" max="8.0" step="0.2" value="3.0">
+            <input type="range" id="p-turn" min="1.0" max="10.0" step="0.2" value="3.5">
+            <input type="number" id="n-turn" min="1.0" max="10.0" step="0.2" value="3.5">
         </div>
     </div>
     <div class="control">
@@ -120,6 +131,17 @@
 </div>
 
 <script>
+const vehiclePresets = {
+    jaguar: { power: 400, mass: 2200, drivetrain: 'AWD', grip: 1.2, turn: 3.5, roll: 0.05, w: 24, l: 52, ev: true },
+    gokart: { power: 30, mass: 150, drivetrain: 'RWD', grip: 1.6, turn: 8.0, roll: 0.02, w: 16, l: 26, ev: false },
+    mx5: { power: 184, mass: 1050, drivetrain: 'RWD', grip: 1.1, turn: 4.5, roll: 0.04, w: 20, l: 42, ev: false },
+    r34: { power: 330, mass: 1560, drivetrain: 'AWD', grip: 1.3, turn: 3.2, roll: 0.04, w: 22, l: 48, ev: false },
+    f1: { power: 1050, mass: 798, drivetrain: 'RWD', grip: 2.8, turn: 7.0, roll: 0.09, w: 26, l: 58, ev: false },
+    custom: { power: 600, mass: 1200, drivetrain: 'RWD', grip: 1.0, turn: 3.0, roll: 0.05, w: 22, l: 44, ev: false }
+};
+
+let currentVehicleEV = true; 
+
 function syncInputs(rangeId, numberId) {
     const range = document.getElementById(rangeId);
     const num = document.getElementById(numberId);
@@ -130,6 +152,27 @@ function syncInputs(rangeId, numberId) {
     });
 }
 ['power', 'mass', 'grip', 'turn', 'roll'].forEach(id => syncInputs('p-' + id, 'n-' + id));
+
+const car = {
+    x: 2100, y: 3200, prevX: 2100, prevY: 3200, vx: 0, vy: 0, angle: Math.PI, yawRate: 0, gear: 1, rpm: 0,
+    w: vehiclePresets.jaguar.w, l: vehiclePresets.jaguar.l
+};
+
+document.getElementById('preset-selector').addEventListener('change', (e) => {
+    const p = vehiclePresets[e.target.value];
+    if(!p) return;
+    
+    document.getElementById('n-power').value = p.power; document.getElementById('n-power').dispatchEvent(new Event('input'));
+    document.getElementById('n-mass').value = p.mass; document.getElementById('n-mass').dispatchEvent(new Event('input'));
+    document.getElementById('n-drivetrain').value = p.drivetrain;
+    document.getElementById('n-grip').value = p.grip; document.getElementById('n-grip').dispatchEvent(new Event('input'));
+    document.getElementById('n-turn').value = p.turn; document.getElementById('n-turn').dispatchEvent(new Event('input'));
+    document.getElementById('n-roll').value = p.roll; document.getElementById('n-roll').dispatchEvent(new Event('input'));
+    
+    currentVehicleEV = p.ev;
+    car.w = p.w;
+    car.l = p.l;
+});
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -145,17 +188,11 @@ const fsBtn = document.getElementById('btn-fullscreen');
 fsBtn.addEventListener('click', () => {
     const elem = document.documentElement;
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        if (elem.requestFullscreen) {
-            elem.requestFullscreen();
-        } else if (elem.webkitRequestFullscreen) {
-            elem.webkitRequestFullscreen();
-        }
+        if (elem.requestFullscreen) elem.requestFullscreen();
+        else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
     } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-        }
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
     }
 });
 
@@ -169,7 +206,6 @@ function initAudio() {
         
         if (!audioCtx) {
             audioCtx = new AudioContext();
-            
             engineOsc = audioCtx.createOscillator(); 
             engineOsc.type = 'sawtooth';
             engineGain = audioCtx.createGain(); 
@@ -189,9 +225,7 @@ function initAudio() {
 
         if (audioCtx.state === 'suspended') {
             audioCtx.resume().then(() => {
-                if (audioCtx.state === 'running') {
-                    audioReady = true;
-                }
+                if (audioCtx.state === 'running') audioReady = true;
             }).catch(e => {});
         } else if (audioCtx.state === 'running') {
             audioReady = true;
@@ -219,19 +253,6 @@ function playBeep(freq, duration = 0.3) {
     } catch(e) {}
 }
 
-const params = {
-    power: document.getElementById('n-power'),
-    mass: document.getElementById('n-mass'),
-    drivetrain: document.getElementById('n-drivetrain'),
-    grip: document.getElementById('n-grip'),
-    turn: document.getElementById('n-turn'),
-    roll: document.getElementById('n-roll')
-};
-
-const car = {
-    x: 2100, y: 3200, prevX: 2100, prevY: 3200, vx: 0, vy: 0, angle: Math.PI, yawRate: 0, gear: 1, rpm: 0
-};
-
 const inputs = { steering: 0, throttle: 0, handbrake: false };
 const skidmarks = [];
 
@@ -251,14 +272,22 @@ let countdownTimestamp = 0;
 let lastTime = performance.now();
 
 document.getElementById('btn-reset').addEventListener('click', () => {
+    // Tving total nullstilling av all hastighet og input for å hindre uønsket rygging
+    document.getElementById('stick-left').style.transform = 'translate(0px, 0px)';
+    document.getElementById('stick-right').style.transform = 'translate(0px, 0px)';
+    inputs.steering = 0; 
+    inputs.throttle = 0;
+    inputs.handbrake = false;
+    
     car.x = 2100; car.y = 3200;
     car.prevX = 2100; car.prevY = 3200;
     car.vx = 0; car.vy = 0;
     car.angle = Math.PI; 
-    car.yawRate = 0; car.gear = 0; car.rpm = 1000;
+    car.yawRate = 0; 
+    car.gear = 0; 
+    car.rpm = currentVehicleEV ? 0 : 1000;
     
-    lastTime = performance.now(); // Fikser hoppet
-    
+    lastTime = performance.now(); 
     hasStarted = false; currentCP = 0;
     document.getElementById('lap-current-time').innerText = "0.00";
     
@@ -457,27 +486,40 @@ function update() {
     const absSpeedKmh = Math.abs(forwardSpeedMS * 3.6);
 
     let targetRpm = 0;
-    if (inNeutral) {
-        car.gear = 0;
-        targetRpm = 1000 + (Math.max(0, mappedThrottle) * 6500); 
-    } else {
-        if (absSpeedKmh > 0.5 || Math.abs(mappedThrottle) > 0.01) {
-            if (forwardSpeedMS >= -1) {
-                if (absSpeedKmh < 40) car.gear = 1; else if (absSpeedKmh < 80) car.gear = 2;
-                else if (absSpeedKmh < 130) car.gear = 3; else if (absSpeedKmh < 185) car.gear = 4; else car.gear = 5;
-                const prevMax = gearMaxSpeeds[car.gear - 1] || 0;
-                const curMax = gearMaxSpeeds[car.gear];
-                targetRpm = 1000 + Math.min(Math.max((absSpeedKmh - prevMax) / (curMax - prevMax), 0), 1) * 5500;
-            } else {
-                car.gear = -1; targetRpm = 1000 + (absSpeedKmh / 40) * 5000;
-            }
+    let torqueMultiplier = 1.0;
+
+    if (currentVehicleEV) {
+        if (inNeutral) {
+            car.gear = 0; targetRpm = 0;
         } else {
-            car.gear = 1;
-            targetRpm = countdownState > 0 ? 1000 : 0;
+            car.gear = forwardSpeedMS >= -0.5 ? 'D' : 'R';
+            targetRpm = absSpeedKmh * 80;
         }
+        torqueMultiplier = 1.0; 
+    } else {
+        if (inNeutral) {
+            car.gear = 0;
+            targetRpm = 1000 + (Math.max(0, mappedThrottle) * 6500); 
+        } else {
+            if (absSpeedKmh > 0.5 || Math.abs(mappedThrottle) > 0.01) {
+                if (forwardSpeedMS >= -1) {
+                    if (absSpeedKmh < 40) car.gear = 1; else if (absSpeedKmh < 80) car.gear = 2;
+                    else if (absSpeedKmh < 130) car.gear = 3; else if (absSpeedKmh < 185) car.gear = 4; else car.gear = 5;
+                    const prevMax = gearMaxSpeeds[car.gear - 1] || 0;
+                    const curMax = gearMaxSpeeds[car.gear];
+                    targetRpm = 1000 + Math.min(Math.max((absSpeedKmh - prevMax) / (curMax - prevMax), 0), 1) * 5500;
+                } else {
+                    car.gear = -1; targetRpm = 1000 + (absSpeedKmh / 40) * 5000;
+                }
+            } else {
+                car.gear = 1;
+                targetRpm = 1000;
+            }
+        }
+        torqueMultiplier = Math.max(0.3, Math.min(1.0, Math.pow(car.rpm / 5500, 1.2))); 
     }
     
-    car.rpm += (targetRpm - car.rpm) * 12 * dt;
+    car.rpm += (targetRpm - car.rpm) * (currentVehicleEV ? 15 : 12) * dt;
 
     const maxAxleTraction = (mass * 9.81 / 2) * surfaceMu; 
     const enginePowerWatts = horsepower * 735.5 * 0.85; 
@@ -489,12 +531,12 @@ function update() {
     const isBraking = mappedThrottle < 0 && forwardSpeedMS >= 1.0;
 
     if (inNeutral) {
-        brakeForce = mass * 15.0; // Står bom fast i fri
+        brakeForce = mass * 15.0; 
     } else {
         if (mappedThrottle > 0 || isReversing) {
             const effSpeed = Math.max(Math.abs(forwardSpeedMS), 5.0);
             const powerRatio = isReversing ? 0.3 : 1.0; 
-            driveForce = (enginePowerWatts * powerRatio / effSpeed) * mappedThrottle;
+            driveForce = (enginePowerWatts * powerRatio / effSpeed) * mappedThrottle * torqueMultiplier;
         } 
         if (isBraking) {
             brakeForce = mass * 15.0 * Math.abs(mappedThrottle);
@@ -566,12 +608,13 @@ function update() {
     
     if (audioReady && audioCtx && audioCtx.state === 'running') {
         try {
-            engineOsc.frequency.value = 40 + (car.rpm / 22);
-            
-            if (car.rpm < 100) {
-                engineGain.gain.value = 0;
+            if (currentVehicleEV) {
+                engineOsc.frequency.value = 100 + (absSpeedKmh * 3);
+                engineGain.gain.value = Math.max(0.01, Math.abs(mappedThrottle) * 0.1); 
             } else {
-                engineGain.gain.value = 0.08 + (Math.abs(mappedThrottle) * 0.15); 
+                engineOsc.frequency.value = 40 + (car.rpm / 22);
+                if (car.rpm < 100) engineGain.gain.value = 0;
+                else engineGain.gain.value = 0.08 + (Math.abs(mappedThrottle) * 0.15); 
             }
             
             let isSlidingAudio = Math.abs(rightSpeedMS) > 4.0;
@@ -590,18 +633,21 @@ function update() {
     let isSliding = Math.abs(rightSpeedMS) > 4.0;
     let rearSlip = rearSpinSeverity > 0.2 || brakeLockSeverity > 0.2 || isSliding;
     let frontSlip = frontSpinSeverity > 0.2 || brakeLockSeverity > 0.2 || isSliding;
+    
+    let hw = car.w / 2;
+    let hl = car.l / 2;
 
     if ((onAsphalt || onCurbs || onSand) && (rearSlip || frontSlip) && !inNeutral) {
         if (rearSlip) {
             skidmarks.push({
-                x1: car.x + forwardX * (-16) + rightX * (-11), y1: car.y + forwardY * (-16) + rightY * (-11),
-                x2: car.x + forwardX * (-16) + rightX * (11), y2: car.y + forwardY * (-16) + rightY * (11)
+                x1: car.x + forwardX * (-hl + 6) + rightX * (-hw + 2), y1: car.y + forwardY * (-hl + 6) + rightY * (-hw + 2),
+                x2: car.x + forwardX * (-hl + 6) + rightX * (hw - 2),  y2: car.y + forwardY * (-hl + 6) + rightY * (hw - 2)
             });
         }
         if (frontSlip) {
             skidmarks.push({
-                x1: car.x + forwardX * (13) + rightX * (-11), y1: car.y + forwardY * (13) + rightY * (-11),
-                x2: car.x + forwardX * (13) + rightX * (11), y2: car.y + forwardY * (13) + rightY * (11)
+                x1: car.x + forwardX * (hl - 8) + rightX * (-hw + 2), y1: car.y + forwardY * (hl - 8) + rightY * (-hw + 2),
+                x2: car.x + forwardX * (hl - 8) + rightX * (hw - 2),  y2: car.y + forwardY * (hl - 8) + rightY * (hw - 2)
             });
         }
     }
@@ -615,7 +661,7 @@ function update() {
     if (car.gear === 0) displayGear = 'N';
     document.getElementById('hud-gear').innerText = displayGear;
     
-    document.getElementById('hud-rpm').innerText = car.rpm < 10 ? 0 : Math.min(Math.round(car.rpm), 7500);
+    document.getElementById('hud-rpm').innerText = car.rpm < 10 ? 0 : Math.min(Math.round(car.rpm), 15000);
     
     const surfSpan = document.getElementById('status-surface');
     surfSpan.innerText = surfaceName; 
@@ -645,7 +691,6 @@ function update() {
     ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 8;
     ctx.beginPath(); ctx.moveTo(2000, 3100); ctx.lineTo(2000, 3300); ctx.stroke();
 
-    // Optimalisert opptegning for opptil 15.000 dekkspor
     ctx.fillStyle = 'rgba(15, 15, 15, 0.4)';
     ctx.beginPath();
     for (let i = 0; i < skidmarks.length; i++) {
@@ -655,10 +700,9 @@ function update() {
     }
     ctx.fill();
 
-    // Lyssignal tegnes i selve verdenen
     if (countdownState >= 0) {
         ctx.save();
-        ctx.translate(2000, 3030); // Montert på kanten av gresset ved start
+        ctx.translate(2000, 3030); 
         
         ctx.fillStyle = 'rgba(17, 17, 17, 0.9)';
         ctx.fillRect(-20, -60, 40, 120);
@@ -681,18 +725,21 @@ function update() {
     ctx.translate(car.x, car.y);
     ctx.rotate(car.angle);
 
-    ctx.fillStyle = inputs.handbrake ? '#e74c3c' : '#3498db';
-    ctx.fillRect(-22, -11, 44, 22);
+    // Kjøretøy basert på dynamiske dimensjoner
+    ctx.fillStyle = inputs.handbrake ? '#e74c3c' : (currentVehicleEV ? '#2ecc71' : '#3498db');
+    ctx.fillRect(-hl, -hw, car.l, car.w);
     ctx.fillStyle = '#111';
-    ctx.fillRect(4, -9, 8, 18);
+    ctx.fillRect(-hl/4, -hw + 2, car.l/2, car.w - 4);
     
+    // Bakhjul
     ctx.fillStyle = (rearSpinSeverity > 0.1 && Math.abs(mappedThrottle) > 0 && !inNeutral) ? '#e67e22' : '#000';
-    ctx.fillRect(-16, -13, 10, 4);
-    ctx.fillRect(-16, 9, 10, 4);
+    ctx.fillRect(-hl + 4, -hw - 2, 10, 4);
+    ctx.fillRect(-hl + 4, hw - 2, 10, 4);
     
+    // Forhjul (Styring)
     ctx.fillStyle = (frontSpinSeverity > 0.1 && Math.abs(mappedThrottle) > 0 && !inNeutral) ? '#e67e22' : '#000';
-    ctx.save(); ctx.translate(13, -11); ctx.rotate(steerInput * 0.5); ctx.fillRect(-5, -2, 10, 4); ctx.restore();
-    ctx.save(); ctx.translate(13, 11); ctx.rotate(steerInput * 0.5); ctx.fillRect(-5, -2, 10, 4); ctx.restore();
+    ctx.save(); ctx.translate(hl - 8, -hw - 2); ctx.rotate(steerInput * 0.5); ctx.fillRect(-5, 0, 10, 4); ctx.restore();
+    ctx.save(); ctx.translate(hl - 8, hw - 2); ctx.rotate(steerInput * 0.5); ctx.fillRect(-5, -4, 10, 4); ctx.restore();
 
     ctx.restore();
     ctx.restore();
