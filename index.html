@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Avansert Fysikkmotor v10.7 - Miljø, Gjerder & Reset</title>
+    <title>Avansert Fysikkmotor v10.8 - Startstrek & Fri</title>
     <style>
         * { box-sizing: border-box; touch-action: none; margin: 0; padding: 0; }
         body { font-family: sans-serif; background: #121212; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -192,7 +192,7 @@ function initAudio() {
                 if (audioCtx.state === 'running') {
                     audioReady = true;
                 }
-            }).catch(e => console.warn("Lyd blokkert midlertidig av nettleser:", e));
+            }).catch(e => {});
         } else if (audioCtx.state === 'running') {
             audioReady = true;
         }
@@ -248,15 +248,17 @@ let hasStarted = false;
 
 let countdownState = -1;
 let countdownTimestamp = 0;
+let lastTime = performance.now();
 
 document.getElementById('btn-reset').addEventListener('click', () => {
     car.x = 2100; car.y = 3200;
     car.prevX = 2100; car.prevY = 3200;
     car.vx = 0; car.vy = 0;
     car.angle = Math.PI; 
-    car.yawRate = 0; car.gear = 1; car.rpm = 0;
-    inputs.steering = 0; inputs.throttle = 0; inputs.handbrake = false;
-    skidmarks.length = 0;
+    car.yawRate = 0; car.gear = 0; car.rpm = 1000;
+    
+    lastTime = performance.now(); // Fikser hoppet
+    
     hasStarted = false; currentCP = 0;
     document.getElementById('lap-current-time').innerText = "0.00";
     
@@ -335,7 +337,6 @@ trackPath.bezierCurveTo(4800, 2800, 4800, 3200, 4400, 3200);
 trackPath.closePath();
 
 const gearMaxSpeeds = [0, 45, 90, 140, 200, 280];
-let lastTime = performance.now();
 
 function update() {
     const now = performance.now();
@@ -436,14 +437,15 @@ function update() {
 
     const turnSensitivity = parseFloat(params.turn.value) || 3;
 
-    let rawSteer = countdownState > 0 ? 0 : inputs.steering;
+    let inNeutral = countdownState > 0;
+    let rawSteer = inputs.steering;
     let deadzone = 0.15;
     let steerInput = 0;
     if (Math.abs(rawSteer) > deadzone) {
         steerInput = Math.sign(rawSteer) * ((Math.abs(rawSteer) - deadzone) / (1 - deadzone));
     }
     
-    let mappedThrottle = countdownState > 0 ? 0 : Math.pow(Math.abs(inputs.throttle), 2.5) * Math.sign(inputs.throttle);
+    let mappedThrottle = Math.pow(Math.abs(inputs.throttle), 2.5) * Math.sign(inputs.throttle);
 
     const forwardX = Math.cos(car.angle);
     const forwardY = Math.sin(car.angle);
@@ -455,19 +457,24 @@ function update() {
     const absSpeedKmh = Math.abs(forwardSpeedMS * 3.6);
 
     let targetRpm = 0;
-    if ((absSpeedKmh > 0.5 || Math.abs(mappedThrottle) > 0.01) && countdownState <= 0) {
-        if (forwardSpeedMS >= -1) {
-            if (absSpeedKmh < 40) car.gear = 1; else if (absSpeedKmh < 80) car.gear = 2;
-            else if (absSpeedKmh < 130) car.gear = 3; else if (absSpeedKmh < 185) car.gear = 4; else car.gear = 5;
-            const prevMax = gearMaxSpeeds[car.gear - 1] || 0;
-            const curMax = gearMaxSpeeds[car.gear];
-            targetRpm = 1000 + Math.min(Math.max((absSpeedKmh - prevMax) / (curMax - prevMax), 0), 1) * 5500;
-        } else {
-            car.gear = -1; targetRpm = 1000 + (absSpeedKmh / 40) * 5000;
-        }
+    if (inNeutral) {
+        car.gear = 0;
+        targetRpm = 1000 + (Math.max(0, mappedThrottle) * 6500); 
     } else {
-        car.gear = 1;
-        targetRpm = countdownState > 0 ? 1000 : 0;
+        if (absSpeedKmh > 0.5 || Math.abs(mappedThrottle) > 0.01) {
+            if (forwardSpeedMS >= -1) {
+                if (absSpeedKmh < 40) car.gear = 1; else if (absSpeedKmh < 80) car.gear = 2;
+                else if (absSpeedKmh < 130) car.gear = 3; else if (absSpeedKmh < 185) car.gear = 4; else car.gear = 5;
+                const prevMax = gearMaxSpeeds[car.gear - 1] || 0;
+                const curMax = gearMaxSpeeds[car.gear];
+                targetRpm = 1000 + Math.min(Math.max((absSpeedKmh - prevMax) / (curMax - prevMax), 0), 1) * 5500;
+            } else {
+                car.gear = -1; targetRpm = 1000 + (absSpeedKmh / 40) * 5000;
+            }
+        } else {
+            car.gear = 1;
+            targetRpm = countdownState > 0 ? 1000 : 0;
+        }
     }
     
     car.rpm += (targetRpm - car.rpm) * 12 * dt;
@@ -476,19 +483,22 @@ function update() {
     const enginePowerWatts = horsepower * 735.5 * 0.85; 
     
     let driveForce = 0;
-    let brakeForce = countdownState > 0 ? mass * 15.0 : 0; 
+    let brakeForce = 0;
     
     const isReversing = mappedThrottle < 0 && forwardSpeedMS < 1.0;
     const isBraking = mappedThrottle < 0 && forwardSpeedMS >= 1.0;
 
-    if (mappedThrottle > 0 || isReversing) {
-        const effSpeed = Math.max(Math.abs(forwardSpeedMS), 5.0);
-        const powerRatio = isReversing ? 0.3 : 1.0; 
-        driveForce = (enginePowerWatts * powerRatio / effSpeed) * mappedThrottle;
-    } 
-    
-    if (isBraking && countdownState <= 0) {
-        brakeForce = mass * 15.0 * Math.abs(mappedThrottle);
+    if (inNeutral) {
+        brakeForce = mass * 15.0; // Står bom fast i fri
+    } else {
+        if (mappedThrottle > 0 || isReversing) {
+            const effSpeed = Math.max(Math.abs(forwardSpeedMS), 5.0);
+            const powerRatio = isReversing ? 0.3 : 1.0; 
+            driveForce = (enginePowerWatts * powerRatio / effSpeed) * mappedThrottle;
+        } 
+        if (isBraking) {
+            brakeForce = mass * 15.0 * Math.abs(mappedThrottle);
+        }
     }
 
     let fwdForce = 0, rwdForce = 0;
@@ -500,7 +510,7 @@ function update() {
     let frontSpinSeverity = Math.min(1.0, frontExcess / maxAxleTraction);
     
     let rearExcess = Math.max(0, Math.abs(rwdForce) - maxAxleTraction);
-    let rearSpinSeverity = (inputs.handbrake && countdownState <= 0) ? 1.0 : Math.min(1.0, rearExcess / maxAxleTraction);
+    let rearSpinSeverity = (inputs.handbrake && !inNeutral) ? 1.0 : Math.min(1.0, rearExcess / maxAxleTraction);
 
     let brakeExcess = Math.max(0, brakeForce - (maxAxleTraction * 2));
     let brakeLockSeverity = Math.min(1.0, brakeExcess / (maxAxleTraction * 2));
@@ -581,7 +591,7 @@ function update() {
     let rearSlip = rearSpinSeverity > 0.2 || brakeLockSeverity > 0.2 || isSliding;
     let frontSlip = frontSpinSeverity > 0.2 || brakeLockSeverity > 0.2 || isSliding;
 
-    if ((onAsphalt || onCurbs || onSand) && (rearSlip || frontSlip)) {
+    if ((onAsphalt || onCurbs || onSand) && (rearSlip || frontSlip) && !inNeutral) {
         if (rearSlip) {
             skidmarks.push({
                 x1: car.x + forwardX * (-16) + rightX * (-11), y1: car.y + forwardY * (-16) + rightY * (-11),
@@ -595,10 +605,16 @@ function update() {
             });
         }
     }
-    if (skidmarks.length > 800) skidmarks.splice(0, skidmarks.length - 800);
+    
+    if (skidmarks.length > 15000) skidmarks.splice(0, skidmarks.length - 15000);
 
     document.getElementById('hud-speed').innerText = Math.round(absSpeedKmh);
-    document.getElementById('hud-gear').innerText = car.gear === -1 ? 'R' : car.gear;
+    
+    let displayGear = car.gear;
+    if (car.gear === -1) displayGear = 'R';
+    if (car.gear === 0) displayGear = 'N';
+    document.getElementById('hud-gear').innerText = displayGear;
+    
     document.getElementById('hud-rpm').innerText = car.rpm < 10 ? 0 : Math.min(Math.round(car.rpm), 7500);
     
     const surfSpan = document.getElementById('status-surface');
@@ -617,31 +633,48 @@ function update() {
     const camY = canvas.height / 2 - car.y;
     ctx.translate(camX, camY);
 
-    // Miljøtegning (nedenfra og opp)
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     
-    // Gjerde (Solid kant)
     ctx.lineWidth = 1200; ctx.strokeStyle = '#111'; ctx.stroke(trackPath);
-    // Gress innenfor gjerdet
     ctx.lineWidth = 1160; ctx.strokeStyle = '#2d4c1e'; ctx.stroke(trackPath);
-    // Sand
     ctx.lineWidth = trackWidth + 300; ctx.strokeStyle = '#c2b280'; ctx.stroke(trackPath);
-    // Curbs base (hvit)
     ctx.lineWidth = trackWidth + 40; ctx.strokeStyle = '#fff'; ctx.stroke(trackPath);
-    // Curbs detalj (rød stiplet)
     ctx.strokeStyle = '#e74c3c'; ctx.setLineDash([30, 30]); ctx.stroke(trackPath); ctx.setLineDash([]);
-    // Asfalt
     ctx.lineWidth = trackWidth; ctx.strokeStyle = '#2c2c2c'; ctx.stroke(trackPath);
     
-    // Målstrek
     ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 8;
     ctx.beginPath(); ctx.moveTo(2000, 3100); ctx.lineTo(2000, 3300); ctx.stroke();
 
+    // Optimalisert opptegning for opptil 15.000 dekkspor
     ctx.fillStyle = 'rgba(15, 15, 15, 0.4)';
+    ctx.beginPath();
     for (let i = 0; i < skidmarks.length; i++) {
         let m = skidmarks[i];
-        ctx.fillRect(m.x1 - 2, m.y1 - 2, 4, 4);
-        ctx.fillRect(m.x2 - 2, m.y2 - 2, 4, 4);
+        ctx.rect(m.x1 - 2, m.y1 - 2, 4, 4);
+        ctx.rect(m.x2 - 2, m.y2 - 2, 4, 4);
+    }
+    ctx.fill();
+
+    // Lyssignal tegnes i selve verdenen
+    if (countdownState >= 0) {
+        ctx.save();
+        ctx.translate(2000, 3030); // Montert på kanten av gresset ved start
+        
+        ctx.fillStyle = 'rgba(17, 17, 17, 0.9)';
+        ctx.fillRect(-20, -60, 40, 120);
+        ctx.strokeStyle = '#333';
+        ctx.strokeRect(-20, -60, 40, 120);
+        
+        ctx.fillStyle = countdownState >= 2 ? '#e74c3c' : '#331111';
+        ctx.beginPath(); ctx.arc(0, -35, 12, 0, Math.PI*2); ctx.fill();
+        
+        ctx.fillStyle = countdownState === 1 ? '#f1c40f' : '#333311';
+        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
+        
+        ctx.fillStyle = countdownState === 0 ? '#2ecc71' : '#113311';
+        ctx.beginPath(); ctx.arc(0, 35, 12, 0, Math.PI*2); ctx.fill();
+        
+        ctx.restore();
     }
 
     ctx.save();
@@ -653,42 +686,16 @@ function update() {
     ctx.fillStyle = '#111';
     ctx.fillRect(4, -9, 8, 18);
     
-    ctx.fillStyle = (rearSpinSeverity > 0.1 && Math.abs(mappedThrottle) > 0) ? '#e67e22' : '#000';
+    ctx.fillStyle = (rearSpinSeverity > 0.1 && Math.abs(mappedThrottle) > 0 && !inNeutral) ? '#e67e22' : '#000';
     ctx.fillRect(-16, -13, 10, 4);
     ctx.fillRect(-16, 9, 10, 4);
     
-    ctx.fillStyle = (frontSpinSeverity > 0.1 && Math.abs(mappedThrottle) > 0) ? '#e67e22' : '#000';
+    ctx.fillStyle = (frontSpinSeverity > 0.1 && Math.abs(mappedThrottle) > 0 && !inNeutral) ? '#e67e22' : '#000';
     ctx.save(); ctx.translate(13, -11); ctx.rotate(steerInput * 0.5); ctx.fillRect(-5, -2, 10, 4); ctx.restore();
     ctx.save(); ctx.translate(13, 11); ctx.rotate(steerInput * 0.5); ctx.fillRect(-5, -2, 10, 4); ctx.restore();
 
     ctx.restore();
     ctx.restore();
-
-    // Tegn trafikklys under nedtelling
-    if (countdownState >= 0) {
-        ctx.save();
-        let cx = canvas.width / 2;
-        let cy = 100;
-        
-        ctx.fillStyle = 'rgba(17, 17, 17, 0.9)';
-        ctx.fillRect(cx - 40, cy - 20, 80, 220);
-        ctx.strokeStyle = '#333';
-        ctx.strokeRect(cx - 40, cy - 20, 80, 220);
-        
-        // Rødt
-        ctx.fillStyle = countdownState >= 2 ? '#e74c3c' : '#331111';
-        ctx.beginPath(); ctx.arc(cx, cy + 30, 25, 0, Math.PI*2); ctx.fill();
-        
-        // Gult
-        ctx.fillStyle = countdownState === 1 ? '#f1c40f' : '#333311';
-        ctx.beginPath(); ctx.arc(cx, cy + 90, 25, 0, Math.PI*2); ctx.fill();
-        
-        // Grønt
-        ctx.fillStyle = countdownState === 0 ? '#2ecc71' : '#113311';
-        ctx.beginPath(); ctx.arc(cx, cy + 150, 25, 0, Math.PI*2); ctx.fill();
-        
-        ctx.restore();
-    }
 
     requestAnimationFrame(update);
 }
