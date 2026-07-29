@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Avansert Fysikkmotor v10.3 - Lyd, Fullskjerm & Rundetider</title>
+    <title>Avansert Fysikkmotor v10.5 - Ingen Tomgang</title>
     <style>
         * { box-sizing: border-box; touch-action: none; margin: 0; padding: 0; }
         body { font-family: sans-serif; background: #121212; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -47,7 +47,7 @@
         <div class="hud-row">
             <span>Fart: <span id="hud-speed" style="color: #2ecc71;">0</span> km/t</span>
             <span>Gir: <span id="hud-gear" style="color: #3498db;">1</span></span>
-            <span>RPM: <span id="hud-rpm" style="color: #e67e22;">1000</span></span>
+            <span>RPM: <span id="hud-rpm" style="color: #e67e22;">0</span></span>
         </div>
         <div class="hud-row">
             <span>Underlag: <span id="status-surface" style="color: #bdc3c7; font-weight:bold;">ASFALT</span></span>
@@ -138,7 +138,6 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// Fullskjerm-funksjon
 const fsBtn = document.getElementById('btn-fullscreen');
 fsBtn.addEventListener('click', () => {
     const elem = document.documentElement;
@@ -157,7 +156,6 @@ fsBtn.addEventListener('click', () => {
     }
 });
 
-// Lydmotor instansiering (sikret mot autostart-blokkering)
 let audioCtx, engineOsc, engineGain, squealOsc, squealGain, audioReady = false;
 
 function initAudio() {
@@ -165,35 +163,43 @@ function initAudio() {
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
-        audioCtx = new AudioContext();
         
-        engineOsc = audioCtx.createOscillator(); 
-        engineOsc.type = 'sawtooth';
-        engineGain = audioCtx.createGain(); 
-        engineGain.gain.value = 0;
-        engineOsc.connect(engineGain); 
-        engineGain.connect(audioCtx.destination);
-        engineOsc.start();
-        
-        squealOsc = audioCtx.createOscillator(); 
-        squealOsc.type = 'triangle';
-        squealGain = audioCtx.createGain(); 
-        squealGain.gain.value = 0;
-        squealOsc.connect(squealGain); 
-        squealGain.connect(audioCtx.destination);
-        squealOsc.start();
-        
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
+        if (!audioCtx) {
+            audioCtx = new AudioContext();
+            
+            engineOsc = audioCtx.createOscillator(); 
+            engineOsc.type = 'sawtooth';
+            engineGain = audioCtx.createGain(); 
+            engineGain.gain.value = 0;
+            engineOsc.connect(engineGain); 
+            engineGain.connect(audioCtx.destination);
+            engineOsc.start();
+            
+            squealOsc = audioCtx.createOscillator(); 
+            squealOsc.type = 'triangle';
+            squealGain = audioCtx.createGain(); 
+            squealGain.gain.value = 0;
+            squealOsc.connect(squealGain); 
+            squealGain.connect(audioCtx.destination);
+            squealOsc.start();
         }
-        audioReady = true;
-    } catch(e) {
-        console.warn("Lyd blokkert:", e);
-    }
+
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume().then(() => {
+                if (audioCtx.state === 'running') {
+                    audioReady = true;
+                }
+            }).catch(e => console.warn("Lyd blokkert midlertidig av nettleser:", e));
+        } else if (audioCtx.state === 'running') {
+            audioReady = true;
+        }
+    } catch(e) {}
 }
-window.addEventListener('touchstart', initAudio, { once: true });
-window.addEventListener('mousedown', initAudio, { once: true });
-window.addEventListener('keydown', initAudio, { once: true });
+
+const unlockAudio = () => { if (!audioReady) initAudio(); };
+window.addEventListener('touchstart', unlockAudio);
+window.addEventListener('mousedown', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
 
 const params = {
     power: document.getElementById('n-power'),
@@ -205,22 +211,12 @@ const params = {
 };
 
 const car = {
-    x: 2600,
-    y: 3200,
-    prevX: 2600,
-    prevY: 3200,
-    vx: 0,
-    vy: 0,
-    angle: Math.PI, 
-    yawRate: 0,
-    gear: 1,
-    rpm: 1000
+    x: 2600, y: 3200, prevX: 2600, prevY: 3200, vx: 0, vy: 0, angle: Math.PI, yawRate: 0, gear: 1, rpm: 0
 };
 
 const inputs = { steering: 0, throttle: 0, handbrake: false };
 const skidmarks = [];
 
-// Rundetider og Sjekkpunkter
 const checkpoints = [
     { x: 600, y: 2200, r: 400 },
     { x: 1800, y: 1800, r: 400 },
@@ -371,15 +367,23 @@ function update() {
     const rightSpeedMS = car.vx * rightX + car.vy * rightY;
     const absSpeedKmh = Math.abs(forwardSpeedMS * 3.6);
 
-    if (forwardSpeedMS >= -1) {
-        if (absSpeedKmh < 40) car.gear = 1; else if (absSpeedKmh < 80) car.gear = 2;
-        else if (absSpeedKmh < 130) car.gear = 3; else if (absSpeedKmh < 185) car.gear = 4; else car.gear = 5;
-        const prevMax = gearMaxSpeeds[car.gear - 1] || 0;
-        const curMax = gearMaxSpeeds[car.gear];
-        car.rpm = Math.round(1200 + Math.min(Math.max((absSpeedKmh - prevMax) / (curMax - prevMax), 0), 1) * 5500);
+    let targetRpm = 0;
+    if (absSpeedKmh > 0.5 || Math.abs(mappedThrottle) > 0.01) {
+        if (forwardSpeedMS >= -1) {
+            if (absSpeedKmh < 40) car.gear = 1; else if (absSpeedKmh < 80) car.gear = 2;
+            else if (absSpeedKmh < 130) car.gear = 3; else if (absSpeedKmh < 185) car.gear = 4; else car.gear = 5;
+            const prevMax = gearMaxSpeeds[car.gear - 1] || 0;
+            const curMax = gearMaxSpeeds[car.gear];
+            targetRpm = 1000 + Math.min(Math.max((absSpeedKmh - prevMax) / (curMax - prevMax), 0), 1) * 5500;
+        } else {
+            car.gear = -1; targetRpm = 1000 + (absSpeedKmh / 40) * 5000;
+        }
     } else {
-        car.gear = -1; car.rpm = Math.round(1000 + (absSpeedKmh / 40) * 5000);
+        car.gear = 1;
+        targetRpm = 0;
     }
+    
+    car.rpm += (targetRpm - car.rpm) * 12 * dt;
 
     const maxAxleTraction = (mass * 9.81 / 2) * surfaceMu; 
     const enginePowerWatts = horsepower * 735.5 * 0.85; 
@@ -463,11 +467,15 @@ function update() {
     car.x += car.vx * 12 * dt;
     car.y += car.vy * 12 * dt;
     
-    // Sikker oppdatering av lydparametere
     if (audioReady && audioCtx && audioCtx.state === 'running') {
         try {
             engineOsc.frequency.value = 40 + (car.rpm / 22);
-            engineGain.gain.value = Math.max(0.05, Math.abs(mappedThrottle) * 0.2); 
+            
+            if (car.rpm < 50 && Math.abs(mappedThrottle) < 0.01) {
+                engineGain.gain.value = 0;
+            } else {
+                engineGain.gain.value = Math.max(0.02, Math.abs(mappedThrottle) * 0.2); 
+            }
             
             let isSlidingAudio = Math.abs(rightSpeedMS) > 4.0;
             let squealInt = Math.max(frontSpinSeverity, rearSpinSeverity, brakeLockSeverity);
@@ -504,7 +512,7 @@ function update() {
 
     document.getElementById('hud-speed').innerText = Math.round(absSpeedKmh);
     document.getElementById('hud-gear').innerText = car.gear === -1 ? 'R' : car.gear;
-    document.getElementById('hud-rpm').innerText = Math.min(car.rpm, 7500);
+    document.getElementById('hud-rpm').innerText = car.rpm < 10 ? 0 : Math.min(Math.round(car.rpm), 7500);
     
     const surfSpan = document.getElementById('status-surface');
     surfSpan.innerText = onAsphalt ? "ASFALT" : "GRESS"; 
