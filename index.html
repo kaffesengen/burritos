@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Avansert Fysikkmotor v11.0 - Kjøretøy, Dimensjoner & Elbil</title>
+    <title>Avansert Fysikkmotor v11.1 - Feilrettet (NaN Fix)</title>
     <style>
         * { box-sizing: border-box; touch-action: none; margin: 0; padding: 0; }
         body { font-family: sans-serif; background: #121212; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -272,7 +272,6 @@ let countdownTimestamp = 0;
 let lastTime = performance.now();
 
 document.getElementById('btn-reset').addEventListener('click', () => {
-    // Tving total nullstilling av all hastighet og input for å hindre uønsket rygging
     document.getElementById('stick-left').style.transform = 'translate(0px, 0px)';
     document.getElementById('stick-right').style.transform = 'translate(0px, 0px)';
     inputs.steering = 0; 
@@ -429,7 +428,7 @@ function update() {
     ctx.lineWidth = 1200;
     const inBounds = ctx.isPointInStroke(trackPath, car.x, car.y);
 
-    if (!inBounds) {
+    if (!inBounds && dt > 0) {
         car.x = car.prevX;
         car.y = car.prevY;
         car.vx *= -0.4;
@@ -516,7 +515,8 @@ function update() {
                 targetRpm = 1000;
             }
         }
-        torqueMultiplier = Math.max(0.3, Math.min(1.0, Math.pow(car.rpm / 5500, 1.2))); 
+        // Kritisk NaN Fiks: Tving car.rpm til å aldri være negativt i formelen
+        torqueMultiplier = Math.max(0.3, Math.min(1.0, Math.pow(Math.max(0, car.rpm) / 5500, 1.2))); 
     }
     
     car.rpm += (targetRpm - car.rpm) * (currentVehicleEV ? 15 : 12) * dt;
@@ -609,10 +609,10 @@ function update() {
     if (audioReady && audioCtx && audioCtx.state === 'running') {
         try {
             if (currentVehicleEV) {
-                engineOsc.frequency.value = 100 + (absSpeedKmh * 3);
+                engineOsc.frequency.value = Math.max(0, 100 + (absSpeedKmh * 3));
                 engineGain.gain.value = Math.max(0.01, Math.abs(mappedThrottle) * 0.1); 
             } else {
-                engineOsc.frequency.value = 40 + (car.rpm / 22);
+                engineOsc.frequency.value = Math.max(0, 40 + (car.rpm / 22));
                 if (car.rpm < 100) engineGain.gain.value = 0;
                 else engineGain.gain.value = 0.08 + (Math.abs(mappedThrottle) * 0.15); 
             }
@@ -623,7 +623,7 @@ function update() {
             
             if (squealInt > 0.1 && (onAsphalt || onCurbs)) {
                 squealGain.gain.value = squealInt * 0.15; 
-                squealOsc.frequency.value = 800 + (Math.random() * 250);
+                squealOsc.frequency.value = Math.max(0, 800 + (Math.random() * 250));
             } else {
                 squealGain.gain.value = 0;
             }
@@ -652,7 +652,8 @@ function update() {
         }
     }
     
-    if (skidmarks.length > 15000) skidmarks.splice(0, skidmarks.length - 15000);
+    // Begrenset til 5000 for å unngå krasj grunnet memory/GPU-buffer overflow på mobil
+    if (skidmarks.length > 5000) skidmarks.splice(0, skidmarks.length - 5000);
 
     document.getElementById('hud-speed').innerText = Math.round(absSpeedKmh);
     
@@ -725,18 +726,15 @@ function update() {
     ctx.translate(car.x, car.y);
     ctx.rotate(car.angle);
 
-    // Kjøretøy basert på dynamiske dimensjoner
     ctx.fillStyle = inputs.handbrake ? '#e74c3c' : (currentVehicleEV ? '#2ecc71' : '#3498db');
     ctx.fillRect(-hl, -hw, car.l, car.w);
     ctx.fillStyle = '#111';
     ctx.fillRect(-hl/4, -hw + 2, car.l/2, car.w - 4);
     
-    // Bakhjul
     ctx.fillStyle = (rearSpinSeverity > 0.1 && Math.abs(mappedThrottle) > 0 && !inNeutral) ? '#e67e22' : '#000';
     ctx.fillRect(-hl + 4, -hw - 2, 10, 4);
     ctx.fillRect(-hl + 4, hw - 2, 10, 4);
     
-    // Forhjul (Styring)
     ctx.fillStyle = (frontSpinSeverity > 0.1 && Math.abs(mappedThrottle) > 0 && !inNeutral) ? '#e67e22' : '#000';
     ctx.save(); ctx.translate(hl - 8, -hw - 2); ctx.rotate(steerInput * 0.5); ctx.fillRect(-5, 0, 10, 4); ctx.restore();
     ctx.save(); ctx.translate(hl - 8, hw - 2); ctx.rotate(steerInput * 0.5); ctx.fillRect(-5, -4, 10, 4); ctx.restore();
