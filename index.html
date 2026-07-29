@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Avansert Fysikkmotor v10.5 - Ingen Tomgang</title>
+    <title>Avansert Fysikkmotor v10.6 - Korrigert Tomgang</title>
     <style>
         * { box-sizing: border-box; touch-action: none; margin: 0; padding: 0; }
         body { font-family: sans-serif; background: #121212; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -471,10 +471,10 @@ function update() {
         try {
             engineOsc.frequency.value = 40 + (car.rpm / 22);
             
-            if (car.rpm < 50 && Math.abs(mappedThrottle) < 0.01) {
+            if (car.rpm < 100) {
                 engineGain.gain.value = 0;
             } else {
-                engineGain.gain.value = Math.max(0.02, Math.abs(mappedThrottle) * 0.2); 
+                engineGain.gain.value = 0.08 + (Math.abs(mappedThrottle) * 0.15); 
             }
             
             let isSlidingAudio = Math.abs(rightSpeedMS) > 4.0;
