@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Avansert Fysikkmotor v10.6 - Korrigert Tomgang</title>
+    <title>Avansert Fysikkmotor v10.7 - Miljø, Gjerder & Reset</title>
     <style>
         * { box-sizing: border-box; touch-action: none; margin: 0; padding: 0; }
         body { font-family: sans-serif; background: #121212; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -13,8 +13,10 @@
         #hud { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 13px; pointer-events: none; border: 1px solid #333; z-index: 10; line-height: 1.5; }
         .hud-row { display: flex; gap: 15px; }
 
-        #btn-fullscreen { position: absolute; top: 10px; left: 280px; background: rgba(0,0,0,0.8); color: #fff; border: 1px solid #333; padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 13px; cursor: pointer; z-index: 10; }
-        #btn-fullscreen:active { background: #333; }
+        #btn-fullscreen, #btn-reset { position: absolute; top: 10px; background: rgba(0,0,0,0.8); color: #fff; border: 1px solid #333; padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 13px; cursor: pointer; z-index: 10; }
+        #btn-fullscreen { left: 280px; }
+        #btn-reset { left: 410px; background: rgba(192, 57, 43, 0.8); border-color: #e74c3c; }
+        #btn-fullscreen:active, #btn-reset:active { background: #333; }
 
         #leaderboard { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 13px; pointer-events: none; border: 1px solid #333; z-index: 10; width: 180px; }
         #leaderboard h3 { font-size: 13px; color: #f1c40f; margin-bottom: 5px; border-bottom: 1px solid #444; padding-bottom: 3px; }
@@ -56,6 +58,7 @@
     </div>
 
     <button id="btn-fullscreen">⛶ Fullskjerm</button>
+    <button id="btn-reset">↺ Reset</button>
 
     <div id="leaderboard">
         <h3>Topp 5 Tider</h3>
@@ -201,6 +204,21 @@ window.addEventListener('touchstart', unlockAudio);
 window.addEventListener('mousedown', unlockAudio);
 window.addEventListener('keydown', unlockAudio);
 
+function playBeep(freq, duration = 0.3) {
+    if (!audioReady || !audioCtx || audioCtx.state !== 'running') return;
+    try {
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.stop(audioCtx.currentTime + duration);
+    } catch(e) {}
+}
+
 const params = {
     power: document.getElementById('n-power'),
     mass: document.getElementById('n-mass'),
@@ -211,7 +229,7 @@ const params = {
 };
 
 const car = {
-    x: 2600, y: 3200, prevX: 2600, prevY: 3200, vx: 0, vy: 0, angle: Math.PI, yawRate: 0, gear: 1, rpm: 0
+    x: 2100, y: 3200, prevX: 2100, prevY: 3200, vx: 0, vy: 0, angle: Math.PI, yawRate: 0, gear: 1, rpm: 0
 };
 
 const inputs = { steering: 0, throttle: 0, handbrake: false };
@@ -227,6 +245,26 @@ let currentCP = 0;
 let lapStartTime = performance.now();
 let bestLaps = [];
 let hasStarted = false;
+
+let countdownState = -1;
+let countdownTimestamp = 0;
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+    car.x = 2100; car.y = 3200;
+    car.prevX = 2100; car.prevY = 3200;
+    car.vx = 0; car.vy = 0;
+    car.angle = Math.PI; 
+    car.yawRate = 0; car.gear = 1; car.rpm = 0;
+    inputs.steering = 0; inputs.throttle = 0; inputs.handbrake = false;
+    skidmarks.length = 0;
+    hasStarted = false; currentCP = 0;
+    document.getElementById('lap-current-time').innerText = "0.00";
+    
+    unlockAudio();
+    countdownState = 3;
+    countdownTimestamp = performance.now();
+    playBeep(440);
+});
 
 function setupJoystick(zoneId, stickId, onChange) {
     const zone = document.getElementById(zoneId);
@@ -294,6 +332,7 @@ trackPath.lineTo(1200, 2400); trackPath.bezierCurveTo(1000, 2600, 1400, 2800, 18
 trackPath.lineTo(3200, 1600); trackPath.bezierCurveTo(3600, 1400, 3800, 800, 4200, 800);
 trackPath.bezierCurveTo(4800, 800, 4800, 1600, 4400, 1800); trackPath.lineTo(4600, 2400);
 trackPath.bezierCurveTo(4800, 2800, 4800, 3200, 4400, 3200);
+trackPath.closePath();
 
 const gearMaxSpeeds = [0, 45, 90, 140, 200, 280];
 let lastTime = performance.now();
@@ -303,12 +342,21 @@ function update() {
     const dt = Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;
 
+    if (countdownState >= 0) {
+        if (now - countdownTimestamp > 1000) {
+            countdownState--;
+            countdownTimestamp = now;
+            if (countdownState > 0) playBeep(440);
+            else if (countdownState === 0) playBeep(880, 0.6);
+        }
+    }
+
     let currentLapTime = now - lapStartTime;
-    if (hasStarted) {
+    if (hasStarted && countdownState < 0) {
         document.getElementById('lap-current-time').innerText = (currentLapTime / 1000).toFixed(2);
     }
     
-    if (car.prevX > 2000 && car.x <= 2000 && car.y > 3000 && car.y < 3400) {
+    if (car.prevX > 2000 && car.x <= 2000 && car.y > 3000 && car.y < 3400 && countdownState < 0) {
         if (!hasStarted) {
             hasStarted = true;
             lapStartTime = now;
@@ -337,26 +385,65 @@ function update() {
         }
     }
 
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    
     ctx.lineWidth = trackWidth;
     const onAsphalt = ctx.isPointInStroke(trackPath, car.x, car.y);
+    
+    ctx.lineWidth = trackWidth + 40;
+    const onCurbs = ctx.isPointInStroke(trackPath, car.x, car.y) && !onAsphalt;
+    
+    ctx.lineWidth = trackWidth + 300;
+    const onSand = ctx.isPointInStroke(trackPath, car.x, car.y) && !onAsphalt && !onCurbs;
+    
+    ctx.lineWidth = 1200;
+    const inBounds = ctx.isPointInStroke(trackPath, car.x, car.y);
+
+    if (!inBounds) {
+        car.x = car.prevX;
+        car.y = car.prevY;
+        car.vx *= -0.4;
+        car.vy *= -0.4;
+    }
 
     const horsepower = parseFloat(params.power.value) || 30;
     const mass = parseFloat(params.mass.value) || 1000;
     const drivetrain = params.drivetrain.value;
     const baseGripMu = parseFloat(params.grip.value) || 1.0;
     
-    const surfaceMu = onAsphalt ? baseGripMu : (baseGripMu * 0.45); 
-    const rollingResistance = onAsphalt ? (parseFloat(params.roll.value) || 0.05) : 0.15; 
+    let surfaceMu = baseGripMu;
+    let rollingResistance = parseFloat(params.roll.value) || 0.05;
+    let surfaceName = "ASFALT";
+    let surfaceColor = "#bdc3c7";
+
+    if (onAsphalt) {
+        surfaceMu = baseGripMu;
+    } else if (onCurbs) {
+        surfaceMu = baseGripMu * 0.85;
+        surfaceName = "CURBS";
+        surfaceColor = "#e74c3c";
+    } else if (onSand) {
+        surfaceMu = baseGripMu * 0.4;
+        rollingResistance = 0.35;
+        surfaceName = "SAND";
+        surfaceColor = "#f1c40f";
+    } else {
+        surfaceMu = baseGripMu * 0.55;
+        rollingResistance = 0.15;
+        surfaceName = "GRESS";
+        surfaceColor = "#2ecc71";
+    }
+
     const turnSensitivity = parseFloat(params.turn.value) || 3;
 
-    let rawSteer = inputs.steering;
+    let rawSteer = countdownState > 0 ? 0 : inputs.steering;
     let deadzone = 0.15;
     let steerInput = 0;
     if (Math.abs(rawSteer) > deadzone) {
         steerInput = Math.sign(rawSteer) * ((Math.abs(rawSteer) - deadzone) / (1 - deadzone));
     }
     
-    let mappedThrottle = Math.pow(Math.abs(inputs.throttle), 2.5) * Math.sign(inputs.throttle);
+    let mappedThrottle = countdownState > 0 ? 0 : Math.pow(Math.abs(inputs.throttle), 2.5) * Math.sign(inputs.throttle);
 
     const forwardX = Math.cos(car.angle);
     const forwardY = Math.sin(car.angle);
@@ -368,7 +455,7 @@ function update() {
     const absSpeedKmh = Math.abs(forwardSpeedMS * 3.6);
 
     let targetRpm = 0;
-    if (absSpeedKmh > 0.5 || Math.abs(mappedThrottle) > 0.01) {
+    if ((absSpeedKmh > 0.5 || Math.abs(mappedThrottle) > 0.01) && countdownState <= 0) {
         if (forwardSpeedMS >= -1) {
             if (absSpeedKmh < 40) car.gear = 1; else if (absSpeedKmh < 80) car.gear = 2;
             else if (absSpeedKmh < 130) car.gear = 3; else if (absSpeedKmh < 185) car.gear = 4; else car.gear = 5;
@@ -380,7 +467,7 @@ function update() {
         }
     } else {
         car.gear = 1;
-        targetRpm = 0;
+        targetRpm = countdownState > 0 ? 1000 : 0;
     }
     
     car.rpm += (targetRpm - car.rpm) * 12 * dt;
@@ -389,7 +476,7 @@ function update() {
     const enginePowerWatts = horsepower * 735.5 * 0.85; 
     
     let driveForce = 0;
-    let brakeForce = 0;
+    let brakeForce = countdownState > 0 ? mass * 15.0 : 0; 
     
     const isReversing = mappedThrottle < 0 && forwardSpeedMS < 1.0;
     const isBraking = mappedThrottle < 0 && forwardSpeedMS >= 1.0;
@@ -400,7 +487,7 @@ function update() {
         driveForce = (enginePowerWatts * powerRatio / effSpeed) * mappedThrottle;
     } 
     
-    if (isBraking) {
+    if (isBraking && countdownState <= 0) {
         brakeForce = mass * 15.0 * Math.abs(mappedThrottle);
     }
 
@@ -413,7 +500,7 @@ function update() {
     let frontSpinSeverity = Math.min(1.0, frontExcess / maxAxleTraction);
     
     let rearExcess = Math.max(0, Math.abs(rwdForce) - maxAxleTraction);
-    let rearSpinSeverity = inputs.handbrake ? 1.0 : Math.min(1.0, rearExcess / maxAxleTraction);
+    let rearSpinSeverity = (inputs.handbrake && countdownState <= 0) ? 1.0 : Math.min(1.0, rearExcess / maxAxleTraction);
 
     let brakeExcess = Math.max(0, brakeForce - (maxAxleTraction * 2));
     let brakeLockSeverity = Math.min(1.0, brakeExcess / (maxAxleTraction * 2));
@@ -423,7 +510,7 @@ function update() {
     let actualRwdForce = Math.abs(rwdForce) > maxAxleTraction ? Math.sign(rwdForce) * maxAxleTraction * (1.0 - ((1.0 - kineticRatio) * rearSpinSeverity)) : rwdForce;
 
     let netLongitudinalForce = actualFwdForce + actualRwdForce;
-    if (isBraking) {
+    if (brakeForce > 0) {
         let maxBrake = (maxAxleTraction * 2) * (1.0 - (0.4 * brakeLockSeverity));
         netLongitudinalForce -= Math.min(brakeForce, maxBrake);
     }
@@ -481,7 +568,7 @@ function update() {
             let squealInt = Math.max(frontSpinSeverity, rearSpinSeverity, brakeLockSeverity);
             if(isSlidingAudio) squealInt = Math.max(squealInt, 0.9);
             
-            if (squealInt > 0.1 && onAsphalt) {
+            if (squealInt > 0.1 && (onAsphalt || onCurbs)) {
                 squealGain.gain.value = squealInt * 0.15; 
                 squealOsc.frequency.value = 800 + (Math.random() * 250);
             } else {
@@ -494,7 +581,7 @@ function update() {
     let rearSlip = rearSpinSeverity > 0.2 || brakeLockSeverity > 0.2 || isSliding;
     let frontSlip = frontSpinSeverity > 0.2 || brakeLockSeverity > 0.2 || isSliding;
 
-    if (onAsphalt && (rearSlip || frontSlip)) {
+    if ((onAsphalt || onCurbs || onSand) && (rearSlip || frontSlip)) {
         if (rearSlip) {
             skidmarks.push({
                 x1: car.x + forwardX * (-16) + rightX * (-11), y1: car.y + forwardY * (-16) + rightY * (-11),
@@ -515,8 +602,8 @@ function update() {
     document.getElementById('hud-rpm').innerText = car.rpm < 10 ? 0 : Math.min(Math.round(car.rpm), 7500);
     
     const surfSpan = document.getElementById('status-surface');
-    surfSpan.innerText = onAsphalt ? "ASFALT" : "GRESS"; 
-    surfSpan.style.color = onAsphalt ? "#bdc3c7" : "#e74c3c";
+    surfSpan.innerText = surfaceName; 
+    surfSpan.style.color = surfaceColor;
 
     const spinSpan = document.getElementById('hud-spin');
     let displaySpin = Math.max(frontSpinSeverity, rearSpinSeverity);
@@ -530,16 +617,23 @@ function update() {
     const camY = canvas.height / 2 - car.y;
     ctx.translate(camX, camY);
 
+    // Miljøtegning (nedenfra og opp)
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.lineWidth = trackWidth + 12; ctx.strokeStyle = '#eee'; ctx.stroke(trackPath);
+    
+    // Gjerde (Solid kant)
+    ctx.lineWidth = 1200; ctx.strokeStyle = '#111'; ctx.stroke(trackPath);
+    // Gress innenfor gjerdet
+    ctx.lineWidth = 1160; ctx.strokeStyle = '#2d4c1e'; ctx.stroke(trackPath);
+    // Sand
+    ctx.lineWidth = trackWidth + 300; ctx.strokeStyle = '#c2b280'; ctx.stroke(trackPath);
+    // Curbs base (hvit)
+    ctx.lineWidth = trackWidth + 40; ctx.strokeStyle = '#fff'; ctx.stroke(trackPath);
+    // Curbs detalj (rød stiplet)
+    ctx.strokeStyle = '#e74c3c'; ctx.setLineDash([30, 30]); ctx.stroke(trackPath); ctx.setLineDash([]);
+    // Asfalt
     ctx.lineWidth = trackWidth; ctx.strokeStyle = '#2c2c2c'; ctx.stroke(trackPath);
     
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = '#eee';
-    ctx.setLineDash([40, 40]);
-    ctx.stroke(trackPath);
-    ctx.setLineDash([]); 
-
+    // Målstrek
     ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 8;
     ctx.beginPath(); ctx.moveTo(2000, 3100); ctx.lineTo(2000, 3300); ctx.stroke();
 
@@ -569,6 +663,32 @@ function update() {
 
     ctx.restore();
     ctx.restore();
+
+    // Tegn trafikklys under nedtelling
+    if (countdownState >= 0) {
+        ctx.save();
+        let cx = canvas.width / 2;
+        let cy = 100;
+        
+        ctx.fillStyle = 'rgba(17, 17, 17, 0.9)';
+        ctx.fillRect(cx - 40, cy - 20, 80, 220);
+        ctx.strokeStyle = '#333';
+        ctx.strokeRect(cx - 40, cy - 20, 80, 220);
+        
+        // Rødt
+        ctx.fillStyle = countdownState >= 2 ? '#e74c3c' : '#331111';
+        ctx.beginPath(); ctx.arc(cx, cy + 30, 25, 0, Math.PI*2); ctx.fill();
+        
+        // Gult
+        ctx.fillStyle = countdownState === 1 ? '#f1c40f' : '#333311';
+        ctx.beginPath(); ctx.arc(cx, cy + 90, 25, 0, Math.PI*2); ctx.fill();
+        
+        // Grønt
+        ctx.fillStyle = countdownState === 0 ? '#2ecc71' : '#113311';
+        ctx.beginPath(); ctx.arc(cx, cy + 150, 25, 0, Math.PI*2); ctx.fill();
+        
+        ctx.restore();
+    }
 
     requestAnimationFrame(update);
 }
