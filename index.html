@@ -2,339 +2,570 @@
 <html lang="no">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ferrieburrito med Hjemmelaget Cheddarsaus</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Avansert Fysikkmotor v10.3 - Lyd, Fullskjerm & Rundetider</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: #fcf8f2;
-        }
-        .checkbox-custom:checked + label {
-            text-decoration: line-through;
-            color: #9ca3af;
-        }
+        * { box-sizing: border-box; touch-action: none; margin: 0; padding: 0; }
+        body { font-family: sans-serif; background: #121212; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #canvas-container { flex: 1; position: relative; background: #2d4c1e; }
+        canvas { width: 100%; height: 100%; display: block; }
+        
+        #hud { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 13px; pointer-events: none; border: 1px solid #333; z-index: 10; line-height: 1.5; }
+        .hud-row { display: flex; gap: 15px; }
+
+        #btn-fullscreen { position: absolute; top: 10px; left: 280px; background: rgba(0,0,0,0.8); color: #fff; border: 1px solid #333; padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 13px; cursor: pointer; z-index: 10; }
+        #btn-fullscreen:active { background: #333; }
+
+        #leaderboard { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 13px; pointer-events: none; border: 1px solid #333; z-index: 10; width: 180px; }
+        #leaderboard h3 { font-size: 13px; color: #f1c40f; margin-bottom: 5px; border-bottom: 1px solid #444; padding-bottom: 3px; }
+        #leaderboard ol { margin-left: 20px; color: #bdc3c7; }
+        .lap-current { color: #3498db; font-weight: bold; margin-top: 5px; }
+        
+        #ui-panel { background: #181818; border-top: 1px solid #333; padding: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 10px; font-size: 11px; z-index: 10; }
+        .control { display: flex; flex-direction: column; }
+        .control label { margin-bottom: 4px; color: #888; }
+        .input-group { display: flex; gap: 6px; align-items: center; }
+        input[type=range] { flex: 1; accent-color: #3498db; }
+        input[type=number], select { width: 55px; background: #222; color: #fff; border: 1px solid #444; border-radius: 3px; font-size: 11px; text-align: center; padding: 2px; }
+        select { width: 100%; padding: 4px; }
+        
+        #joystick-left-zone, #joystick-right-zone { position: absolute; bottom: 10px; width: 140px; height: 140px; border-radius: 50%; background: rgba(0,0,0,0.3); border: 2px dashed rgba(255,255,255,0.2); touch-action: none; }
+        #joystick-left-zone { left: 15px; }
+        #joystick-right-zone { right: 15px; }
+        .stick { position: absolute; width: 50px; height: 50px; border-radius: 50%; background: rgba(52, 152, 219, 0.6); border: 2px solid #3498db; top: 45px; left: 45px; pointer-events: none; }
+        
+        #btn-handbrake { position: absolute; bottom: 160px; right: 25px; width: 50px; height: 50px; background: rgba(231, 76, 60, 0.3); border: 2px solid #e74c3c; border-radius: 50%; color: #e74c3c; font-weight: bold; display: flex; align-items: center; justify-content: center; user-select: none; z-index: 10; }
+        #btn-handbrake:active { background: rgba(231, 76, 60, 0.8); color: #fff; }
     </style>
 </head>
-<body class="text-slate-800 pb-12">
+<body>
 
-    <!-- Container -->
-    <div class="max-w-xl mx-auto px-4 pt-6">
-
-        <!-- Header Card -->
-        <div class="bg-gradient-to-br from-amber-600 via-orange-600 to-red-600 text-white rounded-3xl p-6 shadow-xl mb-6 relative overflow-hidden">
-            <div class="relative z-10">
-                <span class="inline-block bg-white/20 backdrop-blur-md text-amber-100 text-xs uppercase tracking-widest font-bold px-3 py-1 rounded-full mb-3">
-                    Feriemetoden • Willys-Spesial
-                </span>
-                <h1 class="text-3xl font-extrabold tracking-tight mb-2">
-                    Ferrieburrito med Cheddarsaus
-                </h1>
-                <p class="text-amber-100 text-sm leading-relaxed mb-4">
-                    For 2 voksne og 2 barn (500 g kjøttdeig). Rask, smaksrik og tilpasset feriekjøkkenet uten svinn.
-                </p>
-
-                <div class="grid grid-cols-3 gap-2 pt-2 border-t border-white/20 text-center">
-                    <div class="bg-black/10 rounded-xl p-2 backdrop-blur-sm">
-                        <span class="block text-xs text-amber-200 uppercase font-semibold">Tid</span>
-                        <span class="text-base font-bold">25 min</span>
-                    </div>
-                    <div class="bg-black/10 rounded-xl p-2 backdrop-blur-sm">
-                        <span class="block text-xs text-amber-200 uppercase font-semibold">Mengde</span>
-                        <span class="text-base font-bold">4 pers</span>
-                    </div>
-                    <div class="bg-black/10 rounded-xl p-2 backdrop-blur-sm">
-                        <span class="block text-xs text-amber-200 uppercase font-semibold">Nivå</span>
-                        <span class="text-base font-bold">Enkel</span>
-                    </div>
-                </div>
-            </div>
-            <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+<div id="canvas-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="hud">
+        <div class="hud-row">
+            <span>Fart: <span id="hud-speed" style="color: #2ecc71;">0</span> km/t</span>
+            <span>Gir: <span id="hud-gear" style="color: #3498db;">1</span></span>
+            <span>RPM: <span id="hud-rpm" style="color: #e67e22;">1000</span></span>
         </div>
-
-        <!-- Share / Copy Banner -->
-        <div class="bg-white rounded-2xl p-4 shadow-sm border border-orange-100 mb-6 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold">
-                    📱
-                </div>
-                <div>
-                    <h3 class="font-bold text-sm text-slate-900">Del til iPhone / SMS</h3>
-                    <p class="text-xs text-slate-500">Kopier hele oppskriften med ett trykk</p>
-                </div>
-            </div>
-            <button onclick="copyRecipeText()" id="copyBtn" class="bg-orange-600 hover:bg-orange-700 active:scale-95 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap">
-                <svg id="copyIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
-                <span>Kopier tekst</span>
-            </button>
+        <div class="hud-row">
+            <span>Underlag: <span id="status-surface" style="color: #bdc3c7; font-weight:bold;">ASFALT</span></span>
+            <span>Spinn: <span id="hud-spin" style="color: #7f8c8d; font-weight:bold;">0%</span></span>
         </div>
-
-        <!-- Ingredient Checklist -->
-        <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mb-6">
-            <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <span class="text-xl">🛒</span> Ingredienser
-            </h2>
-
-            <div class="space-y-2.5 text-sm">
-                <div class="text-xs font-bold uppercase tracking-wider text-orange-600 pt-1 pb-1 border-b border-orange-100">Fyll & Baser</div>
-                
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing1" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing1" class="cursor-pointer font-medium text-slate-700">500 g Kjøttdeig (Nötfärs)</label>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing2" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing2" class="cursor-pointer font-medium text-slate-700">1,5 pose Tacokrydder</label>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing3" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing3" class="cursor-pointer font-medium text-slate-700">2 kartonger Svarte Bønner (Zeta, à 380g)</label>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing4" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing4" class="cursor-pointer font-medium text-slate-700">1 pakke Tortillas (Large / Burrito size)</label>
-                </div>
-
-                <div class="text-xs font-bold uppercase tracking-wider text-orange-600 pt-3 pb-1 border-b border-orange-100">Grønnsaker & Smak</div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing5" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing5" class="cursor-pointer font-medium text-slate-700">1 stk Løk (gul- eller rødløk)</label>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing6" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing6" class="cursor-pointer font-medium text-slate-700">2–3 fedd Fersk hvitløk</label>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing7" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing7" class="cursor-pointer font-medium text-slate-700">1 stk Fersk rød chili</label>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing8" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing8" class="cursor-pointer font-medium text-slate-700">1 stk Fersk lime</label>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing9" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing9" class="cursor-pointer font-medium text-slate-700">1 beger Gräddfil (eller rømme)</label>
-                </div>
-
-                <div class="text-xs font-bold uppercase tracking-wider text-orange-600 pt-3 pb-1 border-b border-orange-100">Hjemmelaget Cheddarsaus</div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing10" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing10" class="cursor-pointer font-medium text-slate-700">250 g Fersk Cheddar i stykke (finrevet)</label>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing11" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing11" class="cursor-pointer font-medium text-slate-700">1,5 ss Smør & 1,5 ss Hvetemel</label>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="ing12" class="checkbox-custom w-5 h-5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-500">
-                    <label for="ing12" class="cursor-pointer font-medium text-slate-700">ca. 1,5–2 dl Melk (eller vann)</label>
-                </div>
-            </div>
-        </div>
-
-        <!-- Instructions -->
-        <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mb-6 space-y-6">
-            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-                <span class="text-xl">🍳</span> Fremgangsmåte
-            </h2>
-
-            <!-- Step 1 -->
-            <div class="flex gap-4">
-                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500 text-white font-extrabold text-sm flex items-center justify-center shadow-md">
-                    1
-                </div>
-                <div class="space-y-1">
-                    <h3 class="font-bold text-slate-900 text-sm">Kutt og klargjør</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">
-                        Finhakk løk, hvitløk og fersk chili. Riv cheddarosten grovt på et rivjern.
-                    </p>
-                </div>
-            </div>
-
-            <!-- Step 2 -->
-            <div class="flex gap-4">
-                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500 text-white font-extrabold text-sm flex items-center justify-center shadow-md">
-                    2
-                </div>
-                <div class="space-y-1">
-                    <h3 class="font-bold text-slate-900 text-sm">Fres løk og stek kjøttdeigen</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">
-                        Varm en stor panneskuff eller pannesett med litt smør. Fres løk, hvitløk og chili i 2 minutter til det er mykt. Ha i 500 g kjøttdeig og brun den skikkelig.
-                    </p>
-                </div>
-            </div>
-
-            <!-- Step 3 -->
-            <div class="flex gap-4">
-                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500 text-white font-extrabold text-sm flex items-center justify-center shadow-md">
-                    3
-                </div>
-                <div class="space-y-1">
-                    <h3 class="font-bold text-slate-900 text-sm">Krydre og ha i bønner</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">
-                        Rør inn 1,5 pose tacokrydder og ca. 0,75 dl vann. Let putre i 1 minutt. Skyll de svarte bønnene godt og rør dem inn til slutt så de blir gjennomvarme uten å moses. Skvis over saften fra en halv lime.
-                    </p>
-                </div>
-            </div>
-
-            <!-- Step 4 -->
-            <div class="flex gap-4">
-                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-orange-600 text-white font-extrabold text-sm flex items-center justify-center shadow-md">
-                    4
-                </div>
-                <div class="space-y-1">
-                    <h3 class="font-bold text-slate-900 text-sm">Lag cheddarsausen</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">
-                        Smelt 1,5 ss smør i en kjele og visp inn 1,5 ss hvetemel. Fres i 30 sekunder. Spe med melk/vann under omrøring til en jevn, tykk sausgrunn. <strong class="text-slate-900">Ta kjelen helt av varmen!</strong> Rør inn den revede cheddaren i omganger til den smelter helt. Smak til med noen dråper fersk lime.
-                    </p>
-                </div>
-            </div>
-
-            <!-- Step 5 - DETAILED LEFSE PLACEMENT & ROLLING -->
-            <div class="flex gap-4 border-t border-dashed border-orange-200 pt-4">
-                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-red-600 text-white font-extrabold text-sm flex items-center justify-center shadow-md">
-                    5
-                </div>
-                <div class="space-y-3 w-full">
-                    <h3 class="font-bold text-slate-900 text-sm">Plassering i lefsen & Rulleteknikk</h3>
-                    
-                    <div class="bg-orange-50 rounded-2xl p-4 border border-orange-100 text-xs space-y-2">
-                        <div class="font-bold text-orange-950 flex items-center gap-1.5">
-                            <span>🌯</span> Lagvis plassering (midt på lefsen):
-                        </div>
-                        <ol class="list-decimal list-inside text-slate-700 space-y-1 pl-1">
-                            <li>Varm leiven i 5 sekunder i en varm, tørr panne (gjør den myk så den ikke sprekker).</li>
-                            <li><strong>Nederst:</strong> 1 skje gräddfil smøres ut i en stripe på midten (la det være 3-4 cm klaring til sidekantene).</li>
-                            <li><strong>Midten:</strong> En god porsjon varm kjøtt- og bønneblanding oppå gräddfilen.</li>
-                            <li><strong>Toppen:</strong> Rikelig med varm cheddarsaus hellet over kjøttet, pluss en liten skvis fersk lime.</li>
-                        </ol>
-                    </div>
-
-                    <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-xs space-y-2">
-                        <div class="font-bold text-slate-900 flex items-center gap-1.5">
-                            <span>🔄</span> Brette- og rulleguide:
-                        </div>
-                        <ul class="list-disc list-inside text-slate-700 space-y-1 pl-1">
-                            <li>Brett inn de to <strong>sidekantene</strong> (venstre og høyre) over fyllet.</li>
-                            <li>Knepp <strong>bunnkanten</strong> opp over fyllet og trekk den litt stramt tilbake mot deg selv.</li>
-                            <li>Rull stramt og bestemt oppover til du har en lukket, sylindrisk burrito.</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Step 6 - PAN SEARING -->
-            <div class="flex gap-4 border-t border-dashed border-orange-200 pt-4">
-                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-slate-900 text-white font-extrabold text-sm flex items-center justify-center shadow-md">
-                    6
-                </div>
-                <div class="space-y-1">
-                    <h3 class="font-bold text-slate-900 text-sm">Steking på pannen ("Sealing")</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed mb-2">
-                        Varm en tørr stekepanne over middels-høy varme.
-                    </p>
-                    <div class="bg-amber-100/60 rounded-xl p-3 text-xs text-amber-950 border border-amber-200 font-medium">
-                        🔥 <strong>Trikset:</strong> Legg burritoen ned i pannen med <strong>skjøten/sømmen pekende NED først</strong>. La den steke i 1–2 minutter til skjøten er gyllen, sprø og limt sammen. Snu burritoen og stek 1 minutt på den andre siden. Nå holder den seg perfekt samlet uten søl!
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Pro-Tips Card -->
-        <div class="bg-amber-50 rounded-2xl p-5 border border-amber-200 mb-6">
-            <h3 class="font-bold text-amber-900 text-sm mb-2 flex items-center gap-1.5">
-                💡 Gullregler for feriekjøkkenet
-            </h3>
-            <ul class="text-xs text-amber-800 space-y-1.5 list-disc list-inside">
-                <li><strong>Oste-trikset:</strong> Aldri la cheddarsausen koke etter at osten er tilsatt – da skiller den seg.</li>
-                <li><strong>Gjør lefsen myk:</strong> Kalde tortillas sprekker når du ruller, lunkne tortillas strekker seg perfekt.</li>
-            </ul>
-        </div>
-
-        <!-- Kaffe Bonus -->
-        <div class="bg-stone-900 text-stone-200 rounded-2xl p-4 text-xs flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-                <span class="text-2xl">☕</span>
-                <div>
-                    <span class="font-bold text-amber-400 block">Kaffe etter maten?</span>
-                    <span class="text-stone-400">Arvid Nordquist Mellan (Mellanrost, Bryggkaffe) til trakteren.</span>
-                </div>
-            </div>
-        </div>
-
     </div>
 
-    <!-- Hidden textarea for easy clipboard copying -->
-    <textarea id="hiddenRecipeText" class="sr-only" aria-hidden="true"></textarea>
+    <button id="btn-fullscreen">⛶ Fullskjerm</button>
 
-    <script>
-        const recipeText = `FERIEBURRITO MED HJEMMELAGET CHEDDARSAUS (4 pers / 2 voksne, 2 barn)
+    <div id="leaderboard">
+        <h3>Topp 5 Tider</h3>
+        <ol id="lap-list">
+            <li>--:--.--</li>
+        </ol>
+        <div class="lap-current">Nå: <span id="lap-current-time">0.00</span>s</div>
+    </div>
 
-INGREDIENSER:
-- 500g Kjøttdeig (Nötfärs)
-- 1,5 pose Tacokrydder
-- 2 kartonger Svarte bønner (Zeta, 380g)
-- 1 pk Tortillas (Large / Burrito size)
-- 1 løk & 2-3 fedd hvitløk
-- 1 fersk rød chili
-- 1 fersk lime
-- 1 beger Gräddfil (eller rømme)
-- 250g Fersk cheddar (i stykke, finrevet)
-- 1,5 ss Smør & 1,5 ss Hvetemel
-- 1,5–2 dl Melk eller vann
+    <div id="joystick-left-zone"><div id="stick-left" class="stick"></div></div>
+    <div id="joystick-right-zone"><div id="stick-right" class="stick" style="background: rgba(46, 204, 113, 0.6); border-color: #2ecc71;"></div></div>
+    <div id="btn-handbrake">HB</div>
+</div>
 
-FREMGANGSMÅTE:
-1. Kutt løk, hvitløk og chili. Finriv cheddaren.
-2. Fres løk, hvitløk og chili i smør i 2 min. Ha i kjøttdeigen og brun den.
-3. Rør inn 1,5 pk tacokrydder + 0,75 dl vann (putre 1 min). Vend inn skylte svarte bønner og skvis over 1/2 lime.
-4. CHEDDARSAUS: Smelt 1,5 ss smør, visp inn 1,5 ss mel. Spe med melk/vann til tykk saus. TA KJELEN AV VARMEN! Rør inn cheddaren til den smelter. Tilsett et par dråper fersk lime.
+<div id="ui-panel">
+    <div class="control">
+        <label>Motorkraft (hk):</label>
+        <div class="input-group">
+            <input type="range" id="p-power" min="30" max="1500" value="600">
+            <input type="number" id="n-power" min="30" max="1500" value="600">
+        </div>
+    </div>
+    <div class="control">
+        <label>Vekt (kg):</label>
+        <div class="input-group">
+            <input type="range" id="p-mass" min="500" max="3500" value="1200">
+            <input type="number" id="n-mass" min="500" max="3500" value="1200">
+        </div>
+    </div>
+    <div class="control">
+        <label>Drivhjul:</label>
+        <select id="n-drivetrain">
+            <option value="RWD" selected>Bakhjul (RWD)</option>
+            <option value="FWD">Forhjul (FWD)</option>
+            <option value="AWD">Firehjul (AWD)</option>
+        </select>
+    </div>
+    <div class="control">
+        <label>Dekkgrep:</label>
+        <div class="input-group">
+            <input type="range" id="p-grip" min="0.5" max="2.0" step="0.1" value="1.0">
+            <input type="number" id="n-grip" min="0.5" max="2.0" step="0.1" value="1.0">
+        </div>
+    </div>
+    <div class="control">
+        <label>Svingrespons:</label>
+        <div class="input-group">
+            <input type="range" id="p-turn" min="1.0" max="8.0" step="0.2" value="3.0">
+            <input type="number" id="n-turn" min="1.0" max="8.0" step="0.2" value="3.0">
+        </div>
+    </div>
+    <div class="control">
+        <label>Rullemotstand:</label>
+        <div class="input-group">
+            <input type="range" id="p-roll" min="0.01" max="0.5" step="0.01" value="0.05">
+            <input type="number" id="n-roll" min="0.01" max="0.5" step="0.01" value="0.05">
+        </div>
+    </div>
+</div>
 
-PLASSERING & RULLING:
-- Lun lefsen i tørr panne.
-- Smør 1 skje gräddfil i en stripe midt på lefsen (3-4 cm klaring til kantene).
-- Legg på varmt kjøtt- og bønnefyll.
-- Hell over varm cheddarsaus og skvis litt lime.
-- Brett inn venstre og høyre sidekant over fyllet, brett bunnen over og rull stramt oppover.
+<script>
+function syncInputs(rangeId, numberId) {
+    const range = document.getElementById(rangeId);
+    const num = document.getElementById(numberId);
+    range.addEventListener('input', () => { num.value = range.value; });
+    num.addEventListener('input', () => { 
+        let val = parseFloat(num.value);
+        if(!isNaN(val)) range.value = val; 
+    });
+}
+['power', 'mass', 'grip', 'turn', 'roll'].forEach(id => syncInputs('p-' + id, 'n-' + id));
 
-STEKING PÅ PANNEN (SEALING):
-- Legg burritoen i varm tørr panne med SKJØTEN NED først.
-- Stek 1-2 min til skjøten er sprø og "limt". Snu og stek 1 min på oversiden.`;
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-        function copyRecipeText() {
-            const textarea = document.getElementById('hiddenRecipeText');
-            textarea.value = recipeText;
-            textarea.select();
-            textarea.setSelectionRange(0, 99999);
-            
-            try {
-                document.execCommand('copy');
-                const btn = document.getElementById('copyBtn');
-                btn.classList.remove('bg-orange-600', 'hover:bg-orange-700');
-                btn.classList.add('bg-emerald-600');
-                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Kopiert!`;
-                
-                setTimeout(() => {
-                    btn.classList.remove('bg-emerald-600');
-                    btn.classList.add('bg-orange-600', 'hover:bg-orange-700');
-                    btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> <span>Kopier tekst</span>`;
-                }, 2500);
-            } catch (err) {
-                alert('Kunne ikke kopiere automatisk. Merk teksten manuelt.');
-            }
+function resize() {
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Fullskjerm-funksjon
+const fsBtn = document.getElementById('btn-fullscreen');
+fsBtn.addEventListener('click', () => {
+    const elem = document.documentElement;
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (elem.requestFullscreen) {
+            elem.requestFullscreen();
+        } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
         }
-    </script>
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+    }
+});
+
+// Lydmotor instansiering (sikret mot autostart-blokkering)
+let audioCtx, engineOsc, engineGain, squealOsc, squealGain, audioReady = false;
+
+function initAudio() {
+    if (audioReady) return;
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        audioCtx = new AudioContext();
+        
+        engineOsc = audioCtx.createOscillator(); 
+        engineOsc.type = 'sawtooth';
+        engineGain = audioCtx.createGain(); 
+        engineGain.gain.value = 0;
+        engineOsc.connect(engineGain); 
+        engineGain.connect(audioCtx.destination);
+        engineOsc.start();
+        
+        squealOsc = audioCtx.createOscillator(); 
+        squealOsc.type = 'triangle';
+        squealGain = audioCtx.createGain(); 
+        squealGain.gain.value = 0;
+        squealOsc.connect(squealGain); 
+        squealGain.connect(audioCtx.destination);
+        squealOsc.start();
+        
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        audioReady = true;
+    } catch(e) {
+        console.warn("Lyd blokkert:", e);
+    }
+}
+window.addEventListener('touchstart', initAudio, { once: true });
+window.addEventListener('mousedown', initAudio, { once: true });
+window.addEventListener('keydown', initAudio, { once: true });
+
+const params = {
+    power: document.getElementById('n-power'),
+    mass: document.getElementById('n-mass'),
+    drivetrain: document.getElementById('n-drivetrain'),
+    grip: document.getElementById('n-grip'),
+    turn: document.getElementById('n-turn'),
+    roll: document.getElementById('n-roll')
+};
+
+const car = {
+    x: 2600,
+    y: 3200,
+    prevX: 2600,
+    prevY: 3200,
+    vx: 0,
+    vy: 0,
+    angle: Math.PI, 
+    yawRate: 0,
+    gear: 1,
+    rpm: 1000
+};
+
+const inputs = { steering: 0, throttle: 0, handbrake: false };
+const skidmarks = [];
+
+// Rundetider og Sjekkpunkter
+const checkpoints = [
+    { x: 600, y: 2200, r: 400 },
+    { x: 1800, y: 1800, r: 400 },
+    { x: 4200, y: 800, r: 400 },
+    { x: 4600, y: 2400, r: 400 }
+];
+let currentCP = 0;
+let lapStartTime = performance.now();
+let bestLaps = [];
+let hasStarted = false;
+
+function setupJoystick(zoneId, stickId, onChange) {
+    const zone = document.getElementById(zoneId);
+    const stick = document.getElementById(stickId);
+    const maxRadius = 45;
+    let touchId = null;
+
+    function handleMove(clientX, clientY) {
+        const rect = zone.getBoundingClientRect();
+        const deltaX = Math.max(-maxRadius, Math.min(clientX - (rect.left + rect.width / 2), maxRadius));
+        const deltaY = Math.max(-maxRadius, Math.min(clientY - (rect.top + rect.height / 2), maxRadius));
+        stick.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+        onChange(deltaX / maxRadius, deltaY / maxRadius);
+    }
+    function reset() {
+        stick.style.transform = `translate(0px, 0px)`;
+        touchId = null;
+        onChange(0, 0);
+    }
+    zone.addEventListener('touchstart', e => {
+        if (touchId === null) {
+            touchId = e.changedTouches[0].identifier;
+            handleMove(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        }
+    });
+    window.addEventListener('touchmove', e => {
+        for (let touch of e.changedTouches) {
+            if (touch.identifier === touchId) handleMove(touch.clientX, touch.clientY);
+        }
+    });
+    window.addEventListener('touchend', e => {
+        for (let touch of e.changedTouches) {
+            if (touch.identifier === touchId) reset();
+        }
+    });
+}
+setupJoystick('joystick-left-zone', 'stick-left', (x, y) => { inputs.steering = x; });
+setupJoystick('joystick-right-zone', 'stick-right', (x, y) => { inputs.throttle = -y; });
+
+const hbBtn = document.getElementById('btn-handbrake');
+const handleHb = (state) => (e) => { e.preventDefault(); inputs.handbrake = state; };
+hbBtn.addEventListener('touchstart', handleHb(true));
+hbBtn.addEventListener('touchend', handleHb(false));
+hbBtn.addEventListener('mousedown', handleHb(true));
+hbBtn.addEventListener('mouseup', handleHb(false));
+
+window.addEventListener('keydown', e => {
+    if(e.key === 'w' || e.key === 'ArrowUp') inputs.throttle = 1;
+    if(e.key === 's' || e.key === 'ArrowDown') inputs.throttle = -1;
+    if(e.key === 'a' || e.key === 'ArrowLeft') inputs.steering = -1;
+    if(e.key === 'd' || e.key === 'ArrowRight') inputs.steering = 1;
+    if(e.key === ' ') inputs.handbrake = true;
+});
+window.addEventListener('keyup', e => {
+    if(e.key === 'w' || e.key === 's' || e.key === 'ArrowUp' || e.key === 'ArrowDown') inputs.throttle = 0;
+    if(e.key === 'a' || e.key === 'd' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') inputs.steering = 0;
+    if(e.key === ' ') inputs.handbrake = false;
+});
+
+const trackWidth = 200;
+const trackPath = new Path2D();
+trackPath.moveTo(4400, 3200); trackPath.lineTo(800, 3200); trackPath.bezierCurveTo(200, 3200, 200, 2600, 600, 2200);
+trackPath.lineTo(1400, 1400); trackPath.bezierCurveTo(1600, 1200, 2000, 1400, 1800, 1800);
+trackPath.lineTo(1200, 2400); trackPath.bezierCurveTo(1000, 2600, 1400, 2800, 1800, 2600);
+trackPath.lineTo(3200, 1600); trackPath.bezierCurveTo(3600, 1400, 3800, 800, 4200, 800);
+trackPath.bezierCurveTo(4800, 800, 4800, 1600, 4400, 1800); trackPath.lineTo(4600, 2400);
+trackPath.bezierCurveTo(4800, 2800, 4800, 3200, 4400, 3200);
+
+const gearMaxSpeeds = [0, 45, 90, 140, 200, 280];
+let lastTime = performance.now();
+
+function update() {
+    const now = performance.now();
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+
+    let currentLapTime = now - lapStartTime;
+    if (hasStarted) {
+        document.getElementById('lap-current-time').innerText = (currentLapTime / 1000).toFixed(2);
+    }
+    
+    if (car.prevX > 2000 && car.x <= 2000 && car.y > 3000 && car.y < 3400) {
+        if (!hasStarted) {
+            hasStarted = true;
+            lapStartTime = now;
+            currentCP = 0;
+        } else if (currentCP === checkpoints.length) {
+            bestLaps.push(currentLapTime);
+            bestLaps.sort((a,b) => a-b);
+            bestLaps = bestLaps.slice(0, 5);
+            
+            const listObj = document.getElementById('lap-list');
+            listObj.innerHTML = '';
+            bestLaps.forEach(lap => {
+                let li = document.createElement('li');
+                li.innerText = (lap / 1000).toFixed(2) + "s";
+                listObj.appendChild(li);
+            });
+            lapStartTime = now;
+            currentCP = 0;
+        }
+    }
+    
+    if (currentCP < checkpoints.length) {
+        let cp = checkpoints[currentCP];
+        if (Math.hypot(car.x - cp.x, car.y - cp.y) < cp.r) {
+            currentCP++;
+        }
+    }
+
+    ctx.lineWidth = trackWidth;
+    const onAsphalt = ctx.isPointInStroke(trackPath, car.x, car.y);
+
+    const horsepower = parseFloat(params.power.value) || 30;
+    const mass = parseFloat(params.mass.value) || 1000;
+    const drivetrain = params.drivetrain.value;
+    const baseGripMu = parseFloat(params.grip.value) || 1.0;
+    
+    const surfaceMu = onAsphalt ? baseGripMu : (baseGripMu * 0.45); 
+    const rollingResistance = onAsphalt ? (parseFloat(params.roll.value) || 0.05) : 0.15; 
+    const turnSensitivity = parseFloat(params.turn.value) || 3;
+
+    let rawSteer = inputs.steering;
+    let deadzone = 0.15;
+    let steerInput = 0;
+    if (Math.abs(rawSteer) > deadzone) {
+        steerInput = Math.sign(rawSteer) * ((Math.abs(rawSteer) - deadzone) / (1 - deadzone));
+    }
+    
+    let mappedThrottle = Math.pow(Math.abs(inputs.throttle), 2.5) * Math.sign(inputs.throttle);
+
+    const forwardX = Math.cos(car.angle);
+    const forwardY = Math.sin(car.angle);
+    const rightX = -Math.sin(car.angle);
+    const rightY = Math.cos(car.angle);
+
+    const forwardSpeedMS = car.vx * forwardX + car.vy * forwardY;
+    const rightSpeedMS = car.vx * rightX + car.vy * rightY;
+    const absSpeedKmh = Math.abs(forwardSpeedMS * 3.6);
+
+    if (forwardSpeedMS >= -1) {
+        if (absSpeedKmh < 40) car.gear = 1; else if (absSpeedKmh < 80) car.gear = 2;
+        else if (absSpeedKmh < 130) car.gear = 3; else if (absSpeedKmh < 185) car.gear = 4; else car.gear = 5;
+        const prevMax = gearMaxSpeeds[car.gear - 1] || 0;
+        const curMax = gearMaxSpeeds[car.gear];
+        car.rpm = Math.round(1200 + Math.min(Math.max((absSpeedKmh - prevMax) / (curMax - prevMax), 0), 1) * 5500);
+    } else {
+        car.gear = -1; car.rpm = Math.round(1000 + (absSpeedKmh / 40) * 5000);
+    }
+
+    const maxAxleTraction = (mass * 9.81 / 2) * surfaceMu; 
+    const enginePowerWatts = horsepower * 735.5 * 0.85; 
+    
+    let driveForce = 0;
+    let brakeForce = 0;
+    
+    const isReversing = mappedThrottle < 0 && forwardSpeedMS < 1.0;
+    const isBraking = mappedThrottle < 0 && forwardSpeedMS >= 1.0;
+
+    if (mappedThrottle > 0 || isReversing) {
+        const effSpeed = Math.max(Math.abs(forwardSpeedMS), 5.0);
+        const powerRatio = isReversing ? 0.3 : 1.0; 
+        driveForce = (enginePowerWatts * powerRatio / effSpeed) * mappedThrottle;
+    } 
+    
+    if (isBraking) {
+        brakeForce = mass * 15.0 * Math.abs(mappedThrottle);
+    }
+
+    let fwdForce = 0, rwdForce = 0;
+    if (drivetrain === 'FWD') fwdForce = driveForce;
+    else if (drivetrain === 'RWD') rwdForce = driveForce;
+    else { fwdForce = driveForce * 0.5; rwdForce = driveForce * 0.5; }
+
+    let frontExcess = Math.max(0, Math.abs(fwdForce) - maxAxleTraction);
+    let frontSpinSeverity = Math.min(1.0, frontExcess / maxAxleTraction);
+    
+    let rearExcess = Math.max(0, Math.abs(rwdForce) - maxAxleTraction);
+    let rearSpinSeverity = inputs.handbrake ? 1.0 : Math.min(1.0, rearExcess / maxAxleTraction);
+
+    let brakeExcess = Math.max(0, brakeForce - (maxAxleTraction * 2));
+    let brakeLockSeverity = Math.min(1.0, brakeExcess / (maxAxleTraction * 2));
+
+    const kineticRatio = 0.65;
+    let actualFwdForce = Math.abs(fwdForce) > maxAxleTraction ? Math.sign(fwdForce) * maxAxleTraction * (1.0 - ((1.0 - kineticRatio) * frontSpinSeverity)) : fwdForce;
+    let actualRwdForce = Math.abs(rwdForce) > maxAxleTraction ? Math.sign(rwdForce) * maxAxleTraction * (1.0 - ((1.0 - kineticRatio) * rearSpinSeverity)) : rwdForce;
+
+    let netLongitudinalForce = actualFwdForce + actualRwdForce;
+    if (isBraking) {
+        let maxBrake = (maxAxleTraction * 2) * (1.0 - (0.4 * brakeLockSeverity));
+        netLongitudinalForce -= Math.min(brakeForce, maxBrake);
+    }
+
+    const airDragForce = 0.45 * forwardSpeedMS * Math.abs(forwardSpeedMS);
+    const rollDragForce = rollingResistance * 0.1 * mass * 9.81 * Math.sign(forwardSpeedMS);
+    netLongitudinalForce -= (airDragForce + rollDragForce);
+
+    let accelMS2 = netLongitudinalForce / mass;
+    let newForwardSpeedMS = forwardSpeedMS + accelMS2 * dt;
+
+    let lateralGripFront = surfaceMu * (1.0 - 0.8 * Math.max(frontSpinSeverity, brakeLockSeverity)); 
+    let lateralGripRear = surfaceMu * (1.0 - 0.9 * Math.max(rearSpinSeverity, brakeLockSeverity)); 
+    
+    const speedFactor = Math.min(Math.abs(forwardSpeedMS) / 5.0, 1.0);
+    let targetYaw = steerInput * turnSensitivity * speedFactor;
+    targetYaw *= (1.0 - 0.8 * Math.max(frontSpinSeverity, brakeLockSeverity)); 
+
+    let oversteerTorque = 0;
+    if (rearSpinSeverity > 0.05 && Math.abs(forwardSpeedMS) > 1.0) {
+        let slideDir = rightSpeedMS > 0.5 ? 1 : (rightSpeedMS < -0.5 ? -1 : Math.sign(steerInput));
+        oversteerTorque = slideDir * (rearSpinSeverity * 6.0);
+    }
+
+    let baseDamping = 8.0;
+    let activeDamping = baseDamping * (1.0 - (rearSpinSeverity * 0.85));
+
+    car.yawRate += (targetYaw - car.yawRate) * activeDamping * dt; 
+    car.yawRate += oversteerTorque * dt;
+    car.angle += car.yawRate * dt;
+
+    const avgLateralGrip = (lateralGripFront + lateralGripRear) * 5.0; 
+    const newRightSpeedMS = rightSpeedMS * Math.exp(-avgLateralGrip * dt);
+
+    car.vx = forwardX * newForwardSpeedMS + rightX * newRightSpeedMS;
+    car.vy = forwardY * newForwardSpeedMS + rightY * newRightSpeedMS;
+
+    car.prevX = car.x;
+    car.prevY = car.y;
+
+    car.x += car.vx * 12 * dt;
+    car.y += car.vy * 12 * dt;
+    
+    // Sikker oppdatering av lydparametere
+    if (audioReady && audioCtx && audioCtx.state === 'running') {
+        try {
+            engineOsc.frequency.value = 40 + (car.rpm / 22);
+            engineGain.gain.value = Math.max(0.05, Math.abs(mappedThrottle) * 0.2); 
+            
+            let isSlidingAudio = Math.abs(rightSpeedMS) > 4.0;
+            let squealInt = Math.max(frontSpinSeverity, rearSpinSeverity, brakeLockSeverity);
+            if(isSlidingAudio) squealInt = Math.max(squealInt, 0.9);
+            
+            if (squealInt > 0.1 && onAsphalt) {
+                squealGain.gain.value = squealInt * 0.15; 
+                squealOsc.frequency.value = 800 + (Math.random() * 250);
+            } else {
+                squealGain.gain.value = 0;
+            }
+        } catch(e) {}
+    }
+
+    let isSliding = Math.abs(rightSpeedMS) > 4.0;
+    let rearSlip = rearSpinSeverity > 0.2 || brakeLockSeverity > 0.2 || isSliding;
+    let frontSlip = frontSpinSeverity > 0.2 || brakeLockSeverity > 0.2 || isSliding;
+
+    if (onAsphalt && (rearSlip || frontSlip)) {
+        if (rearSlip) {
+            skidmarks.push({
+                x1: car.x + forwardX * (-16) + rightX * (-11), y1: car.y + forwardY * (-16) + rightY * (-11),
+                x2: car.x + forwardX * (-16) + rightX * (11), y2: car.y + forwardY * (-16) + rightY * (11)
+            });
+        }
+        if (frontSlip) {
+            skidmarks.push({
+                x1: car.x + forwardX * (13) + rightX * (-11), y1: car.y + forwardY * (13) + rightY * (-11),
+                x2: car.x + forwardX * (13) + rightX * (11), y2: car.y + forwardY * (13) + rightY * (11)
+            });
+        }
+    }
+    if (skidmarks.length > 800) skidmarks.splice(0, skidmarks.length - 800);
+
+    document.getElementById('hud-speed').innerText = Math.round(absSpeedKmh);
+    document.getElementById('hud-gear').innerText = car.gear === -1 ? 'R' : car.gear;
+    document.getElementById('hud-rpm').innerText = Math.min(car.rpm, 7500);
+    
+    const surfSpan = document.getElementById('status-surface');
+    surfSpan.innerText = onAsphalt ? "ASFALT" : "GRESS"; 
+    surfSpan.style.color = onAsphalt ? "#bdc3c7" : "#e74c3c";
+
+    const spinSpan = document.getElementById('hud-spin');
+    let displaySpin = Math.max(frontSpinSeverity, rearSpinSeverity);
+    spinSpan.innerText = Math.round(displaySpin * 100) + "%";
+    spinSpan.style.color = displaySpin > 0.1 ? "#e74c3c" : "#7f8c8d";
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    
+    const camX = canvas.width / 2 - car.x;
+    const camY = canvas.height / 2 - car.y;
+    ctx.translate(camX, camY);
+
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = trackWidth + 12; ctx.strokeStyle = '#eee'; ctx.stroke(trackPath);
+    ctx.lineWidth = trackWidth; ctx.strokeStyle = '#2c2c2c'; ctx.stroke(trackPath);
+    
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#eee';
+    ctx.setLineDash([40, 40]);
+    ctx.stroke(trackPath);
+    ctx.setLineDash([]); 
+
+    ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(2000, 3100); ctx.lineTo(2000, 3300); ctx.stroke();
+
+    ctx.fillStyle = 'rgba(15, 15, 15, 0.4)';
+    for (let i = 0; i < skidmarks.length; i++) {
+        let m = skidmarks[i];
+        ctx.fillRect(m.x1 - 2, m.y1 - 2, 4, 4);
+        ctx.fillRect(m.x2 - 2, m.y2 - 2, 4, 4);
+    }
+
+    ctx.save();
+    ctx.translate(car.x, car.y);
+    ctx.rotate(car.angle);
+
+    ctx.fillStyle = inputs.handbrake ? '#e74c3c' : '#3498db';
+    ctx.fillRect(-22, -11, 44, 22);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(4, -9, 8, 18);
+    
+    ctx.fillStyle = (rearSpinSeverity > 0.1 && Math.abs(mappedThrottle) > 0) ? '#e67e22' : '#000';
+    ctx.fillRect(-16, -13, 10, 4);
+    ctx.fillRect(-16, 9, 10, 4);
+    
+    ctx.fillStyle = (frontSpinSeverity > 0.1 && Math.abs(mappedThrottle) > 0) ? '#e67e22' : '#000';
+    ctx.save(); ctx.translate(13, -11); ctx.rotate(steerInput * 0.5); ctx.fillRect(-5, -2, 10, 4); ctx.restore();
+    ctx.save(); ctx.translate(13, 11); ctx.rotate(steerInput * 0.5); ctx.fillRect(-5, -2, 10, 4); ctx.restore();
+
+    ctx.restore();
+    ctx.restore();
+
+    requestAnimationFrame(update);
+}
+
+requestAnimationFrame(update);
+</script>
 </body>
 </html>
