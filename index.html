@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Avansert Fysikkmotor v23 - Racing & P2P</title>
+    <title>Avansert Fysikkmotor v24 - Komplett P2P Racing</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="app.js" defer></script>
@@ -11,7 +11,8 @@
 <body>
 
 <div id="lobby">
-    <h1>Avansert Fysikkmotor v23</h1>
+    <h1>Avansert Fysikkmotor v24</h1>
+    
     <div class="lobby-box" id="mode-selection">
         <button class="btn btn-green" id="btn-host-mode">Opprett Spill (Host)</button>
         <div style="margin: 20px 0; color: #777;">— ELLER —</div>
@@ -27,6 +28,7 @@
         <p id="player-count" style="margin-top: 15px; font-size: 12px; color: #3498db;">Spillere i lobby: 1</p>
         <button class="btn btn-green" id="btn-enter-game" style="margin-top: 15px;">Gå til pit (Start Session)</button>
     </div>
+    
     <div id="status-msg" style="margin-top: 20px; color: #e74c3c; font-size: 12px;"></div>
 </div>
 
@@ -38,7 +40,7 @@
             <span>Gir: <span id="hud-gear" style="color: #3498db;">D</span></span>
             <span>RPM: <span id="hud-rpm" style="color: #e67e22;">0</span></span>
         </div>
-        <div class="hud-row">
+        <div class="hud-row" style="margin-top: 5px;">
             <span>Bensin:</span>
             <div id="fuel-bar"><div id="fuel-fill"></div></div>
         </div>
@@ -61,27 +63,28 @@
     </div>
 
     <button id="btn-fullscreen">⛶</button>
+    
     <div id="joystick-left-zone"><div id="stick-left" class="stick"></div></div>
     <div id="joystick-right-zone"><div id="stick-right" class="stick" style="background: rgba(46, 204, 113, 0.6); border-color: #2ecc71;"></div></div>
     <div id="btn-handbrake">HB</div>
 </div>
 
 <div id="ui-panel">
-    <div class="control" style="grid-column: span 2;">
+    <div class="control">
         <label>Bytt Kjøretøy (Sanntid):</label>
         <select id="preset-selector">
-            <option value="jaguar" selected>Jaguar I-PACE EV400</option>
-            <option value="gokart">Proff Go-Kart</option>
-            <option value="mx5">Mazda MX-5</option>
-            <option value="r34">Nissan Skyline R34</option>
-            <option value="s15">Nissan Silvia S15</option>
-            <option value="f1">Formel 1</option>
+            <option value="jaguar" selected>Jaguar I-PACE EV400 (AWD)</option>
+            <option value="gokart">Proff Go-Kart (RWD)</option>
+            <option value="mx5">Mazda MX-5 (RWD)</option>
+            <option value="r34">Nissan Skyline R34 (AWD)</option>
+            <option value="s15">Nissan Silvia S15 (Driftebil)</option>
+            <option value="f1">Formel 1 (RWD)</option>
         </select>
     </div>
-    <div class="control" style="grid-column: span 1;">
+    <div class="control">
         <label>Styring:</label>
         <select id="input-selector">
-            <option value="touch" selected>Touch/Tastatur</option>
+            <option value="touch" selected>Touch / Tastatur</option>
             <option value="gamepad">Xbox Kontroller</option>
         </select>
     </div>
