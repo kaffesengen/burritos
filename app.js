@@ -1,0 +1,433 @@
+const vehiclePresets = {
+    jaguar: { power: 400, mass: 2200, drivetrain: 'AWD', grip: 6.0, turn: 4.0, roll: 0.05, w: 24, l: 52, ev: true, type: 'jaguar' },
+    gokart: { power: 30, mass: 150, drivetrain: 'RWD', grip: 3.5, turn: 5.5, roll: 0.02, w: 16, l: 26, ev: false, type: 'gokart' },
+    mx5: { power: 184, mass: 1050, drivetrain: 'RWD', grip: 3.6, turn: 4.5, roll: 0.04, w: 20, l: 42, ev: false, type: 'mx5' },
+    r34: { power: 330, mass: 1560, drivetrain: 'AWD', grip: 4.1, turn: 3.8, roll: 0.04, w: 22, l: 48, ev: false, type: 'r34' },
+    s15: { power: 450, mass: 1240, drivetrain: 'RWD', grip: 1.8, turn: 5.5, roll: 0.04, w: 21, l: 45, ev: false, type: 's15' },
+    f1: { power: 1050, mass: 798, drivetrain: 'RWD', grip: 8.0, turn: 6.0, roll: 0.09, w: 26, l: 64, ev: false, type: 'f1' }
+};
+
+const tracks = {
+    standard: {
+        path: (() => { let p = new Path2D(); p.moveTo(4400, 3200); p.lineTo(800, 3200); p.bezierCurveTo(200, 3200, 200, 2600, 600, 2200); p.lineTo(1400, 1400); p.bezierCurveTo(1600, 1200, 2000, 1400, 1800, 1800); p.lineTo(1200, 2400); p.bezierCurveTo(1000, 2600, 1400, 2800, 1800, 2600); p.lineTo(3200, 1600); p.bezierCurveTo(3600, 1400, 3800, 800, 4200, 800); p.bezierCurveTo(4800, 800, 4800, 1600, 4400, 1800); p.lineTo(4600, 2400); p.bezierCurveTo(4800, 2800, 4800, 3200, 4400, 3200); p.closePath(); return p; })(),
+        startX: 2100, startY: 3200, startAngle: Math.PI
+    },
+    drift: {
+        path: (() => { let p = new Path2D(); p.moveTo(2500, 2000); p.bezierCurveTo(1500, 3500, 500, 3000, 500, 2000); p.bezierCurveTo(500, 1000, 1500, 500, 2500, 2000); p.bezierCurveTo(3500, 3500, 4500, 3000, 4500, 2000); p.bezierCurveTo(4500, 1000, 3500, 500, 2500, 2000); p.closePath(); return p; })(),
+        startX: 2500, startY: 2000, startAngle: Math.PI/4
+    },
+    gokart: {
+        path: (() => { let p = new Path2D(); p.moveTo(1000, 3000); p.bezierCurveTo(500, 3000, 500, 2000, 1000, 2000); p.lineTo(3000, 2000); p.bezierCurveTo(3500, 2000, 3500, 1000, 3000, 1000); p.lineTo(1000, 1000); p.bezierCurveTo(500, 1000, 500, 500, 1000, 500); p.lineTo(4000, 500); p.bezierCurveTo(4500, 500, 4500, 3000, 4000, 3000); p.closePath(); return p; })(),
+        startX: 2000, startY: 3000, startAngle: Math.PI
+    }
+};
+
+let activeTrackId = 'standard'; let activeTrack = tracks[activeTrackId];
+let envObjects = [];
+
+function generateEnvironment() {
+    envObjects.length = 0; const canvasCtx = document.createElement('canvas').getContext('2d'); canvasCtx.lineWidth = 350; 
+    for(let i=0; i<150; i++) {
+        let rx = Math.random() * 5000; let ry = Math.random() * 4000;
+        if(!canvasCtx.isPointInStroke(activeTrack.path, rx, ry)) {
+            let isHouse = Math.random() > 0.8;
+            envObjects.push({ x: rx, y: ry, type: isHouse ? 'house' : 'tree', color: isHouse ? (Math.random() > 0.5 ? '#8d6e63' : '#7f8c8d') : (Math.random() > 0.5 ? '#27ae60' : '#2ecc71'), size: isHouse ? (40 + Math.random()*30) : (15 + Math.random()*20), angle: Math.random() * Math.PI });
+        }
+    }
+}
+generateEnvironment();
+
+let peer = null;
+let isHost = true;
+let myId = null;
+let hostConnection = null; 
+const connections = {}; 
+const players = {}; 
+
+function createPlayerRecord(id, presetId) {
+    return {
+        id: id, presetId: presetId,
+        x: activeTrack.startX, y: activeTrack.startY, prevX: activeTrack.startX, prevY: activeTrack.startY,
+        vx: 0, vy: 0, angle: activeTrack.startAngle, yawRate: 0,
+        gear: 1, rpm: 0, steer: 0, targetX: activeTrack.startX, targetY: activeTrack.startY, targetAngle: activeTrack.startAngle,
+        inputs: { steering: 0, throttle: 0, handbrake: false },
+        frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0
+    };
+}
+
+const statusMsg = document.getElementById('status-msg');
+function showMsg(msg) { statusMsg.innerText = msg; }
+
+function startGame() {
+    document.getElementById('lobby').style.display = 'none';
+    document.getElementById('canvas-container').style.display = 'flex';
+    resize(); requestAnimationFrame(update);
+}
+
+document.getElementById('btn-host-mode').addEventListener('click', () => {
+    document.getElementById('mode-selection').style.display = 'none';
+    document.getElementById('host-ui').style.display = 'block';
+    showMsg('Oppretter P2P-kobling...');
+    
+    peer = new Peer();
+    peer.on('open', id => {
+        myId = id; isHost = true;
+        document.getElementById('my-host-id').value = id;
+        showMsg('');
+        activeTrackId = document.getElementById('track-selector').value;
+        activeTrack = tracks[activeTrackId];
+        players[myId] = createPlayerRecord(myId, document.getElementById('preset-selector').value);
+        document.getElementById('btn-reset').style.display = 'block';
+    });
+
+    peer.on('connection', conn => {
+        connections[conn.peer] = conn;
+        document.getElementById('player-count').innerText = `Spillere i lobby: ${Object.keys(connections).length + 1}`;
+        
+        conn.on('data', data => {
+            if (data.type === 'join') {
+                players[conn.peer] = createPlayerRecord(conn.peer, data.preset);
+                conn.send({ type: 'init', trackId: activeTrackId });
+            } else if (data.type === 'inputs' && players[conn.peer]) {
+                players[conn.peer].inputs = data.inputs;
+            }
+        });
+        
+        conn.on('close', () => {
+            delete connections[conn.peer];
+            delete players[conn.peer];
+            document.getElementById('player-count').innerText = `Spillere i lobby: ${Object.keys(connections).length + 1}`;
+        });
+    });
+});
+
+document.getElementById('btn-share-link').addEventListener('click', () => {
+    const url = window.location.origin + window.location.pathname + '?join=' + myId;
+    if (navigator.share) { navigator.share({ title: 'Bli med i bilspill', url: url }); } 
+    else { navigator.clipboard.writeText(url); alert('Lenke kopiert til utklippstavle!'); }
+});
+
+document.getElementById('btn-start-game').addEventListener('click', () => {
+    Object.values(connections).forEach(c => c.send({ type: 'start' }));
+    startGame();
+});
+
+function initJoiner(hostId) {
+    document.getElementById('mode-selection').style.display = 'none';
+    showMsg('Kobler til host...');
+    peer = new Peer();
+    peer.on('open', id => {
+        myId = id; isHost = false;
+        hostConnection = peer.connect(hostId);
+        
+        hostConnection.on('open', () => {
+            showMsg('Tilkoblet! Venter på at host starter spillet...');
+            players[myId] = createPlayerRecord(myId, document.getElementById('preset-selector').value);
+            hostConnection.send({ type: 'join', preset: document.getElementById('preset-selector').value });
+        });
+
+        hostConnection.on('data', data => {
+            if (data.type === 'init') {
+                activeTrackId = data.trackId; activeTrack = tracks[activeTrackId]; generateEnvironment();
+            } else if (data.type === 'start') {
+                startGame();
+            } else if (data.type === 'state') {
+                for (let pid in data.players) {
+                    if (!players[pid]) players[pid] = createPlayerRecord(pid, data.players[pid].presetId);
+                    let pData = data.players[pid];
+                    let p = players[pid];
+                    p.targetX = pData.x; p.targetY = pData.y; p.targetAngle = pData.a;
+                    p.steer = pData.s; p.frontSpinSeverity = pData.fS; p.rearSpinSeverity = pData.rS; 
+                    p.gear = pData.g; p.rpm = pData.rpm; p.appliesBrake = pData.b; p.speedKmh = pData.v;
+                }
+            } else if (data.type === 'reset') {
+                for(let pid in players) {
+                    players[pid].x = activeTrack.startX; players[pid].y = activeTrack.startY;
+                    players[pid].targetX = activeTrack.startX; players[pid].targetY = activeTrack.startY;
+                    players[pid].angle = activeTrack.startAngle; players[pid].targetAngle = activeTrack.startAngle;
+                }
+            }
+        });
+        
+        hostConnection.on('error', () => showMsg('Kunne ikke koble til Host.'));
+    });
+}
+
+document.getElementById('btn-join-mode').addEventListener('click', () => {
+    const code = document.getElementById('join-code-input').value.trim();
+    if (code) initJoiner(code);
+});
+
+const urlParams = new URLSearchParams(window.location.search);
+const joinCodeParam = urlParams.get('join');
+if (joinCodeParam) {
+    document.getElementById('join-code-input').value = joinCodeParam;
+    document.getElementById('btn-join-mode').click();
+}
+
+const localInputs = { steering: 0, throttle: 0, handbrake: false };
+const activeTouchState = { left: null, right: null };
+let gamepadLastY = false;
+
+function setupJoystick(zoneId, stickId, touchKey, onChange) {
+    const zone = document.getElementById(zoneId); const stick = document.getElementById(stickId); const maxRadius = 45;
+    function handleMove(clientX, clientY) {
+        if (document.getElementById('input-selector').value === 'gamepad') return;
+        const rect = zone.getBoundingClientRect();
+        const deltaX = Math.max(-maxRadius, Math.min(clientX - (rect.left + rect.width / 2), maxRadius));
+        const deltaY = Math.max(-maxRadius, Math.min(clientY - (rect.top + rect.height / 2), maxRadius));
+        stick.style.transform = `translate(${deltaX}px, ${deltaY}px)`; onChange(deltaX / maxRadius, deltaY / maxRadius);
+    }
+    zone.addEventListener('touchstart', e => { if (document.getElementById('input-selector').value === 'gamepad') return; if (activeTouchState[touchKey] === null) { activeTouchState[touchKey] = e.changedTouches[0].identifier; handleMove(e.changedTouches[0].clientX, e.changedTouches[0].clientY); } });
+    window.addEventListener('touchmove', e => { if (document.getElementById('input-selector').value === 'gamepad') return; for (let touch of e.changedTouches) { if (touch.identifier === activeTouchState[touchKey]) handleMove(touch.clientX, touch.clientY); } });
+    window.addEventListener('touchend', e => { for (let touch of e.changedTouches) { if (touch.identifier === activeTouchState[touchKey]) { activeTouchState[touchKey] = null; stick.style.transform = `translate(0px, 0px)`; onChange(0, 0); } } });
+}
+setupJoystick('joystick-left-zone', 'stick-left', 'left', (x, y) => { localInputs.steering = x; });
+setupJoystick('joystick-right-zone', 'stick-right', 'right', (x, y) => { localInputs.throttle = -y; });
+
+const hbBtn = document.getElementById('btn-handbrake');
+const handleHb = (state) => (e) => { if (document.getElementById('input-selector').value === 'gamepad') return; e.preventDefault(); localInputs.handbrake = state; };
+hbBtn.addEventListener('touchstart', handleHb(true), { passive: false }); hbBtn.addEventListener('touchend', handleHb(false), { passive: false });
+
+window.addEventListener('keydown', e => {
+    if (document.getElementById('input-selector').value === 'gamepad') return;
+    if(e.key === 'w' || e.key === 'ArrowUp') localInputs.throttle = 1; if(e.key === 's' || e.key === 'ArrowDown') localInputs.throttle = -1;
+    if(e.key === 'a' || e.key === 'ArrowLeft') localInputs.steering = -1; if(e.key === 'd' || e.key === 'ArrowRight') localInputs.steering = 1;
+    if(e.key === ' ') localInputs.handbrake = true;
+});
+window.addEventListener('keyup', e => {
+    if (document.getElementById('input-selector').value === 'gamepad') return;
+    if(e.key === 'w' || e.key === 's' || e.key === 'ArrowUp' || e.key === 'ArrowDown') localInputs.throttle = 0;
+    if(e.key === 'a' || e.key === 'd' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') localInputs.steering = 0;
+    if(e.key === ' ') localInputs.handbrake = false;
+});
+
+const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d', { alpha: false }); 
+function resize() { canvas.width = canvas.parentElement.clientWidth || window.innerWidth; canvas.height = canvas.parentElement.clientHeight || window.innerHeight; ctx.setTransform(1, 0, 0, 1, 0, 0); }
+window.addEventListener('resize', resize); screen.orientation?.addEventListener('change', resize);
+document.getElementById('btn-fullscreen').addEventListener('click', () => { const elem = document.documentElement; if (!document.fullscreenElement && !document.webkitFullscreenElement) { if (elem.requestFullscreen) elem.requestFullscreen(); else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen(); } else { if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); } setTimeout(resize, 200); });
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+    if(!isHost) return;
+    for(let pid in players) {
+        players[pid].x = activeTrack.startX; players[pid].y = activeTrack.startY; players[pid].prevX = activeTrack.startX; players[pid].prevY = activeTrack.startY;
+        players[pid].vx = 0; players[pid].vy = 0; players[pid].angle = activeTrack.startAngle; players[pid].yawRate = 0; players[pid].steer = 0;
+    }
+    Object.values(connections).forEach(c => c.send({ type: 'reset' }));
+});
+
+const gearMaxSpeeds = [0, 45, 90, 140, 200, 280]; const skidmarks = []; let lastTime = performance.now();
+
+function update() {
+    const now = performance.now(); const dt = Math.max(0.001, Math.min((now - lastTime) / 1000, 0.1)); lastTime = now;
+
+    let isGamepad = document.getElementById('input-selector').value === 'gamepad';
+    if (isGamepad) {
+        const gamepads = navigator.getGamepads ? navigator.getGamepads() : []; let gp = null;
+        for (let i = 0; i < gamepads.length; i++) { if (gamepads[i] && gamepads[i].connected) { gp = gamepads[i]; break; } }
+        if (gp) {
+            localInputs.steering = gp.axes[0]; localInputs.throttle = gp.buttons[7].value - gp.buttons[6].value; localInputs.handbrake = gp.buttons[0].pressed;
+            if (gp.buttons[3].pressed && !gamepadLastY) document.getElementById('btn-reset').click(); gamepadLastY = gp.buttons[3].pressed;
+        }
+    }
+
+    if (players[myId]) players[myId].inputs = localInputs;
+    if (!isHost && hostConnection && hostConnection.open) { hostConnection.send({ type: 'inputs', inputs: localInputs }); }
+
+    let localSurfaceName = "ASFALT";
+
+    if (isHost) {
+        let outState = { type: 'state', players: {} };
+        for (let pid in players) {
+            let p = players[pid]; let preset = vehiclePresets[p.presetId]; let ins = p.inputs;
+            if (isNaN(p.x)) { p.x = activeTrack.startX; p.y = activeTrack.startY; p.vx=0; p.vy=0; }
+            
+            ctx.lineWidth = 160; const onAsphalt = ctx.isPointInStroke(activeTrack.path, p.x, p.y);
+            ctx.lineWidth = 190; const onCurbs = ctx.isPointInStroke(activeTrack.path, p.x, p.y) && !onAsphalt;
+            ctx.lineWidth = 240; const onSand = ctx.isPointInStroke(activeTrack.path, p.x, p.y) && !onAsphalt && !onCurbs;
+            ctx.lineWidth = 250; const inBounds = ctx.isPointInStroke(activeTrack.path, p.x, p.y);
+            
+            let surfaceMu = preset.grip; let rollingResistance = preset.roll;
+            if (onCurbs) { surfaceMu = preset.grip * 0.85; } else if (onSand) { surfaceMu = preset.grip * 0.4; rollingResistance = 0.35; } else if (!onAsphalt) { surfaceMu = preset.grip * 0.55; rollingResistance = 0.15; }
+            if (pid === myId) localSurfaceName = onAsphalt ? "ASFALT" : (onCurbs ? "CURBS" : (onSand ? "SAND" : "GRESS"));
+
+            if (!inBounds && dt > 0) {
+                p.x = p.prevX; p.y = p.prevY; let nx = 0, ny = 0;
+                for (let r = 20; r <= 80; r += 20) {
+                    if (ctx.isPointInStroke(activeTrack.path, p.x + r, p.y)) nx += 1; if (ctx.isPointInStroke(activeTrack.path, p.x - r, p.y)) nx -= 1;
+                    if (ctx.isPointInStroke(activeTrack.path, p.x, p.y + r)) ny += 1; if (ctx.isPointInStroke(activeTrack.path, p.x, p.y - r)) ny -= 1;
+                    if (nx !== 0 || ny !== 0) break;
+                }
+                let nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = -Math.sign(p.vx); ny = -Math.sign(p.vy); nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = 1; ny = 0; nLen = 1; } }
+                nx /= nLen; ny /= nLen;
+                let vn = p.vx * nx + p.vy * ny;
+                if (vn < 0) {
+                    let j = -(1 + 0.15) * vn; p.vx += j * nx; p.vy += j * ny;
+                    let tx = -ny; let ty = nx; let vt = p.vx * tx + p.vy * ty;
+                    let j_friction = -Math.sign(vt) * Math.min(Math.abs(vt), Math.abs(j) * 0.3); p.vx += j_friction * tx; p.vy += j_friction * ty;
+                    let hitDist = ((Math.cos(p.angle) * nx + Math.sin(p.angle) * ny) < 0) ? (preset.l / 24.0) : (-preset.l / 24.0);
+                    let tI = (hitDist * Math.cos(p.angle)) * (j * ny + j_friction * ty) - (hitDist * Math.sin(p.angle)) * (j * nx + j_friction * tx);
+                    p.yawRate += (tI / (preset.mass * (Math.pow(preset.w/12,2) + Math.pow(preset.l/12,2)) / 12.0)) * 0.5;
+                }
+                p.x += nx * 4.0; p.y += ny * 4.0;
+            }
+
+            let steerInputTarget = Math.abs(ins.steering) > 0.08 ? Math.sign(ins.steering) * ((Math.abs(ins.steering) - 0.08) / 0.92) : 0;
+            p.steer += (steerInputTarget - p.steer) * 12.0 * dt;
+            let mThrottle = Math.pow(Math.abs(ins.throttle), 2.5) * Math.sign(ins.throttle);
+
+            let lVx = p.vx * Math.cos(-p.angle) - p.vy * Math.sin(-p.angle); let lVy = p.vx * Math.sin(-p.angle) + p.vy * Math.cos(-p.angle);
+            let absKmh = Math.abs(lVx * 3.6); p.speedKmh = absKmh;
+            
+            let tRpm = 0; let tMult = 1.0;
+            if (preset.ev) { p.gear = lVx >= -0.5 ? 'D' : 'R'; tRpm = absKmh * 80; } else {
+                if (absKmh > 0.5 || Math.abs(mThrottle) > 0.01) {
+                    if (lVx >= -1) {
+                        if (absKmh < 40) p.gear = 1; else if (absKmh < 80) p.gear = 2; else if (absKmh < 130) p.gear = 3; else if (absKmh < 185) p.gear = 4; else p.gear = 5;
+                        const pM = gearMaxSpeeds[p.gear - 1] || 0; const cM = gearMaxSpeeds[p.gear];
+                        tRpm = ((p.gear === 1) ? 1000 : 3800) + Math.min(Math.max((absKmh - pM) / (cM - pM), 0), 1) * (6500 - ((p.gear === 1) ? 1000 : 3800));
+                    } else { p.gear = -1; tRpm = 1000 + (absKmh / 40) * 5000; }
+                } else { p.gear = 1; tRpm = 1000; }
+                tMult = Math.max(0.3, Math.min(1.0, Math.pow(Math.max(0, p.rpm) / 5500, 1.2))); 
+            }
+            p.rpm += (tRpm - p.rpm) * 12 * dt;
+
+            const maxGrip = (preset.mass * 9.81 / 2) * surfaceMu; const maxLat = maxGrip * 1.40; 
+            let dForce = 0; let bForce = 0; const isRev = mThrottle < 0 && lVx < 1.0; p.appliesBrake = mThrottle < 0 && lVx >= 1.0;
+            
+            if (mThrottle > 0 || isRev) dForce = (preset.power * 735.5 * 0.85 * (isRev ? 0.45 : 1.0) / Math.max(Math.abs(lVx), 5.0)) * mThrottle * tMult;
+            if (p.appliesBrake) bForce = preset.mass * 15.0 * Math.abs(mThrottle);
+
+            let fLongF = preset.drivetrain === 'FWD' ? dForce : (preset.drivetrain === 'AWD' ? dForce*0.5 : 0);
+            let fLongR = preset.drivetrain === 'RWD' ? dForce : (preset.drivetrain === 'AWD' ? dForce*0.5 : 0);
+            let bDistR = bForce * 0.35; if (ins.handbrake) { bDistR += preset.mass * (preset.type === 's15' ? 35.0 : 20.0); p.appliesBrake = true; }
+            fLongF -= Math.sign(lVx) * (bForce * 0.65); fLongR -= Math.sign(lVx) * bDistR;
+            fLongF = Math.max(-maxGrip, Math.min(maxGrip, fLongF)); fLongR = Math.max(-maxGrip, Math.min(maxGrip, fLongR));
+
+            let gF = maxLat * Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongF) / maxGrip, 2) * 0.65));
+            let gR = maxLat * (ins.handbrake ? (preset.type === 's15' ? 0.50 : 0.05) : Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongR) / maxGrip, 2) * (preset.type === 's15' ? 0.50 : 0.85))));
+
+            let a = preset.l / 24.0; let b = preset.l / 24.0; let Iz = preset.mass * (Math.pow(preset.w/12.0,2) + Math.pow(preset.l/12.0,2)) / 12.0;
+            let slipA = Math.hypot(lVx, lVy) > 3.0 ? Math.atan2(lVy, Math.abs(lVx)) : 0;
+            let delta = Math.max(-(preset.turn*10)*(Math.PI/180), Math.min((preset.turn*10)*(Math.PI/180), (p.steer - slipA*(preset.type === 's15'?1.0:0.45)) * (preset.turn*10) * (Math.PI/180)));
+
+            let vYf = lVy + p.yawRate * a; let vSlipF = vYf * Math.cos(delta) - lVx * Math.sin(delta);
+            let vYr = lVy - p.yawRate * b; let vSlipR = vYr;
+            let MeffF = 1.0 / (1.0/preset.mass + (a*a)/Iz); let MeffR = 1.0 / (1.0/preset.mass + (b*b)/Iz);
+            let Jf = Math.max(-(gF * dt), Math.min(gF * dt, -vSlipF * MeffF)); let Jr = Math.max(-(gR * dt), Math.min(gR * dt, -vSlipR * MeffR));
+
+            let fLatF = Jf / dt; let fLatR = Jr / dt;
+            let fX = fLongF * Math.cos(delta) + fLongR - fLatF * Math.sin(delta) - 0.45 * lVx * Math.abs(lVx) - rollingResistance * preset.mass * 9.81 * Math.sign(lVx) * 0.1;
+            let fY = fLongF * Math.sin(delta) + fLatF * Math.cos(delta) + fLatR - 0.45 * lVy * Math.abs(lVy);
+            let torque = (fLongF * Math.sin(delta) + fLatF * Math.cos(delta)) * a - fLatR * b - ((preset.type === 's15' ? 2.5 : 1.5) + Math.abs(lVy) * 0.3) * p.yawRate * Iz;
+
+            lVx += (fX / preset.mass) * dt; lVy += (fY / preset.mass) * dt; p.yawRate += (torque / Iz) * dt;
+            p.vx = lVx * Math.cos(p.angle) - lVy * Math.sin(p.angle); p.vy = lVx * Math.sin(p.angle) + lVy * Math.cos(p.angle); p.angle += p.yawRate * dt;
+            p.prevX = p.x; p.prevY = p.y; p.x += p.vx * 12.0 * dt; p.y += p.vy * 12.0 * dt;
+
+            p.frontSpinSeverity = Math.abs(-vSlipF * MeffF) > gF * dt ? Math.min(1.0, (Math.abs(-vSlipF * MeffF)-gF * dt)/(gF * dt)) : 0;
+            p.rearSpinSeverity = Math.abs(-vSlipR * MeffR) > gR * dt ? Math.min(1.0, (Math.abs(-vSlipR * MeffR)-gR * dt)/(gR * dt)) : 0;
+            if (Math.abs(fLongR)/maxGrip > 0.95) p.rearSpinSeverity = 1.0; if (Math.abs(fLongF)/maxGrip > 0.95) p.frontSpinSeverity = 1.0; 
+
+            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, g: p.gear, rpm: p.rpm, b: p.appliesBrake, v: p.speedKmh };
+        }
+        Object.values(connections).forEach(c => c.send(outState));
+    } else {
+        for (let pid in players) {
+            let p = players[pid]; p.x += (p.targetX - p.x) * 0.3; p.y += (p.targetY - p.y) * 0.3;
+            let diff = p.targetAngle - p.angle;
+            while (diff < -Math.PI) diff += Math.PI * 2; while (diff > Math.PI) diff -= Math.PI * 2;
+            p.angle += diff * 0.3;
+        }
+    }
+
+    if (players[myId]) {
+        let me = players[myId];
+        document.getElementById('hud-speed').innerText = Math.round(me.speedKmh);
+        document.getElementById('hud-gear').innerText = me.gear === -1 ? 'R' : (me.gear === 0 ? 'N' : me.gear);
+        document.getElementById('hud-rpm').innerText = me.rpm < 10 ? 0 : Math.min(Math.round(me.rpm), 15000);
+        document.getElementById('status-surface').innerText = localSurfaceName;
+    }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#2d4c1e'; ctx.fillRect(0, 0, canvas.width, canvas.height); 
+    ctx.save();
+    if (players[myId]) { ctx.translate(canvas.width / 2 - players[myId].x, canvas.height / 2 - players[myId].y); }
+
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = 250; ctx.strokeStyle = '#1a2e12'; ctx.stroke(activeTrack.path); 
+    ctx.lineWidth = 240; ctx.strokeStyle = '#c2b280'; ctx.stroke(activeTrack.path);
+    ctx.lineWidth = 190; ctx.strokeStyle = '#fff'; ctx.stroke(activeTrack.path);
+    ctx.strokeStyle = '#e74c3c'; ctx.setLineDash([30, 30]); ctx.stroke(activeTrack.path); ctx.setLineDash([]);
+    ctx.lineWidth = 160; ctx.strokeStyle = '#2c2c2c'; ctx.stroke(activeTrack.path);
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'; ctx.setLineDash([40, 40]); ctx.stroke(activeTrack.path); ctx.setLineDash([]);
+    
+    ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(activeTrack.startX-100, activeTrack.startY-80); ctx.lineTo(activeTrack.startX-100, activeTrack.startY+80); ctx.stroke();
+
+    for (let obj of envObjects) {
+        ctx.save(); ctx.translate(obj.x, obj.y); ctx.rotate(obj.angle);
+        if (obj.type === 'house') { ctx.fillStyle = obj.color; ctx.fillRect(-obj.size/2, -obj.size/2.5, obj.size, obj.size*0.8); ctx.fillStyle = '#111'; ctx.fillRect(-obj.size/4, -obj.size/2.5, obj.size/2, obj.size*0.8); } 
+        else { ctx.fillStyle = obj.color; ctx.beginPath(); ctx.arc(0, 0, obj.size, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#1e8449'; ctx.beginPath(); ctx.arc(0, 0, obj.size*0.6, 0, Math.PI*2); ctx.fill(); }
+        ctx.restore();
+    }
+
+    for (let pid in players) {
+        let p = players[pid]; let preset = vehiclePresets[p.presetId]; let hw = preset.w / 2; let hl = preset.l / 2;
+        const fwX = Math.cos(p.angle); const fwY = Math.sin(p.angle); const rX = -Math.sin(p.angle); const rY = Math.cos(p.angle);
+        if (p.rearSpinSeverity > 0.1 || p.inputs.handbrake) skidmarks.push({ x1: p.x + fwX * (-hl + 6) + rX * (-hw + 2), y1: p.y + fwY * (-hl + 6) + rY * (-hw + 2), x2: p.x + fwX * (-hl + 6) + rX * (hw - 2), y2: p.y + fwY * (-hl + 6) + rY * (hw - 2) });
+        if (p.frontSpinSeverity > 0.1) skidmarks.push({ x1: p.x + fwX * (hl - 8) + rX * (-hw + 2), y1: p.y + fwY * (hl - 8) + rY * (-hw + 2), x2: p.x + fwX * (hl - 8) + rX * (hw - 2), y2: p.y + fwY * (hl - 8) + rY * (hw - 2) });
+    }
+    if (skidmarks.length > 5000) skidmarks.splice(0, skidmarks.length - 5000);
+    ctx.fillStyle = 'rgba(15, 15, 15, 0.4)'; ctx.beginPath();
+    for (let i = 0; i < skidmarks.length; i++) { let m = skidmarks[i]; ctx.rect(m.x1 - 2, m.y1 - 2, 4, 4); ctx.rect(m.x2 - 2, m.y2 - 2, 4, 4); } ctx.fill();
+
+    for (let pid in players) {
+        let p = players[pid]; let preset = vehiclePresets[p.presetId];
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+        let hw = preset.w / 2; let hl = preset.l / 2;
+        const wheelW = 14; const wheelThick = 6; const wheelOffset = hw - 1; 
+        let delta = Math.max(-(preset.turn*10)*(Math.PI/180), Math.min((preset.turn*10)*(Math.PI/180), p.steer * (preset.turn*10) * (Math.PI/180)));
+
+        if (preset.type !== 'f1' && preset.type !== 'gokart') {
+            ctx.fillStyle = (p.rearSpinSeverity > 0.1 && Math.abs(p.inputs.throttle) > 0) ? '#e67e22' : '#111';
+            ctx.fillRect(-hl + 6 - wheelW/2, -wheelOffset - wheelThick/2, wheelW, wheelThick); ctx.fillRect(-hl + 6 - wheelW/2, wheelOffset - wheelThick/2, wheelW, wheelThick);
+            ctx.fillStyle = (p.frontSpinSeverity > 0.1 && Math.abs(p.inputs.throttle) > 0) ? '#e67e22' : '#111';
+            ctx.save(); ctx.translate(hl - 8, -wheelOffset); ctx.rotate(delta); ctx.fillRect(-wheelW/2, -wheelThick/2, wheelW, wheelThick); ctx.restore();
+            ctx.save(); ctx.translate(hl - 8, wheelOffset); ctx.rotate(delta); ctx.fillRect(-wheelW/2, -wheelThick/2, wheelW, wheelThick); ctx.restore();
+        }
+
+        if (preset.type === 'f1') {
+            ctx.fillStyle = '#111'; ctx.fillRect(-hl + 8 - wheelW/2, -hw, wheelW, wheelThick*1.5); ctx.fillRect(-hl + 8 - wheelW/2, hw - wheelThick*1.5, wheelW, wheelThick*1.5);
+            ctx.save(); ctx.translate(hl - 6, -hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, 0, wheelW, wheelThick*1.5); ctx.restore();
+            ctx.save(); ctx.translate(hl - 6, hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, -wheelThick*1.5, wheelW, wheelThick*1.5); ctx.restore();
+            ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.roundRect(-hl + 6, -hw*0.35, preset.l - 12, preset.w*0.7, 4); ctx.fill(); 
+            ctx.fillStyle = '#111'; ctx.fillRect(2, -hw*0.25, 10, preset.w*0.5); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(7, 0, 4, 0, Math.PI*2); ctx.fill(); 
+            ctx.fillStyle = '#111'; ctx.fillRect(hl - 4, -hw*0.9, 3, preset.w*1.8); ctx.fillRect(-hl, -hw*0.7, 4, preset.w*1.4); 
+        } else if (preset.type === 'gokart') {
+            ctx.fillStyle = '#111'; ctx.fillRect(-hl + 4 - wheelW/2, -hw, wheelW, wheelThick); ctx.fillRect(-hl + 4 - wheelW/2, hw - wheelThick, wheelW, wheelThick);
+            ctx.save(); ctx.translate(hl - 4, -hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, 0, wheelW, wheelThick); ctx.restore();
+            ctx.save(); ctx.translate(hl - 4, hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, -wheelThick, wheelW, wheelThick); ctx.restore();
+            ctx.fillStyle = '#7f8c8d'; ctx.beginPath(); ctx.roundRect(-hl+2, -hw*0.5, preset.l-4, preset.w, 2); ctx.fill(); 
+            ctx.fillStyle = '#e67e22'; ctx.fillRect(hl - 3, -hw*0.7, 2, preset.w*1.4); 
+            ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl + 6, -hw*0.4, 8, preset.w*0.8, 2); ctx.fill(); 
+            ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(-hl + 10, 0, 5, 0, Math.PI*2); ctx.fill(); 
+        } else if (preset.type === 'mx5') {
+            ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.roundRect(-hl, -hw, preset.l, preset.w, 8); ctx.fill(); ctx.fillStyle = '#222'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 3, preset.l*0.35, preset.w - 6, 4); ctx.fill(); 
+        } else if (preset.type === 'r34') {
+            ctx.fillStyle = '#2980b9'; ctx.beginPath(); ctx.roundRect(-hl, -hw, preset.l, preset.w, 5); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.05, -hw + 2, preset.l*0.4, preset.w - 4, 3); ctx.fill(); ctx.fillStyle = '#2980b9'; ctx.fillRect(-hl - 3, -hw, 4, preset.w); 
+        } else if (preset.type === 's15') {
+            ctx.fillStyle = '#8e44ad'; ctx.beginPath(); ctx.roundRect(-hl, -hw, preset.l, preset.w, 6); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 2, preset.l*0.45, preset.w - 4, 4); ctx.fill(); ctx.fillStyle = '#f39c12'; ctx.fillRect(-hl - 4, -hw - 2, 5, preset.w + 4); 
+        } else {
+            ctx.fillStyle = '#1abc9c'; ctx.beginPath(); ctx.roundRect(-hl, -hw, preset.l, preset.w, 8); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.15, -hw + 3, preset.l*0.5, preset.w - 6, 6); ctx.fill();
+        }
+
+        ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.roundRect(hl - 3, -hw + 3, 4, 5, 2); ctx.roundRect(hl - 3, hw - 8, 4, 5, 2); ctx.fill();
+        ctx.fillStyle = p.appliesBrake ? '#ff3333' : '#8b0000'; ctx.shadowColor = p.appliesBrake ? '#ff0000' : 'transparent'; ctx.shadowBlur = p.appliesBrake ? 10 : 0;
+        ctx.beginPath(); ctx.roundRect(-hl - 1, -hw + 3, 3, 5, 1); ctx.roundRect(-hl - 1, hw - 8, 3, 5, 1); ctx.fill(); ctx.shadowBlur = 0; 
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(pid === myId ? "Meg" : "Spiller", 0, -hw - 10);
+        ctx.restore();
+    }
+    
+    ctx.restore(); requestAnimationFrame(update);
+}
