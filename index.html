@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Avansert Fysikkmotor v25 - Komplett P2P Racing</title>
+    <title>Avansert Fysikkmotor v26 - Race Edition</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="app.js" defer></script>
@@ -11,9 +11,12 @@
 <body>
 
 <div id="lobby">
-    <h1>Avansert Fysikkmotor v25</h1>
+    <h1>Avansert Fysikkmotor v26</h1>
     
     <div class="lobby-box" id="mode-selection">
+        <label style="color: #aaa; font-size: 12px;">Ditt Førernavn:</label>
+        <input type="text" id="player-name" class="input-text" placeholder="Skriv inn navn" value="Fører" maxlength="15" style="margin-bottom: 20px; text-align: center; font-weight: bold; font-size: 16px;">
+
         <button class="btn" id="btn-sandbox-mode" style="background: #8e44ad; margin-bottom: 20px;">Spill Alene (Sandbox)</button>
         <button class="btn btn-green" id="btn-host-mode">Opprett Spill (Host)</button>
         <div style="margin: 20px 0; color: #777;">— ELLER —</div>
@@ -26,6 +29,12 @@
         <p style="font-size: 12px; color: #aaa;">Din Host ID:</p>
         <input type="text" id="my-host-id" class="input-text" readonly style="text-align: center; font-weight: bold; font-family: monospace; margin-bottom: 10px;">
         <button class="btn" id="btn-share-link">Kopier Del-lenke</button>
+        
+        <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 15px;">
+            <label style="color: #aaa; font-size: 12px;">Antall runder:</label>
+            <input type="number" id="host-laps" class="input-text" value="3" min="1" max="50" style="width: 60px; display: inline-block; margin-left: 10px; text-align: center;">
+        </div>
+
         <p id="player-count" style="margin-top: 15px; font-size: 12px; color: #3498db;">Spillere i lobby: 1</p>
         <button class="btn btn-green" id="btn-enter-game" style="margin-top: 15px;">Gå til pit (Start Session)</button>
     </div>
@@ -35,16 +44,27 @@
 
 <div id="canvas-container">
     <canvas id="gameCanvas"></canvas>
+    
     <div id="hud">
         <div class="hud-row">
             <span>Fart: <span id="hud-speed" style="color: #2ecc71;">0</span> km/t</span>
-            <span>Gir: <span id="hud-gear" style="color: #3498db;">D</span></span>
+            <span>Gir: <span id="hud-gear" style="color: #3498db;">N</span></span>
             <span>RPM: <span id="hud-rpm" style="color: #e67e22;">0</span></span>
         </div>
         <div class="hud-row" style="margin-top: 5px;">
             <span>Bensin:</span>
             <div id="fuel-bar"><div id="fuel-fill"></div></div>
         </div>
+        <div class="hud-row" style="margin-top: 5px; color: #f1c40f;">
+            <span>Runde: <span id="hud-lap">0/0</span></span>
+            <span style="margin-left: 10px;">Tid: <span id="hud-time">0.00</span></span>
+        </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="leaderboard">
+        <h3 style="margin-bottom: 5px; color: #3498db; border-bottom: 1px solid #444; padding-bottom: 3px;">TOP 5</h3>
+        <ul id="lb-list" style="list-style: none; color: #ddd;"></ul>
     </div>
     
     <div id="f1-lights">
