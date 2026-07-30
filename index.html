@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Avansert Fysikkmotor v24 - Komplett P2P Racing</title>
+    <title>Avansert Fysikkmotor v25 - Komplett P2P Racing</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="app.js" defer></script>
@@ -11,9 +11,10 @@
 <body>
 
 <div id="lobby">
-    <h1>Avansert Fysikkmotor v24</h1>
+    <h1>Avansert Fysikkmotor v25</h1>
     
     <div class="lobby-box" id="mode-selection">
+        <button class="btn" id="btn-sandbox-mode" style="background: #8e44ad; margin-bottom: 20px;">Spill Alene (Sandbox)</button>
         <button class="btn btn-green" id="btn-host-mode">Opprett Spill (Host)</button>
         <div style="margin: 20px 0; color: #777;">— ELLER —</div>
         <input type="text" id="join-code-input" class="input-text" placeholder="Skriv inn Host ID">
@@ -46,12 +47,10 @@
         </div>
     </div>
     
-    <!-- F1 Lights -->
     <div id="f1-lights">
         <div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div>
     </div>
 
-    <!-- Host Actions -->
     <div id="host-actions">
         <button id="btn-start-race" class="btn btn-green">🏁 Start Race</button>
         <button id="btn-reset" class="btn" style="background:#e74c3c;">↺ Reset Grid</button>
