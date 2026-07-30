@@ -30,7 +30,7 @@ const tracks = {
 };
 
 let activeTrackId = 'standard'; let activeTrack = tracks[activeTrackId]; let envObjects = [];
-let serverSettings = { grip: 1.0, power: 1.0, mass: 1.0 };
+let serverSettings = { grip: 1.0, power: 1.0, mass: 1.0, steering: 1.0, caster: 1.0 };
 
 function generateEnvironment() {
     envObjects.length = 0; const canvasCtx = document.createElement('canvas').getContext('2d'); canvasCtx.lineWidth = 350; 
@@ -118,8 +118,7 @@ function playBeep(freq, duration = 0.3) {
     osc.start(); gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration); osc.stop(audioCtx.currentTime + duration);
 }
 
-// Sandbox Regler Bindings
-['grip', 'power', 'mass'].forEach(id => {
+['grip', 'power', 'mass', 'steering', 'caster'].forEach(id => {
     document.getElementById(`sb-${id}`).addEventListener('input', (e) => {
         serverSettings[id] = parseFloat(e.target.value); document.getElementById(`val-${id}`).innerText = serverSettings[id].toFixed(1);
     });
@@ -144,12 +143,20 @@ document.getElementById('btn-host-mode').addEventListener('click', () => {
         conn.on('data', data => {
             if (data.type === 'join') {
                 players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name);
-                conn.send({ type: 'init', trackId: activeTrackId, laps: parseInt(document.getElementById('host-laps').value) });
-                if (gameActive) conn.send({ type: 'start', laps: totalLaps }); 
+                if (gameActive) {
+                    if (raceState === 0) {
+                        players[conn.peer].x = activeTrack.pit.x1 + 100; players[conn.peer].y = activeTrack.pit.y1 + 40;
+                        players[conn.peer].lapStartTime = performance.now();
+                    } else { assignGridPositions(); }
+                    conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps });
+                    conn.send({ type: 'start', laps: totalLaps }); 
+                } else {
+                    conn.send({ type: 'init', trackId: activeTrackId, laps: parseInt(document.getElementById('host-laps').value) });
+                }
             } else if (data.type === 'inputs' && players[conn.peer]) {
                 players[conn.peer].inputs = data.inputs; players[conn.peer].lastSeen = performance.now();
             } else if (data.type === 'changeCar' && players[conn.peer]) {
-                players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset].fuelCap;
+                players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100;
             }
         });
         conn.on('close', () => { delete connections[conn.peer]; delete players[conn.peer]; document.getElementById('player-count').innerText = `Spillere: ${Object.keys(connections).length + 1}`; });
@@ -247,7 +254,7 @@ function resize() { canvas.width = canvas.parentElement.clientWidth || window.in
 window.addEventListener('resize', resize); document.getElementById('btn-fullscreen').addEventListener('click', () => { const e = document.documentElement; if(!document.fullscreenElement) e.requestFullscreen(); else document.exitFullscreen(); setTimeout(resize,200); });
 
 let lastTime = performance.now(); let lastLightState = -1; const skidmarks = [];
-function formatTime(ms) { if(ms === Infinity || !ms) return "-.--"; let total = Math.floor(ms/10); let min = Math.floor(total/6000); let sec = Math.floor((total%6000)/100); let hund = total%100; return `${min>0?min+':':''}${sec.toString().padStart(min>0?2:1,'0')}.${hund.toString().padStart(2,'0')}`; }
+function formatTime(ms) { if(ms === Infinity || !ms || isNaN(ms)) return "-.--"; let total = Math.floor(ms/10); let min = Math.floor(total/6000); let sec = Math.floor((total%6000)/100); let hund = total%100; return `${min>0?min+':':''}${sec.toString().padStart(min>0?2:1,'0')}.${hund.toString().padStart(2,'0')}`; }
 
 function update() {
     if (!gameActive) return;
@@ -349,8 +356,8 @@ function update() {
             let gripR = ins.handbrake ? maxLat * 0.02 : maxLat * Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongR) / maxGrip, 2) * 0.85));
 
             let a = preset.l / 24.0; let b = preset.l / 24.0; let Iz = aMass * (Math.pow(preset.w/12.0, 2) + Math.pow(preset.l/12.0, 2)) / 12.0;
-            let slipAngle = p.speedKmh > 10.0 ? Math.atan2(lVy, Math.abs(lVx)) : 0; let maxRadian = (preset.turn * 10) * (Math.PI / 180); 
-            let delta = Math.max(-maxRadian, Math.min(maxRadian, (p.steer - slipAngle*0.45) * maxRadian));
+            let slipAngle = p.speedKmh > 10.0 ? Math.atan2(lVy, Math.abs(lVx)) : 0; let maxRadian = (preset.turn * 10 * serverSettings.steering) * (Math.PI / 180); 
+            let delta = Math.max(-maxRadian, Math.min(maxRadian, (p.steer - slipAngle*0.45*serverSettings.caster) * maxRadian));
 
             let vYf = lVy + p.yawRate * a; let vSlipF = vYf * Math.cos(delta) - lVx * Math.sin(delta); let vYr = lVy - p.yawRate * b; let vSlipR = vYr;
             let MeffF = 1.0 / (1.0/aMass + (a*a)/Iz); let MeffR = 1.0 / (1.0/aMass + (b*b)/Iz);
@@ -468,7 +475,7 @@ function update() {
 
     for (let pid in players) {
         let p = players[pid], pre = vehiclePresets[p.presetId]||vehiclePresets['jaguar']; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
-        let hl = pre.l/2, hw = pre.w/2; const wheelW = 14, wheelThick = 6, wheelOffset = hw - 1; let maxRadian = (pre.turn * 10) * (Math.PI / 180); let delta = Math.max(-maxRadian, Math.min(maxRadian, p.steer * maxRadian));
+        let hl = pre.l/2, hw = pre.w/2; const wheelW = 14, wheelThick = 6, wheelOffset = hw - 1; let maxRadian = (pre.turn * 10 * serverSettings.steering) * (Math.PI / 180); let delta = Math.max(-maxRadian, Math.min(maxRadian, p.steer * maxRadian));
 
         if (pre.type !== 'f1' && pre.type !== 'gokart') {
             ctx.fillStyle = '#111'; ctx.fillRect(-hl + 6 - wheelW/2, -wheelOffset - wheelThick/2, wheelW, wheelThick); ctx.fillRect(-hl + 6 - wheelW/2, wheelOffset - wheelThick/2, wheelW, wheelThick);
