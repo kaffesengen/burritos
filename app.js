@@ -15,17 +15,17 @@ const tracks = {
     standard: {
         path: (() => { let p = new Path2D(); p.moveTo(4400, 3200); p.lineTo(800, 3200); p.bezierCurveTo(200, 3200, 200, 2600, 600, 2200); p.lineTo(1400, 1400); p.bezierCurveTo(1600, 1200, 2000, 1400, 1800, 1800); p.lineTo(1200, 2400); p.bezierCurveTo(1000, 2600, 1400, 2800, 1800, 2600); p.lineTo(3200, 1600); p.bezierCurveTo(3600, 1400, 3800, 800, 4200, 800); p.bezierCurveTo(4800, 800, 4800, 1600, 4400, 1800); p.lineTo(4600, 2400); p.bezierCurveTo(4800, 2800, 4800, 3200, 4400, 3200); p.closePath(); return p; })(),
         startX: 2100, startY: 3200, startAngle: Math.PI, pit: { x1: 1800, x2: 2400, y1: 3000, y2: 3080 },
-        finish: { x1: 2100, y1: 3000, x2: 2100, y2: 3400 }, checkpoint: { x1: 4400, y1: 1600, x2: 4400, y2: 2000 }
+        finish: { x: 2100, y: 3200, radius: 250 }, checkpoint: { x: 4400, y: 1800, radius: 250 }
     },
     drift: {
         path: (() => { let p = new Path2D(); p.moveTo(2500, 2000); p.bezierCurveTo(1500, 3500, 500, 3000, 500, 2000); p.bezierCurveTo(500, 1000, 1500, 500, 2500, 2000); p.bezierCurveTo(3500, 3500, 4500, 3000, 4500, 2000); p.bezierCurveTo(4500, 1000, 3500, 500, 2500, 2000); p.closePath(); return p; })(),
         startX: 2500, startY: 2000, startAngle: Math.PI/4, pit: { x1: 2300, x2: 2600, y1: 1700, y2: 1800 },
-        finish: { x1: 2350, y1: 2150, x2: 2650, y2: 1850 }, checkpoint: { x1: 500, y1: 1800, x2: 500, y2: 2200 }
+        finish: { x: 2500, y: 2000, radius: 250 }, checkpoint: { x: 500, y: 2000, radius: 250 }
     },
     gokart: {
         path: (() => { let p = new Path2D(); p.moveTo(1000, 3000); p.bezierCurveTo(500, 3000, 500, 2000, 1000, 2000); p.lineTo(3000, 2000); p.bezierCurveTo(3500, 2000, 3500, 1000, 3000, 1000); p.lineTo(1000, 1000); p.bezierCurveTo(500, 1000, 500, 500, 1000, 500); p.lineTo(4000, 500); p.bezierCurveTo(4500, 500, 4500, 3000, 4000, 3000); p.closePath(); return p; })(),
         startX: 2000, startY: 3000, startAngle: Math.PI, pit: { x1: 1700, x2: 2100, y1: 2800, y2: 2880 },
-        finish: { x1: 2000, y1: 2900, x2: 2000, y2: 3100 }, checkpoint: { x1: 3000, y1: 900, x2: 3000, y2: 1100 }
+        finish: { x: 2000, y: 3000, radius: 200 }, checkpoint: { x: 3000, y: 1000, radius: 200 }
     }
 };
 
@@ -64,7 +64,7 @@ function createPlayerRecord(id, presetId, name) {
         inputs: { steering: 0, throttle: 0, handbrake: false },
         frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0, fuel: cap, maxFuel: cap,
         lastSeen: performance.now(), clutchDump: 0,
-        lap: 0, cp: false, lapStartTime: 0, currentLapTime: 0, bestLap: Infinity, totalTime: 0, finished: false
+        lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, totalTime: 0, finished: false
     };
 }
 
@@ -75,16 +75,9 @@ function assignGridPositions() {
         players[pid].x = activeTrack.startX - Math.cos(activeTrack.startAngle) * (row * spacing + 60) + Math.sin(activeTrack.startAngle) * (col * lateral);
         players[pid].y = activeTrack.startY - Math.sin(activeTrack.startAngle) * (row * spacing + 60) - Math.cos(activeTrack.startAngle) * (col * lateral);
         players[pid].angle = activeTrack.startAngle; players[pid].vx = 0; players[pid].vy = 0; players[pid].yawRate = 0;
-        players[pid].lap = 0; players[pid].cp = false; players[pid].finished = false; players[pid].totalTime = 0; players[pid].lapStartTime = 0; players[pid].currentLapTime = 0; players[pid].bestLap = Infinity;
+        players[pid].lap = 0; players[pid].cp = false; players[pid].finished = false; players[pid].totalTime = 0; players[pid].lapStartTime = performance.now(); players[pid].currentLapTime = 0; players[pid].bestLap = Infinity;
+        players[pid].targetX = players[pid].x; players[pid].targetY = players[pid].y; players[pid].targetAngle = players[pid].angle;
     });
-}
-
-function linesIntersect(x1,y1, x2,y2, x3,y3, x4,y4) {
-    let det = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
-    if (det === 0) return false;
-    let t = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / det;
-    let u = -((x1-x2)*(y1-y3) - (y1-y2)*(x1-x3)) / det;
-    return (t > 0 && t < 1 && u > 0 && u < 1);
 }
 
 const statusMsg = document.getElementById('status-msg');
@@ -142,23 +135,27 @@ document.getElementById('btn-host-mode').addEventListener('click', () => {
         connections[conn.peer] = conn; document.getElementById('player-count').innerText = `Spillere: ${Object.keys(connections).length + 1}`;
         conn.on('data', data => {
             if (data.type === 'join') {
-                players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name);
-                if (gameActive) {
-                    if (raceState === 0) {
-                        players[conn.peer].x = activeTrack.pit.x1 + 100; players[conn.peer].y = activeTrack.pit.y1 + 40;
-                        players[conn.peer].lapStartTime = performance.now();
-                    } else { assignGridPositions(); }
-                    conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps });
-                    conn.send({ type: 'start', laps: totalLaps }); 
-                } else {
-                    conn.send({ type: 'init', trackId: activeTrackId, laps: parseInt(document.getElementById('host-laps').value) });
+                if (!players[conn.peer]) {
+                    players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name);
+                    
+                    if (gameActive) {
+                        if (raceState === 0) {
+                            players[conn.peer].x = activeTrack.pit.x1 + 100; players[conn.peer].y = activeTrack.pit.y1 + 40;
+                        } else { assignGridPositions(); }
+                        conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps });
+                        conn.send({ type: 'start', laps: totalLaps, rs: raceState }); 
+                    } else {
+                        conn.send({ type: 'init', trackId: activeTrackId, laps: parseInt(document.getElementById('host-laps').value) });
+                    }
                 }
             } else if (data.type === 'inputs' && players[conn.peer]) {
-                players[conn.peer].inputs = data.inputs; players[conn.peer].lastSeen = performance.now();
+                players[conn.peer].inputs = data.inputs; 
+                players[conn.peer].lastSeen = performance.now();
             } else if (data.type === 'changeCar' && players[conn.peer]) {
                 players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100;
             }
         });
+        
         conn.on('close', () => { delete connections[conn.peer]; delete players[conn.peer]; document.getElementById('player-count').innerText = `Spillere: ${Object.keys(connections).length + 1}`; });
     });
 });
@@ -170,12 +167,13 @@ document.getElementById('btn-share-link').addEventListener('click', () => {
 
 document.getElementById('btn-enter-game').addEventListener('click', () => { 
     totalLaps = parseInt(document.getElementById('host-laps').value) || 3;
-    Object.values(connections).forEach(c => c.send({ type: 'start', laps: totalLaps })); enterGame(); 
+    Object.values(connections).forEach(c => { try { c.send({ type: 'start', laps: totalLaps, rs: raceState }); } catch(e){} }); 
+    enterGame(); 
 });
 
 document.getElementById('track-selector').addEventListener('change', (e) => {
     if(!isHost) return; activeTrackId = e.target.value; activeTrack = tracks[activeTrackId]; generateEnvironment();
-    assignGridPositions(); raceState = -1; Object.values(connections).forEach(c => c.send({ type: 'init', trackId: activeTrackId, laps: totalLaps }));
+    assignGridPositions(); raceState = -1; Object.values(connections).forEach(c => { try { c.send({ type: 'init', trackId: activeTrackId, laps: totalLaps }); } catch(e){} });
 });
 document.getElementById('btn-reset').addEventListener('click', () => { if(isHost) { assignGridPositions(); raceState = -1; } });
 
@@ -183,7 +181,7 @@ document.getElementById('btn-start-race').addEventListener('click', () => {
     if(!isHost || raceState > 0) return;
     assignGridPositions(); totalLaps = parseInt(document.getElementById('host-laps').value) || 3;
     let count = 5; raceState = count;
-    Object.values(connections).forEach(c => c.send({ type: 'state', laps: totalLaps, raceState: raceState, players: {} })); 
+    Object.values(connections).forEach(c => { try { c.send({ type: 'state', laps: totalLaps, raceState: raceState, players: {} }); } catch(e){} }); 
     let int = setInterval(() => {
         count--; raceState = count;
         if(count === 0) { 
@@ -202,25 +200,44 @@ function initJoiner(hostId) {
         hostConnection.on('open', () => {
             showMsg('Tilkoblet! Venter på host...');
             let pName = document.getElementById('player-name').value || "Spiller";
-            players[myId] = createPlayerRecord(myId, document.getElementById('preset-selector').value, pName);
-            hostConnection.send({ type: 'join', preset: document.getElementById('preset-selector').value, name: pName });
-        });
-        hostConnection.on('data', data => {
-            if (data.type === 'init') { activeTrackId = data.trackId; activeTrack = tracks[activeTrackId]; generateEnvironment(); if(data.laps) totalLaps = data.laps; } 
-            else if (data.type === 'start') { if(data.laps) totalLaps = data.laps; enterGame(); } 
-            else if (data.type === 'state') {
-                if(data.laps) totalLaps = data.laps; if(data.raceState !== undefined) raceState = data.raceState;
-                if(data.settings) serverSettings = data.settings;
-                for (let pid in data.players) {
-                    if (!players[pid]) players[pid] = createPlayerRecord(pid, data.players[pid].presetId, data.players[pid].n);
-                    let pData = data.players[pid], p = players[pid];
-                    p.targetX = pData.x; p.targetY = pData.y; p.targetAngle = pData.a; p.steer = pData.s; p.name = pData.n;
-                    p.frontSpinSeverity = pData.fS; p.rearSpinSeverity = pData.rS; p.gear = pData.g; p.rpm = pData.rpm; 
-                    p.speedKmh = pData.v; p.fuel = pData.f; p.presetId = pData.presetId; p.maxFuel = vehiclePresets[pData.presetId]?.fuelCap || 100;
-                    p.appliesBrake = pData.b; p.lap = pData.l; p.bestLap = pData.bl; p.finished = pData.fin; p.currentLapTime = pData.cLT; p.lastSeen = performance.now();
+            let selPreset = document.getElementById('preset-selector').value;
+            players[myId] = createPlayerRecord(myId, selPreset, pName);
+            
+            // Defensiv Handshake: WebRTC spiser ofte den første pakken hvis den sendes umiddelbart.
+            let joined = false;
+            hostConnection.send({ type: 'join', preset: selPreset, name: pName });
+            let handshakeLoop = setInterval(() => {
+                if (joined || !hostConnection.open) { clearInterval(handshakeLoop); return; }
+                hostConnection.send({ type: 'join', preset: selPreset, name: pName });
+            }, 250);
+
+            hostConnection.on('data', data => {
+                if (data.type === 'init') { joined = true; activeTrackId = data.trackId; activeTrack = tracks[activeTrackId]; generateEnvironment(); if(data.laps) totalLaps = data.laps; } 
+                else if (data.type === 'start') { 
+                    joined = true; if(data.laps) totalLaps = data.laps; 
+                    if(data.rs === 0) { raceState = 0; raceStartTime = performance.now() - 1000; } // Gir grønt lys til de som joiner sent
+                    enterGame(); 
+                } 
+                else if (data.type === 'state') {
+                    if(data.laps) totalLaps = data.laps; if(data.raceState !== undefined) raceState = data.raceState;
+                    if(data.settings) serverSettings = data.settings;
+                    
+                    for (let pid in data.players) {
+                        if (!players[pid]) players[pid] = createPlayerRecord(pid, data.players[pid].presetId, data.players[pid].n);
+                        let pData = data.players[pid], p = players[pid];
+                        
+                        if (!isNaN(pData.x) && pData.x !== null) p.targetX = pData.x; 
+                        if (!isNaN(pData.y) && pData.y !== null) p.targetY = pData.y; 
+                        if (!isNaN(pData.a) && pData.a !== null) p.targetAngle = pData.a; 
+                        
+                        p.steer = pData.s; p.name = pData.n;
+                        p.frontSpinSeverity = pData.fS; p.rearSpinSeverity = pData.rS; p.gear = pData.g; p.rpm = pData.rpm; 
+                        p.speedKmh = pData.v; p.fuel = pData.f; p.presetId = pData.presetId; p.maxFuel = vehiclePresets[pData.presetId]?.fuelCap || 100;
+                        p.appliesBrake = pData.b; p.lap = pData.l; p.bestLap = pData.bl; p.finished = pData.fin; p.currentLapTime = pData.cLT; p.lastSeen = performance.now();
+                    }
+                    for (let pid in players) { if(pid !== myId && !data.players[pid]) delete players[pid]; }
                 }
-                for (let pid in players) { if(pid !== myId && !data.players[pid]) delete players[pid]; }
-            }
+            });
         });
     });
 }
@@ -231,7 +248,7 @@ if (urlParams.get('join')) { document.getElementById('join-code-input').value = 
 
 document.getElementById('preset-selector').addEventListener('change', (e) => {
     let preset = e.target.value; if(players[myId]) players[myId].presetId = preset;
-    if(isHost) players[myId].maxFuel = vehiclePresets[preset]?.fuelCap || 100; else if(hostConnection) hostConnection.send({ type: 'changeCar', preset: preset });
+    if(isHost) players[myId].maxFuel = vehiclePresets[preset]?.fuelCap || 100; else if(hostConnection) { try{ hostConnection.send({ type: 'changeCar', preset: preset }); } catch(err){} }
 });
 
 const localInputs = { steering: 0, throttle: 0, handbrake: false }; const activeTouchState = { left: null, right: null };
@@ -254,6 +271,8 @@ function resize() { canvas.width = canvas.parentElement.clientWidth || window.in
 window.addEventListener('resize', resize); document.getElementById('btn-fullscreen').addEventListener('click', () => { const e = document.documentElement; if(!document.fullscreenElement) e.requestFullscreen(); else document.exitFullscreen(); setTimeout(resize,200); });
 
 let lastTime = performance.now(); let lastLightState = -1; const skidmarks = [];
+let lastNetUpdate = 0; let lastInputSend = 0;
+
 function formatTime(ms) { if(ms === Infinity || !ms || isNaN(ms)) return "-.--"; let total = Math.floor(ms/10); let min = Math.floor(total/6000); let sec = Math.floor((total%6000)/100); let hund = total%100; return `${min>0?min+':':''}${sec.toString().padStart(min>0?2:1,'0')}.${hund.toString().padStart(2,'0')}`; }
 
 function update() {
@@ -266,7 +285,14 @@ function update() {
     }
 
     if (players[myId]) players[myId].inputs = localInputs;
-    if (!isHost && hostConnection && hostConnection.open) hostConnection.send({ type: 'inputs', inputs: localInputs });
+    
+    // Klienter sender inputs throttlet (~30 fps) for å unngå WebRTC data-kvelning
+    if (!isHost && hostConnection && hostConnection.open) {
+        if (now - lastInputSend > 33) {
+            try { hostConnection.send({ type: 'inputs', inputs: localInputs }); } catch(e){}
+            lastInputSend = now;
+        }
+    }
 
     if (isHost) {
         let outState = { type: 'state', raceState: raceState, laps: totalLaps, settings: serverSettings, players: {} };
@@ -274,7 +300,11 @@ function update() {
         
         for (let pid of pkeys) {
             let p = players[pid]; 
-            if (pid !== myId && now - p.lastSeen > 3000) { delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } document.getElementById('player-count').innerText = `Spillere: ${Object.keys(connections).length + 1}`; continue; }
+            
+            if (pid !== myId && now - p.lastSeen > 3000) { 
+                delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } 
+                document.getElementById('player-count').innerText = `Spillere: ${Object.keys(connections).length + 1}`; continue; 
+            }
 
             let preset = vehiclePresets[p.presetId] || vehiclePresets['jaguar']; let ins = p.inputs || { steering: 0, throttle: 0, handbrake: false };
             if (isNaN(p.x) || isNaN(p.y) || isNaN(p.vx) || isNaN(p.angle)) { p.x = activeTrack.startX; p.y = activeTrack.startY; p.vx=0; p.vy=0; p.angle=activeTrack.startAngle; p.yawRate=0; }
@@ -282,8 +312,11 @@ function update() {
 
             if (raceState === 0 && !p.finished) {
                 p.currentLapTime = now - p.lapStartTime;
-                if (linesIntersect(p.prevX, p.prevY, p.x, p.y, activeTrack.checkpoint.x1, activeTrack.checkpoint.y1, activeTrack.checkpoint.x2, activeTrack.checkpoint.y2)) p.cp = true;
-                if (p.cp && linesIntersect(p.prevX, p.prevY, p.x, p.y, activeTrack.finish.x1, activeTrack.finish.y1, activeTrack.finish.x2, activeTrack.finish.y2)) {
+                let distCP = Math.hypot(p.x - activeTrack.checkpoint.x, p.y - activeTrack.checkpoint.y);
+                if (distCP < activeTrack.checkpoint.radius) p.cp = true;
+                
+                let distFin = Math.hypot(p.x - activeTrack.finish.x, p.y - activeTrack.finish.y);
+                if (p.cp && distFin < activeTrack.finish.radius) {
                     p.lap++; p.cp = false; let lapTime = now - p.lapStartTime; if (lapTime < p.bestLap) p.bestLap = lapTime; p.lapStartTime = now;
                     if (p.lap >= totalLaps) { p.finished = true; p.totalTime = now; }
                 }
@@ -392,10 +425,16 @@ function update() {
                 }
             }
         }
-        Object.values(connections).forEach(c => c.send(outState));
+        
+        // Host sender over nettverket throttlet (~30 fps) for å forhindre buffer overflow over WebRTC
+        if (now - lastNetUpdate > 33) {
+            Object.values(connections).forEach(c => { try { c.send(outState); } catch(e){} });
+            lastNetUpdate = now;
+        }
+        
     } else {
         for (let pid in players) {
-            let p = players[pid]; if(isNaN(p.x)||isNaN(p.targetX)) continue;
+            let p = players[pid]; if(isNaN(p.x) || isNaN(p.targetX)) continue;
             p.x += (p.targetX - p.x) * 0.3; p.y += (p.targetY - p.y) * 0.3;
             let d = p.targetAngle - p.angle; while(d < -Math.PI) d+=Math.PI*2; while(d > Math.PI) d-=Math.PI*2; p.angle += d * 0.3;
         }
