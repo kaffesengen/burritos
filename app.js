@@ -1,10 +1,10 @@
 const vehiclePresets = {
-    jaguar: { power: 400, mass: 2200, drivetrain: 'AWD', grip: 1.3, turn: 4.0, roll: 0.05, w: 24, l: 52, ev: true, type: 'jaguar', fuelCap: 100 },
-    gokart: { power: 30, mass: 150, drivetrain: 'RWD', grip: 1.5, turn: 5.5, roll: 0.02, w: 16, l: 26, ev: false, type: 'gokart', fuelCap: 10 },
-    mx5: { power: 184, mass: 1050, drivetrain: 'RWD', grip: 1.1, turn: 4.5, roll: 0.04, w: 20, l: 42, ev: false, type: 'mx5', fuelCap: 50 },
-    r34: { power: 330, mass: 1560, drivetrain: 'AWD', grip: 1.3, turn: 3.8, roll: 0.04, w: 22, l: 48, ev: false, type: 'r34', fuelCap: 70 },
-    s15: { power: 450, mass: 1240, drivetrain: 'RWD', grip: 1.0, turn: 5.5, roll: 0.04, w: 21, l: 45, ev: false, type: 's15', fuelCap: 65 },
-    f1: { power: 1050, mass: 798, drivetrain: 'RWD', grip: 2.8, turn: 6.0, roll: 0.09, w: 26, l: 64, ev: false, type: 'f1', fuelCap: 110 }
+    jaguar: { power: 400, mass: 2200, drivetrain: 'AWD', grip: 1.30, turn: 4.0, roll: 0.05, w: 24, l: 52, ev: true, type: 'jaguar', fuelCap: 100 },
+    gokart: { power: 30, mass: 150, drivetrain: 'RWD', grip: 1.50, turn: 5.5, roll: 0.02, w: 16, l: 26, ev: false, type: 'gokart', fuelCap: 10 },
+    mx5: { power: 184, mass: 1050, drivetrain: 'RWD', grip: 1.10, turn: 4.5, roll: 0.04, w: 20, l: 42, ev: false, type: 'mx5', fuelCap: 50 },
+    r34: { power: 330, mass: 1560, drivetrain: 'AWD', grip: 1.30, turn: 3.8, roll: 0.04, w: 22, l: 48, ev: false, type: 'r34', fuelCap: 70 },
+    s15: { power: 420, mass: 1240, drivetrain: 'RWD', grip: 1.25, turn: 5.5, roll: 0.04, w: 21, l: 45, ev: false, type: 's15', fuelCap: 65 }, // Justert grep opp
+    f1: { power: 1050, mass: 798, drivetrain: 'RWD', grip: 2.80, turn: 6.0, roll: 0.09, w: 26, l: 64, ev: false, type: 'f1', fuelCap: 110 }
 };
 
 const tracks = {
@@ -45,9 +45,9 @@ function generateEnvironment() {
 }
 generateEnvironment();
 
-let peer = null, isHost = true, myId = null, hostConnection = null;
+let peer = null, isHost = true, gameActive = false, myId = null, hostConnection = null;
 const connections = {}, players = {}; 
-let raceState = -1; // -1: Free, 5-1: Lights, 0: Go
+let raceState = -1; 
 
 function createPlayerRecord(id, presetId) {
     let cap = vehiclePresets[presetId].fuelCap;
@@ -57,7 +57,8 @@ function createPlayerRecord(id, presetId) {
         vx: 0, vy: 0, angle: activeTrack.startAngle, yawRate: 0,
         gear: 1, rpm: 0, steer: 0, targetX: activeTrack.startX, targetY: activeTrack.startY, targetAngle: activeTrack.startAngle,
         inputs: { steering: 0, throttle: 0, handbrake: false },
-        frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0, fuel: cap, maxFuel: cap
+        frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0, fuel: cap, maxFuel: cap,
+        lastSeen: performance.now() // For timeout-sletting
     };
 }
 
@@ -77,13 +78,14 @@ function assignGridPositions() {
 const statusMsg = document.getElementById('status-msg');
 function showMsg(msg) { statusMsg.innerText = msg; }
 function enterGame() {
+    gameActive = true;
     document.getElementById('lobby').style.display = 'none';
     document.getElementById('canvas-container').style.display = 'flex';
     if(isHost) { document.getElementById('host-actions').style.display = 'flex'; assignGridPositions(); }
     resize(); requestAnimationFrame(update);
 }
 
-// Lyd-motor
+// Lyd
 let audioCtx, engineOsc, engineGain, squealOsc, squealGain, audioReady = false;
 function initAudio() {
     if (audioReady) return;
@@ -111,7 +113,14 @@ function playBeep(freq, duration = 0.3) {
     gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration); osc.stop(audioCtx.currentTime + duration);
 }
 
-// Host Nettverk
+// Sandbox Mode
+document.getElementById('btn-sandbox-mode').addEventListener('click', () => {
+    myId = 'sandbox'; isHost = true; gameActive = true;
+    players[myId] = createPlayerRecord(myId, document.getElementById('preset-selector').value);
+    enterGame();
+});
+
+// Host Network
 document.getElementById('btn-host-mode').addEventListener('click', () => {
     document.getElementById('mode-selection').style.display = 'none'; 
     document.getElementById('host-ui').style.display = 'block'; 
@@ -128,8 +137,10 @@ document.getElementById('btn-host-mode').addEventListener('click', () => {
             if (data.type === 'join') {
                 players[conn.peer] = createPlayerRecord(conn.peer, data.preset);
                 conn.send({ type: 'init', trackId: activeTrackId });
+                if (gameActive) conn.send({ type: 'start' }); // Fikser bildefeilen!
             } else if (data.type === 'inputs' && players[conn.peer]) {
                 players[conn.peer].inputs = data.inputs;
+                players[conn.peer].lastSeen = performance.now(); // Oppdaterer heartbeat
             } else if (data.type === 'changeCar' && players[conn.peer]) {
                 players[conn.peer].presetId = data.preset;
                 players[conn.peer].maxFuel = vehiclePresets[data.preset].fuelCap;
@@ -153,7 +164,7 @@ document.getElementById('btn-enter-game').addEventListener('click', () => {
     enterGame(); 
 });
 
-// Host Innstillinger Runtime
+// UI Runtime (Host)
 document.getElementById('track-selector').addEventListener('change', (e) => {
     if(!isHost) return;
     activeTrackId = e.target.value; activeTrack = tracks[activeTrackId]; generateEnvironment();
@@ -172,7 +183,7 @@ document.getElementById('btn-start-race').addEventListener('click', () => {
     }, 1000);
 });
 
-// Joiner Nettverk
+// Joiner Network
 function initJoiner(hostId) {
     document.getElementById('mode-selection').style.display = 'none'; showMsg('Kobler til...');
     peer = new Peer();
@@ -197,7 +208,10 @@ function initJoiner(hostId) {
                     p.gear = pData.g; p.rpm = pData.rpm; p.speedKmh = pData.v; p.fuel = pData.f;
                     p.presetId = pData.presetId; p.maxFuel = vehiclePresets[pData.presetId].fuelCap;
                     p.appliesBrake = pData.b;
+                    p.lastSeen = performance.now();
                 }
+                // Rydd opp biler som hosten har fjernet
+                for (let pid in players) { if(pid !== myId && !data.players[pid]) delete players[pid]; }
             }
         });
     });
@@ -211,7 +225,7 @@ if (urlParams.get('join')) {
     document.getElementById('btn-join-mode').click(); 
 }
 
-// Bytt bil underveis
+// Bytt bil lokalt
 document.getElementById('preset-selector').addEventListener('change', (e) => {
     let preset = e.target.value;
     if(players[myId]) players[myId].presetId = preset;
@@ -219,7 +233,7 @@ document.getElementById('preset-selector').addEventListener('change', (e) => {
     else if(hostConnection) { hostConnection.send({ type: 'changeCar', preset: preset }); }
 });
 
-// Kontrollere (Touch/Gamepad/Keyboard)
+// Controls
 const localInputs = { steering: 0, throttle: 0, handbrake: false };
 const activeTouchState = { left: null, right: null };
 function setupJoystick(zId, sId, key, onC) {
@@ -276,6 +290,7 @@ const skidmarks = [];
 
 // Main Loop
 function update() {
+    if (!gameActive) return;
     const now = performance.now(); 
     const dt = Math.max(0.001, Math.min((now - lastTime) / 1000, 0.1)); 
     lastTime = now;
@@ -300,21 +315,25 @@ function update() {
         
         for (let pid of pkeys) {
             let p = players[pid]; 
+            
+            // Heartbeat check for ghost cars
+            if (pid !== myId && now - p.lastSeen > 3000) {
+                delete players[pid];
+                if (connections[pid]) { connections[pid].close(); delete connections[pid]; }
+                document.getElementById('player-count').innerText = `Spillere: ${Object.keys(connections).length + 1}`;
+                continue;
+            }
+
             let preset = vehiclePresets[p.presetId]; 
             let ins = p.inputs || { steering: 0, throttle: 0, handbrake: false };
             
             if (isNaN(p.x)) { p.x = activeTrack.startX; p.y = activeTrack.startY; p.vx=0; p.vy=0; }
             
-            // Fuel Logic
             let inPit = (p.x >= activeTrack.pit.x1 && p.x <= activeTrack.pit.x2 && p.y >= activeTrack.pit.y1 && p.y <= activeTrack.pit.y2);
-            if (inPit && p.speedKmh < 10) { 
-                p.fuel = Math.min(preset.fuelCap, p.fuel + 20 * dt); 
-            } else { 
-                p.fuel -= Math.abs(ins.throttle) * preset.power * 0.00015 * dt; 
-            }
+            if (inPit && p.speedKmh < 10) { p.fuel = Math.min(preset.fuelCap, p.fuel + 20 * dt); } 
+            else { p.fuel -= Math.abs(ins.throttle) * preset.power * 0.00015 * dt; }
             if (p.fuel <= 0) { p.fuel = 0; ins.throttle = 0; }
 
-            // Surface checks
             ctx.lineWidth = 160; const onAsphalt = ctx.isPointInStroke(activeTrack.path, p.x, p.y);
             ctx.lineWidth = 190; const onCurbs = ctx.isPointInStroke(activeTrack.path, p.x, p.y) && !onAsphalt;
             ctx.lineWidth = 240; const onSand = ctx.isPointInStroke(activeTrack.path, p.x, p.y) && !onAsphalt && !onCurbs;
@@ -352,10 +371,8 @@ function update() {
                 p.x += nx * 4.0; p.y += ny * 4.0;
             }
 
-            // Giret er låst på rødt lys
             if (raceState > 0) { ins.throttle = 0; ins.handbrake = true; }
 
-            // Riktig fysikk-rutine
             let steerInputTarget = Math.abs(ins.steering) > 0.08 ? Math.sign(ins.steering) * ((Math.abs(ins.steering) - 0.08) / 0.92) : 0;
             p.steer += (steerInputTarget - p.steer) * 12.0 * dt;
             let mThrottle = Math.pow(Math.abs(ins.throttle), 2.5) * Math.sign(ins.throttle);
@@ -393,7 +410,7 @@ function update() {
 
             let bDistR = bForce * 0.35; 
             if (ins.handbrake) { 
-                bDistR += preset.mass * (preset.type === 's15' ? 35.0 : 20.0); 
+                bDistR += preset.mass * 20.0; // Hard bremse bak for å fremprovosere låsing
                 p.appliesBrake = true; 
             }
 
@@ -402,20 +419,21 @@ function update() {
             fLongF = Math.max(-maxGrip, Math.min(maxGrip, fLongF)); 
             fLongR = Math.max(-maxGrip, Math.min(maxGrip, fLongR));
 
-            // Ekte Friksjonsellipse (separert F/R)
             let gripF = maxLat * Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongF) / maxGrip, 2) * 0.65));
             let gripR = 0;
+            
+            // Fikser håndbrekk for drift-bilen (og alle andre). 2% grep betyr instant sladd.
             if (ins.handbrake) {
-                gripR = maxLat * (preset.type === 's15' ? 0.50 : 0.05); // S15 beholder 50% grep i sladd
+                gripR = maxLat * 0.02; 
             } else {
-                gripR = maxLat * Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongR) / maxGrip, 2) * (preset.type === 's15' ? 0.50 : 0.85)));
+                gripR = maxLat * Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongR) / maxGrip, 2) * 0.85));
             }
 
             let a = preset.l / 24.0; let b = preset.l / 24.0; 
             let Iz = preset.mass * (Math.pow(preset.w/12.0, 2) + Math.pow(preset.l/12.0, 2)) / 12.0;
             
             let slipAngle = p.speedKmh > 10.0 ? Math.atan2(lVy, Math.abs(lVx)) : 0;
-            let casterAssist = -slipAngle * (preset.type === 's15' ? 0.85 : 0.45);
+            let casterAssist = -slipAngle * 0.45; // Fikset: S15 hadde 0.85, noe som overstyrte føreren fullstendig
             let maxRadian = (preset.turn * 10) * (Math.PI / 180);
             let delta = Math.max(-maxRadian, Math.min(maxRadian, (p.steer + casterAssist) * maxRadian));
 
@@ -431,7 +449,7 @@ function update() {
             let fY = fLongF * Math.sin(delta) + fLatF * Math.cos(delta) + fLatR - 0.45 * lVy * Math.abs(lVy);
             let torque = (fLongF * Math.sin(delta) + fLatF * Math.cos(delta)) * a - fLatR * b;
 
-            let angularDrag = ((preset.type === 's15' ? 2.5 : 1.5) + Math.abs(lVy) * 0.3) * p.yawRate;
+            let angularDrag = (1.5 + Math.abs(lVy) * 0.3) * p.yawRate;
             torque -= angularDrag * Iz;
 
             lVx += (fX / preset.mass) * dt; lVy += (fY / preset.mass) * dt; p.yawRate += (torque / Iz) * dt;
@@ -445,10 +463,10 @@ function update() {
             outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake };
         }
 
-        // Elastiske kollisjoner med margin
         for(let i=0; i<pkeys.length; i++) {
             for(let j=i+1; j<pkeys.length; j++) {
                 let pA = players[pkeys[i]], pB = players[pkeys[j]];
+                if(!pA || !pB) continue;
                 let dx = pB.x - pA.x, dy = pB.y - pA.y, dist = Math.hypot(dx, dy);
                 let rA = vehiclePresets[pA.presetId].l/2, rB = vehiclePresets[pB.presetId].l/2;
                 if(dist < rA + rB && dist > 0) {
@@ -466,14 +484,12 @@ function update() {
         }
         Object.values(connections).forEach(c => c.send(outState));
     } else {
-        // Klient-interpolering
         for (let pid in players) {
             let p = players[pid]; p.x += (p.targetX - p.x) * 0.3; p.y += (p.targetY - p.y) * 0.3;
             let d = p.targetAngle - p.angle; while(d < -Math.PI) d+=Math.PI*2; while(d > Math.PI) d-=Math.PI*2; p.angle += d * 0.3;
         }
     }
 
-    // F1-Lys og Lyd
     if(raceState !== lastLightState) {
         let lightUI = document.getElementById('f1-lights');
         if(raceState === -1) lightUI.style.display = 'none';
@@ -507,7 +523,6 @@ function update() {
         }
     }
 
-    // Tegning
     ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = '#2d4c1e'; ctx.fillRect(0,0,canvas.width,canvas.height); 
     ctx.save(); 
     if(players[myId]) ctx.translate(canvas.width/2 - players[myId].x, canvas.height/2 - players[myId].y);
@@ -519,12 +534,10 @@ function update() {
     ctx.strokeStyle = '#e74c3c'; ctx.setLineDash([30,30]); ctx.stroke(activeTrack.path); ctx.setLineDash([]);
     ctx.lineWidth = 160; ctx.strokeStyle = '#2c2c2c'; ctx.stroke(activeTrack.path);
     
-    // Tegn Pit Stop Area
     ctx.fillStyle = 'rgba(52, 152, 219, 0.3)'; ctx.strokeStyle = '#3498db'; ctx.lineWidth = 4; ctx.setLineDash([10,10]);
     let pb = activeTrack.pit; ctx.fillRect(pb.x1, pb.y1, pb.x2-pb.x1, pb.y2-pb.y1); ctx.strokeRect(pb.x1, pb.y1, pb.x2-pb.x1, pb.y2-pb.y1); ctx.setLineDash([]);
     ctx.fillStyle = '#fff'; ctx.font = '20px sans-serif'; ctx.fillText('PIT', pb.x1 + 20, pb.y1 + 30);
 
-    // Tegn omgivelser
     for (let obj of envObjects) {
         ctx.save(); ctx.translate(obj.x, obj.y); ctx.rotate(obj.angle);
         if (obj.type === 'house') { ctx.fillStyle = obj.color; ctx.fillRect(-obj.size/2, -obj.size/2.5, obj.size, obj.size*0.8); ctx.fillStyle = '#111'; ctx.fillRect(-obj.size/4, -obj.size/2.5, obj.size/2, obj.size*0.8); } 
@@ -532,7 +545,6 @@ function update() {
         ctx.restore();
     }
 
-    // Kalkuler og tegn dekkskrens
     for (let pid in players) {
         let p = players[pid], pre = vehiclePresets[p.presetId]; let hw = pre.w / 2; let hl = pre.l / 2;
         const fwX = Math.cos(p.angle); const fwY = Math.sin(p.angle); const rX = -Math.sin(p.angle); const rY = Math.cos(p.angle);
@@ -543,7 +555,6 @@ function update() {
     ctx.fillStyle = 'rgba(15, 15, 15, 0.4)'; ctx.beginPath();
     for (let i = 0; i < skidmarks.length; i++) { let m = skidmarks[i]; ctx.rect(m.x1 - 2, m.y1 - 2, 4, 4); ctx.rect(m.x2 - 2, m.y2 - 2, 4, 4); } ctx.fill();
 
-    // Tegn bilmodeller
     for (let pid in players) {
         let p = players[pid], pre = vehiclePresets[p.presetId];
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
@@ -551,11 +562,9 @@ function update() {
         let hl = pre.l/2, hw = pre.w/2;
         const wheelW = 14, wheelThick = 6, wheelOffset = hw - 1;
         
-        // Final visual steering angle (inkluderer caster assist simulert for rendering)
         let maxRadian = (pre.turn * 10) * (Math.PI / 180);
         let delta = Math.max(-maxRadian, Math.min(maxRadian, p.steer * maxRadian));
 
-        // Dekk standardbiler
         if (pre.type !== 'f1' && pre.type !== 'gokart') {
             ctx.fillStyle = '#111';
             ctx.fillRect(-hl + 6 - wheelW/2, -wheelOffset - wheelThick/2, wheelW, wheelThick); 
@@ -564,7 +573,6 @@ function update() {
             ctx.save(); ctx.translate(hl - 8, wheelOffset); ctx.rotate(delta); ctx.fillRect(-wheelW/2, -wheelThick/2, wheelW, wheelThick); ctx.restore();
         }
 
-        // Unike Karosseri
         if (pre.type === 'f1') { 
             ctx.fillStyle = '#111'; ctx.fillRect(-hl + 8 - wheelW/2, -hw, wheelW, wheelThick*1.5); ctx.fillRect(-hl + 8 - wheelW/2, hw - wheelThick*1.5, wheelW, wheelThick*1.5);
             ctx.save(); ctx.translate(hl - 6, -hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, 0, wheelW, wheelThick*1.5); ctx.restore();
@@ -601,7 +609,6 @@ function update() {
             ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.15, -hw + 3, pre.l*0.5, pre.w - 6, 6); ctx.fill(); 
         }
 
-        // Bremselys
         ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.roundRect(hl - 3, -hw + 3, 4, 5, 2); ctx.roundRect(hl - 3, hw - 8, 4, 5, 2); ctx.fill();
         ctx.fillStyle = p.appliesBrake ? '#ff3333' : '#8b0000'; 
         ctx.shadowColor = p.appliesBrake ? '#ff0000' : 'transparent'; ctx.shadowBlur = p.appliesBrake ? 10 : 0;
