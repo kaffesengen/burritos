@@ -29,14 +29,11 @@ const tracks = {
     }
 };
 
-let activeTrackId = 'standard'; 
-let activeTrack = tracks[activeTrackId];
-let envObjects = [];
+let activeTrackId = 'standard'; let activeTrack = tracks[activeTrackId]; let envObjects = [];
+let serverSettings = { grip: 1.0, power: 1.0, mass: 1.0 };
 
 function generateEnvironment() {
-    envObjects.length = 0; 
-    const canvasCtx = document.createElement('canvas').getContext('2d'); 
-    canvasCtx.lineWidth = 350; 
+    envObjects.length = 0; const canvasCtx = document.createElement('canvas').getContext('2d'); canvasCtx.lineWidth = 350; 
     for(let i=0; i<150; i++) {
         let rx = Math.random() * 5000; let ry = Math.random() * 4000;
         if(!canvasCtx.isPointInStroke(activeTrack.path, rx, ry)) {
@@ -44,8 +41,7 @@ function generateEnvironment() {
             envObjects.push({ 
                 x: rx, y: ry, type: isHouse ? 'house' : 'tree', 
                 color: isHouse ? (Math.random() > 0.5 ? '#8d6e63' : '#7f8c8d') : (Math.random() > 0.5 ? '#27ae60' : '#2ecc71'), 
-                size: isHouse ? (40 + Math.random()*30) : (15 + Math.random()*20), 
-                angle: Math.random() * Math.PI 
+                size: isHouse ? (40 + Math.random()*30) : (15 + Math.random()*20), angle: Math.random() * Math.PI 
             });
         }
     }
@@ -54,17 +50,14 @@ generateEnvironment();
 
 let peer = null, isHost = true, gameActive = false, myId = null, hostConnection = null;
 const connections = {}, players = {}; 
-let raceState = -1;
-let totalLaps = 3;
+let raceState = -1, totalLaps = 3, raceStartTime = 0;
 
 function createPlayerRecord(id, presetId, name) {
-    let safeName = "Fører";
-    if (typeof name === 'string' && name.trim().length > 0) {
-        safeName = name.trim().substring(0, 15);
-    }
-    let cap = vehiclePresets[presetId].fuelCap;
+    let safeName = "Gjest";
+    if (typeof name === 'string' && name.trim().length > 0) safeName = name.trim().substring(0, 15);
+    let cap = vehiclePresets[presetId]?.fuelCap || 100;
     return {
-        id: id, name: safeName, presetId: presetId,
+        id: id, name: safeName, presetId: presetId || 'jaguar',
         x: activeTrack.startX, y: activeTrack.startY, prevX: activeTrack.startX, prevY: activeTrack.startY,
         vx: 0, vy: 0, angle: activeTrack.startAngle, yawRate: 0,
         gear: 1, rpm: 1000, steer: 0, targetX: activeTrack.startX, targetY: activeTrack.startY, targetAngle: activeTrack.startAngle,
@@ -97,10 +90,8 @@ function linesIntersect(x1,y1, x2,y2, x3,y3, x4,y4) {
 const statusMsg = document.getElementById('status-msg');
 function showMsg(msg) { statusMsg.innerText = msg; }
 function enterGame() {
-    gameActive = true;
-    document.getElementById('lobby').style.display = 'none';
-    document.getElementById('canvas-container').style.display = 'flex';
-    if(isHost) { document.getElementById('host-actions').style.display = 'flex'; assignGridPositions(); }
+    gameActive = true; document.getElementById('lobby').style.display = 'none'; document.getElementById('canvas-container').style.display = 'flex';
+    if(isHost) { document.getElementById('host-actions').style.display = 'flex'; document.getElementById('sandbox-controls').style.display = 'block'; assignGridPositions(); }
     resize(); requestAnimationFrame(update);
 }
 
@@ -109,12 +100,9 @@ function initAudio() {
     if (audioReady) return;
     try {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        engineOsc = audioCtx.createOscillator(); engineOsc.type = 'sawtooth';
-        engineGain = audioCtx.createGain(); engineGain.gain.value = 0;
+        engineOsc = audioCtx.createOscillator(); engineOsc.type = 'sawtooth'; engineGain = audioCtx.createGain(); engineGain.gain.value = 0;
         engineOsc.connect(engineGain); engineGain.connect(audioCtx.destination); engineOsc.start();
-        
-        squealOsc = audioCtx.createOscillator(); squealOsc.type = 'triangle';
-        squealGain = audioCtx.createGain(); squealGain.gain.value = 0;
+        squealOsc = audioCtx.createOscillator(); squealOsc.type = 'triangle'; squealGain = audioCtx.createGain(); squealGain.gain.value = 0;
         squealOsc.connect(squealGain); squealGain.connect(audioCtx.destination); squealOsc.start();
         audioReady = true;
     } catch(e) { console.error("Audio init failed", e); }
@@ -127,16 +115,20 @@ function playBeep(freq, duration = 0.3) {
     if (!audioReady || audioCtx.state !== 'running') return;
     let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
     osc.frequency.value = freq; osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.start(); gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration); osc.stop(audioCtx.currentTime + duration);
+    osc.start(); gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration); osc.stop(audioCtx.currentTime + duration);
 }
 
+// Sandbox Regler Bindings
+['grip', 'power', 'mass'].forEach(id => {
+    document.getElementById(`sb-${id}`).addEventListener('input', (e) => {
+        serverSettings[id] = parseFloat(e.target.value); document.getElementById(`val-${id}`).innerText = serverSettings[id].toFixed(1);
+    });
+});
+
 document.getElementById('btn-sandbox-mode').addEventListener('click', () => {
-    myId = 'sandbox'; isHost = true; gameActive = true;
-    let pName = document.getElementById('player-name').value;
+    myId = 'sandbox'; isHost = true; gameActive = true; let pName = document.getElementById('player-name').value || "Meg";
     players[myId] = createPlayerRecord(myId, document.getElementById('preset-selector').value, pName);
-    totalLaps = parseInt(document.getElementById('host-laps').value) || 3;
-    enterGame();
+    totalLaps = parseInt(document.getElementById('host-laps').value) || 3; enterGame();
 });
 
 document.getElementById('btn-host-mode').addEventListener('click', () => {
@@ -144,7 +136,7 @@ document.getElementById('btn-host-mode').addEventListener('click', () => {
     peer = new Peer();
     peer.on('open', id => {
         myId = id; isHost = true; document.getElementById('my-host-id').value = id; showMsg('');
-        let pName = document.getElementById('player-name').value;
+        let pName = document.getElementById('player-name').value || "Host";
         players[myId] = createPlayerRecord(myId, document.getElementById('preset-selector').value, pName);
     });
     peer.on('connection', conn => {
@@ -153,7 +145,7 @@ document.getElementById('btn-host-mode').addEventListener('click', () => {
             if (data.type === 'join') {
                 players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name);
                 conn.send({ type: 'init', trackId: activeTrackId, laps: parseInt(document.getElementById('host-laps').value) });
-                if (gameActive) conn.send({ type: 'start' }); 
+                if (gameActive) conn.send({ type: 'start', laps: totalLaps }); 
             } else if (data.type === 'inputs' && players[conn.peer]) {
                 players[conn.peer].inputs = data.inputs; players[conn.peer].lastSeen = performance.now();
             } else if (data.type === 'changeCar' && players[conn.peer]) {
@@ -171,15 +163,12 @@ document.getElementById('btn-share-link').addEventListener('click', () => {
 
 document.getElementById('btn-enter-game').addEventListener('click', () => { 
     totalLaps = parseInt(document.getElementById('host-laps').value) || 3;
-    Object.values(connections).forEach(c => c.send({ type: 'start', laps: totalLaps })); 
-    enterGame(); 
+    Object.values(connections).forEach(c => c.send({ type: 'start', laps: totalLaps })); enterGame(); 
 });
 
 document.getElementById('track-selector').addEventListener('change', (e) => {
-    if(!isHost) return;
-    activeTrackId = e.target.value; activeTrack = tracks[activeTrackId]; generateEnvironment();
-    assignGridPositions(); raceState = -1;
-    Object.values(connections).forEach(c => c.send({ type: 'init', trackId: activeTrackId, laps: totalLaps }));
+    if(!isHost) return; activeTrackId = e.target.value; activeTrack = tracks[activeTrackId]; generateEnvironment();
+    assignGridPositions(); raceState = -1; Object.values(connections).forEach(c => c.send({ type: 'init', trackId: activeTrackId, laps: totalLaps }));
 });
 document.getElementById('btn-reset').addEventListener('click', () => { if(isHost) { assignGridPositions(); raceState = -1; } });
 
@@ -191,9 +180,9 @@ document.getElementById('btn-start-race').addEventListener('click', () => {
     let int = setInterval(() => {
         count--; raceState = count;
         if(count === 0) { 
-            let now = performance.now();
-            for(let pid in players) players[pid].lapStartTime = now;
-            clearInterval(int); setTimeout(() => { raceState = -1; }, 2000); 
+            let now = performance.now(); raceStartTime = now;
+            for(let pid in players) { players[pid].lapStartTime = now; players[pid].lap = 0; players[pid].cp = false; players[pid].finished = false; players[pid].bestLap = Infinity; }
+            clearInterval(int); 
         }
     }, 1000);
 });
@@ -205,7 +194,7 @@ function initJoiner(hostId) {
         myId = id; isHost = false; hostConnection = peer.connect(hostId);
         hostConnection.on('open', () => {
             showMsg('Tilkoblet! Venter på host...');
-            let pName = document.getElementById('player-name').value;
+            let pName = document.getElementById('player-name').value || "Spiller";
             players[myId] = createPlayerRecord(myId, document.getElementById('preset-selector').value, pName);
             hostConnection.send({ type: 'join', preset: document.getElementById('preset-selector').value, name: pName });
         });
@@ -213,16 +202,15 @@ function initJoiner(hostId) {
             if (data.type === 'init') { activeTrackId = data.trackId; activeTrack = tracks[activeTrackId]; generateEnvironment(); if(data.laps) totalLaps = data.laps; } 
             else if (data.type === 'start') { if(data.laps) totalLaps = data.laps; enterGame(); } 
             else if (data.type === 'state') {
-                if(data.laps) totalLaps = data.laps;
-                if(data.raceState !== undefined) raceState = data.raceState;
+                if(data.laps) totalLaps = data.laps; if(data.raceState !== undefined) raceState = data.raceState;
+                if(data.settings) serverSettings = data.settings;
                 for (let pid in data.players) {
                     if (!players[pid]) players[pid] = createPlayerRecord(pid, data.players[pid].presetId, data.players[pid].n);
                     let pData = data.players[pid], p = players[pid];
-                    p.targetX = pData.x; p.targetY = pData.y; p.targetAngle = pData.a; p.steer = pData.s; 
+                    p.targetX = pData.x; p.targetY = pData.y; p.targetAngle = pData.a; p.steer = pData.s; p.name = pData.n;
                     p.frontSpinSeverity = pData.fS; p.rearSpinSeverity = pData.rS; p.gear = pData.g; p.rpm = pData.rpm; 
-                    p.speedKmh = pData.v; p.fuel = pData.f; p.presetId = pData.presetId; p.maxFuel = vehiclePresets[pData.presetId].fuelCap;
-                    p.appliesBrake = pData.b; p.lap = pData.l; p.bestLap = pData.bl; p.finished = pData.fin; p.currentLapTime = pData.cLT;
-                    p.lastSeen = performance.now();
+                    p.speedKmh = pData.v; p.fuel = pData.f; p.presetId = pData.presetId; p.maxFuel = vehiclePresets[pData.presetId]?.fuelCap || 100;
+                    p.appliesBrake = pData.b; p.lap = pData.l; p.bestLap = pData.bl; p.finished = pData.fin; p.currentLapTime = pData.cLT; p.lastSeen = performance.now();
                 }
                 for (let pid in players) { if(pid !== myId && !data.players[pid]) delete players[pid]; }
             }
@@ -232,18 +220,14 @@ function initJoiner(hostId) {
 
 document.getElementById('btn-join-mode').addEventListener('click', () => { const code = document.getElementById('join-code-input').value.trim(); if (code) initJoiner(code); });
 const urlParams = new URLSearchParams(window.location.search); 
-if (urlParams.get('join')) { 
-    document.getElementById('join-code-input').value = urlParams.get('join'); 
-    // Auto-click fjernet slik at joiner kan taste inn navnet sitt først.
-}
+if (urlParams.get('join')) { document.getElementById('join-code-input').value = urlParams.get('join'); }
 
 document.getElementById('preset-selector').addEventListener('change', (e) => {
     let preset = e.target.value; if(players[myId]) players[myId].presetId = preset;
-    if(isHost) players[myId].maxFuel = vehiclePresets[preset].fuelCap; else if(hostConnection) hostConnection.send({ type: 'changeCar', preset: preset });
+    if(isHost) players[myId].maxFuel = vehiclePresets[preset]?.fuelCap || 100; else if(hostConnection) hostConnection.send({ type: 'changeCar', preset: preset });
 });
 
-const localInputs = { steering: 0, throttle: 0, handbrake: false };
-const activeTouchState = { left: null, right: null };
+const localInputs = { steering: 0, throttle: 0, handbrake: false }; const activeTouchState = { left: null, right: null };
 function setupJoystick(zId, sId, key, onC) {
     const z = document.getElementById(zId), s = document.getElementById(sId);
     function move(cX, cY) { if(document.getElementById('input-selector').value==='gamepad') return; const r = z.getBoundingClientRect(); const dx = Math.max(-45, Math.min(cX-(r.left+r.width/2), 45)), dy = Math.max(-45, Math.min(cY-(r.top+r.height/2), 45)); s.style.transform = `translate(${dx}px, ${dy}px)`; onC(dx/45, dy/45); }
@@ -278,38 +262,37 @@ function update() {
     if (!isHost && hostConnection && hostConnection.open) hostConnection.send({ type: 'inputs', inputs: localInputs });
 
     if (isHost) {
-        let outState = { type: 'state', raceState: raceState, laps: totalLaps, players: {} };
+        let outState = { type: 'state', raceState: raceState, laps: totalLaps, settings: serverSettings, players: {} };
         let pkeys = Object.keys(players);
         
         for (let pid of pkeys) {
             let p = players[pid]; 
             if (pid !== myId && now - p.lastSeen > 3000) { delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } document.getElementById('player-count').innerText = `Spillere: ${Object.keys(connections).length + 1}`; continue; }
 
-            let preset = vehiclePresets[p.presetId]; let ins = p.inputs || { steering: 0, throttle: 0, handbrake: false };
-            if (isNaN(p.x)) { p.x = activeTrack.startX; p.y = activeTrack.startY; p.vx=0; p.vy=0; }
+            let preset = vehiclePresets[p.presetId] || vehiclePresets['jaguar']; let ins = p.inputs || { steering: 0, throttle: 0, handbrake: false };
+            if (isNaN(p.x) || isNaN(p.y) || isNaN(p.vx) || isNaN(p.angle)) { p.x = activeTrack.startX; p.y = activeTrack.startY; p.vx=0; p.vy=0; p.angle=activeTrack.startAngle; p.yawRate=0; }
             if (p.finished) { ins.throttle = 0; ins.handbrake = true; }
 
             if (raceState === 0 && !p.finished) {
                 p.currentLapTime = now - p.lapStartTime;
                 if (linesIntersect(p.prevX, p.prevY, p.x, p.y, activeTrack.checkpoint.x1, activeTrack.checkpoint.y1, activeTrack.checkpoint.x2, activeTrack.checkpoint.y2)) p.cp = true;
                 if (p.cp && linesIntersect(p.prevX, p.prevY, p.x, p.y, activeTrack.finish.x1, activeTrack.finish.y1, activeTrack.finish.x2, activeTrack.finish.y2)) {
-                    p.lap++; p.cp = false;
-                    let lapTime = now - p.lapStartTime;
-                    if (lapTime < p.bestLap) p.bestLap = lapTime;
-                    p.lapStartTime = now;
+                    p.lap++; p.cp = false; let lapTime = now - p.lapStartTime; if (lapTime < p.bestLap) p.bestLap = lapTime; p.lapStartTime = now;
                     if (p.lap >= totalLaps) { p.finished = true; p.totalTime = now; }
                 }
-            } else { p.currentLapTime = 0; }
+            } else if (raceState > 0) { p.currentLapTime = 0; }
 
             let inPit = (p.x >= activeTrack.pit.x1 && p.x <= activeTrack.pit.x2 && p.y >= activeTrack.pit.y1 && p.y <= activeTrack.pit.y2);
-            if (inPit && p.speedKmh < 10) p.fuel = Math.min(preset.fuelCap, p.fuel + 20 * dt); else p.fuel -= Math.abs(ins.throttle) * preset.power * 0.00015 * dt;
+            let aPower = preset.power * serverSettings.power; let aMass = preset.mass * serverSettings.mass;
+            
+            if (inPit && p.speedKmh < 10) p.fuel = Math.min(preset.fuelCap, p.fuel + 20 * dt); else p.fuel -= Math.abs(ins.throttle) * aPower * 0.00015 * dt;
             if (p.fuel <= 0) { p.fuel = 0; ins.throttle = 0; }
 
             ctx.lineWidth = 160; const onAsphalt = ctx.isPointInStroke(activeTrack.path, p.x, p.y);
             ctx.lineWidth = 190; const onCurbs = ctx.isPointInStroke(activeTrack.path, p.x, p.y) && !onAsphalt;
             ctx.lineWidth = 240; const onSand = ctx.isPointInStroke(activeTrack.path, p.x, p.y) && !onAsphalt && !onCurbs;
             ctx.lineWidth = 250; const inBounds = ctx.isPointInStroke(activeTrack.path, p.x, p.y);
-            let surfaceMu = preset.grip; let rollingResistance = preset.roll;
+            let surfaceMu = preset.grip * serverSettings.grip; let rollingResistance = preset.roll;
             if (onCurbs) surfaceMu *= 0.85; else if (onSand) { surfaceMu *= 0.4; rollingResistance = 0.35; } else if (!onAsphalt) { surfaceMu *= 0.55; rollingResistance = 0.15; }
 
             if (!inBounds && dt > 0) {
@@ -320,80 +303,65 @@ function update() {
                     if (nx !== 0 || ny !== 0) break;
                 }
                 let nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = -Math.sign(p.vx); ny = -Math.sign(p.vy); nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = 1; ny = 0; nLen = 1; } }
-                nx /= nLen; ny /= nLen;
-                let vn = p.vx * nx + p.vy * ny;
+                nx /= nLen; ny /= nLen; let vn = p.vx * nx + p.vy * ny;
                 if (vn < 0) {
-                    let j = -(1 + 0.15) * vn; p.vx += j * nx; p.vy += j * ny;
-                    let tx = -ny; let ty = nx; let vt = p.vx * tx + p.vy * ty;
+                    let j = -(1 + 0.15) * vn; p.vx += j * nx; p.vy += j * ny; let tx = -ny; let ty = nx; let vt = p.vx * tx + p.vy * ty;
                     let j_friction = -Math.sign(vt) * Math.min(Math.abs(vt), Math.abs(j) * 0.3); p.vx += j_friction * tx; p.vy += j_friction * ty;
                 }
                 p.x += nx * 4.0; p.y += ny * 4.0;
             }
 
             let steerInputTarget = Math.abs(ins.steering) > 0.08 ? Math.sign(ins.steering) * ((Math.abs(ins.steering) - 0.08) / 0.92) : 0;
-            p.steer += (steerInputTarget - p.steer) * 12.0 * dt;
-            let mThrottle = Math.pow(Math.abs(ins.throttle), 2.5) * Math.sign(ins.throttle);
+            p.steer += (steerInputTarget - p.steer) * 12.0 * dt; let mThrottle = Math.pow(Math.abs(ins.throttle), 2.5) * Math.sign(ins.throttle);
             let lVx = p.vx * Math.cos(-p.angle) - p.vy * Math.sin(-p.angle); let lVy = p.vx * Math.sin(-p.angle) + p.vy * Math.cos(-p.angle);
-            p.speedKmh = Math.abs(lVx * 3.6);
-            p.appliesBrake = mThrottle < 0 && lVx >= 1.0;
+            p.speedKmh = Math.abs(lVx * 3.6); p.appliesBrake = mThrottle < 0 && lVx >= 1.0;
 
-            let dForce = 0; let bForce = p.appliesBrake ? preset.mass * 15.0 * Math.abs(mThrottle) : 0;
-            const isRev = mThrottle < 0 && lVx < 1.0; 
+            let dForce = 0; let bForce = p.appliesBrake ? aMass * 15.0 * Math.abs(mThrottle) : 0; const isRev = mThrottle < 0 && lVx < 1.0; 
 
             if (raceState > 0) {
-                p.gear = 0; ins.handbrake = true;
-                p.rpm += ((1000 + Math.max(0, mThrottle) * 7000) - p.rpm) * 5 * dt;
+                p.gear = 0; ins.handbrake = true; p.rpm += ((1000 + Math.max(0, mThrottle) * 7000) - p.rpm) * 5 * dt;
             } else {
                 if (preset.ev) {
-                    p.gear = lVx >= -0.5 ? 'D' : 'R';
-                    p.rpm += (p.speedKmh * 80 - p.rpm) * 12 * dt;
-                    if (mThrottle > 0 || isRev) dForce = (preset.power * 735.5 * 0.85 * (isRev ? 0.45 : 1.0) / Math.max(Math.abs(lVx), 5.0)) * mThrottle;
+                    p.gear = lVx >= -0.5 ? 'D' : 'R'; p.rpm += (p.speedKmh * 80 - p.rpm) * 12 * dt;
+                    if (mThrottle > 0 || isRev) dForce = (aPower * 735.5 * 0.85 * (isRev ? 0.45 : 1.0) / Math.max(Math.abs(lVx), 5.0)) * mThrottle;
                 } else {
-                    if (p.speedKmh < 1.0 && mThrottle <= 0) p.gear = 1;
-                    else if (p.gear === 0 && raceState === 0) { p.gear = 1; p.clutchDump = p.rpm / 7500; }
-
-                    let wheelSpeedRpm = (p.speedKmh / 3.6) / wheelRadius * 9.55;
-                    let targetRpm = 1000 + wheelSpeedRpm * gearRatios[p.gear] * finalDrive;
-                    
+                    if (p.speedKmh < 1.0 && mThrottle <= 0) p.gear = 1; else if (p.gear === 0 && raceState === 0) { p.gear = 1; p.clutchDump = p.rpm / 7500; }
+                    let wheelSpeedRpm = (p.speedKmh / 3.6) / wheelRadius * 9.55; let targetRpm = 1000 + wheelSpeedRpm * gearRatios[p.gear] * finalDrive;
                     if (targetRpm > 7500 && p.gear < 5) p.gear++; else if (targetRpm < 3500 && p.gear > 1 && p.speedKmh > 10) p.gear--;
                     p.rpm += (targetRpm - p.rpm) * 10 * dt;
-
                     if ((mThrottle > 0 || isRev) && p.gear > 0) {
-                        let torque = preset.power * 2.0 * Math.max(0.1, 1.0 - Math.pow((p.rpm - 5500)/4500, 2));
+                        let torque = aPower * 2.0 * Math.max(0.1, 1.0 - Math.pow((p.rpm - 5500)/4500, 2));
                         dForce = (torque * gearRatios[p.gear] * finalDrive / wheelRadius) * mThrottle;
-                        
-                        if (p.clutchDump > 0) { dForce *= (1.0 + p.clutchDump * 3.5); p.clutchDump -= dt * 2.5; }
-                        if (p.clutchDump < 0) p.clutchDump = 0;
+                        if (p.clutchDump > 0) { dForce *= (1.0 + p.clutchDump * 3.5); p.clutchDump -= dt * 2.5; } if (p.clutchDump < 0) p.clutchDump = 0;
                     }
                 }
             }
 
-            const maxGrip = (preset.mass * 9.81 / 2) * surfaceMu; const maxLat = maxGrip * 1.40; 
+            const maxGrip = (aMass * 9.81 / 2) * surfaceMu; const maxLat = maxGrip * 1.40; 
             let fLongF = preset.drivetrain === 'FWD' ? dForce : (preset.drivetrain === 'AWD' ? dForce*0.5 : 0);
             let fLongR = preset.drivetrain === 'RWD' ? dForce : (preset.drivetrain === 'AWD' ? dForce*0.5 : 0);
 
-            let bDistR = bForce * 0.35; if (ins.handbrake) { bDistR += preset.mass * 20.0; p.appliesBrake = true; }
+            let bDistR = bForce * 0.35; if (ins.handbrake) { bDistR += aMass * 20.0; p.appliesBrake = true; }
             fLongF -= Math.sign(lVx) * (bForce * 0.65); fLongR -= Math.sign(lVx) * bDistR;
             fLongF = Math.max(-maxGrip, Math.min(maxGrip, fLongF)); fLongR = Math.max(-maxGrip, Math.min(maxGrip, fLongR));
 
             let gripF = maxLat * Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongF) / maxGrip, 2) * 0.65));
             let gripR = ins.handbrake ? maxLat * 0.02 : maxLat * Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongR) / maxGrip, 2) * 0.85));
 
-            let a = preset.l / 24.0; let b = preset.l / 24.0; let Iz = preset.mass * (Math.pow(preset.w/12.0, 2) + Math.pow(preset.l/12.0, 2)) / 12.0;
-            let slipAngle = p.speedKmh > 10.0 ? Math.atan2(lVy, Math.abs(lVx)) : 0;
-            let maxRadian = (preset.turn * 10) * (Math.PI / 180); let delta = Math.max(-maxRadian, Math.min(maxRadian, (p.steer - slipAngle*0.45) * maxRadian));
+            let a = preset.l / 24.0; let b = preset.l / 24.0; let Iz = aMass * (Math.pow(preset.w/12.0, 2) + Math.pow(preset.l/12.0, 2)) / 12.0;
+            let slipAngle = p.speedKmh > 10.0 ? Math.atan2(lVy, Math.abs(lVx)) : 0; let maxRadian = (preset.turn * 10) * (Math.PI / 180); 
+            let delta = Math.max(-maxRadian, Math.min(maxRadian, (p.steer - slipAngle*0.45) * maxRadian));
 
-            let vYf = lVy + p.yawRate * a; let vSlipF = vYf * Math.cos(delta) - lVx * Math.sin(delta);
-            let vYr = lVy - p.yawRate * b; let vSlipR = vYr;
-            let MeffF = 1.0 / (1.0/preset.mass + (a*a)/Iz); let MeffR = 1.0 / (1.0/preset.mass + (b*b)/Iz);
+            let vYf = lVy + p.yawRate * a; let vSlipF = vYf * Math.cos(delta) - lVx * Math.sin(delta); let vYr = lVy - p.yawRate * b; let vSlipR = vYr;
+            let MeffF = 1.0 / (1.0/aMass + (a*a)/Iz); let MeffR = 1.0 / (1.0/aMass + (b*b)/Iz);
             let Jf = Math.max(-(gripF * dt), Math.min(gripF * dt, -vSlipF * MeffF)); let Jr = Math.max(-(gripR * dt), Math.min(gripR * dt, -vSlipR * MeffR));
 
             let fLatF = Jf / dt; let fLatR = Jr / dt;
-            let fX = fLongF * Math.cos(delta) + fLongR - fLatF * Math.sin(delta) - 0.45 * lVx * Math.abs(lVx) - rollingResistance * preset.mass * 9.81 * Math.sign(lVx) * 0.1;
+            let fX = fLongF * Math.cos(delta) + fLongR - fLatF * Math.sin(delta) - 0.45 * lVx * Math.abs(lVx) - rollingResistance * aMass * 9.81 * Math.sign(lVx) * 0.1;
             let fY = fLongF * Math.sin(delta) + fLatF * Math.cos(delta) + fLatR - 0.45 * lVy * Math.abs(lVy);
             let torque = (fLongF * Math.sin(delta) + fLatF * Math.cos(delta)) * a - fLatR * b - (1.5 + Math.abs(lVy)*0.3) * p.yawRate * Iz;
 
-            lVx += (fX / preset.mass) * dt; lVy += (fY / preset.mass) * dt; p.yawRate += (torque / Iz) * dt;
+            lVx += (fX / aMass) * dt; lVy += (fY / aMass) * dt; p.yawRate += (torque / Iz) * dt;
             p.vx = lVx * Math.cos(p.angle) - lVy * Math.sin(p.angle); p.vy = lVx * Math.sin(p.angle) + lVy * Math.cos(p.angle); p.angle += p.yawRate * dt;
             p.prevX = p.x; p.prevY = p.y; p.x += p.vx * 12.0 * dt; p.y += p.vy * 12.0 * dt;
 
@@ -406,12 +374,12 @@ function update() {
 
         for(let i=0; i<pkeys.length; i++) {
             for(let j=i+1; j<pkeys.length; j++) {
-                let pA = players[pkeys[i]], pB = players[pkeys[j]]; if(!pA || !pB) continue;
-                let dx = pB.x - pA.x, dy = pB.y - pA.y, dist = Math.hypot(dx, dy); let rA = vehiclePresets[pA.presetId].l/2, rB = vehiclePresets[pB.presetId].l/2;
+                let pA = players[pkeys[i]], pB = players[pkeys[j]]; if(!pA || !pB || isNaN(pA.x) || isNaN(pB.x)) continue;
+                let dx = pB.x - pA.x, dy = pB.y - pA.y, dist = Math.hypot(dx, dy); let rA = (vehiclePresets[pA.presetId]||vehiclePresets['jaguar']).l/2, rB = (vehiclePresets[pB.presetId]||vehiclePresets['jaguar']).l/2;
                 if(dist < rA + rB && dist > 0) {
-                    let nx = dx/dist, ny = dy/dist; let velN = (pB.vx - pA.vx)*nx + (pB.vy - pA.vy)*ny;
-                    if(velN > 0) continue; 
-                    let mA = vehiclePresets[pA.presetId].mass, mB = vehiclePresets[pB.presetId].mass; let jImp = -(1 + 0.5) * velN / (1/mA + 1/mB);
+                    let nx = dx/dist, ny = dy/dist; let velN = (pB.vx - pA.vx)*nx + (pB.vy - pA.vy)*ny; if(velN > 0) continue; 
+                    let mA = (vehiclePresets[pA.presetId]||vehiclePresets['jaguar']).mass * serverSettings.mass, mB = (vehiclePresets[pB.presetId]||vehiclePresets['jaguar']).mass * serverSettings.mass;
+                    let jImp = -(1 + 0.5) * velN / (1/mA + 1/mB);
                     pA.vx -= (jImp * nx)/mA; pA.vy -= (jImp * ny)/mA; pB.vx += (jImp * nx)/mB; pB.vy += (jImp * ny)/mB;
                     let corr = Math.max(0, (rA+rB - dist) - 1.0) / (1/mA + 1/mB) * 0.8; pA.x -= (nx*corr)/mA; pA.y -= (ny*corr)/mA; pB.x += (nx*corr)/mB; pB.y += (ny*corr)/mB;
                 }
@@ -420,74 +388,64 @@ function update() {
         Object.values(connections).forEach(c => c.send(outState));
     } else {
         for (let pid in players) {
-            let p = players[pid]; p.x += (p.targetX - p.x) * 0.3; p.y += (p.targetY - p.y) * 0.3;
+            let p = players[pid]; if(isNaN(p.x)||isNaN(p.targetX)) continue;
+            p.x += (p.targetX - p.x) * 0.3; p.y += (p.targetY - p.y) * 0.3;
             let d = p.targetAngle - p.angle; while(d < -Math.PI) d+=Math.PI*2; while(d > Math.PI) d-=Math.PI*2; p.angle += d * 0.3;
         }
     }
 
     if(raceState !== lastLightState) {
         let lightUI = document.getElementById('f1-lights');
-        if(raceState === -1) lightUI.style.display = 'none';
+        if(raceState === -1 || (raceState === 0 && now - raceStartTime > 2000)) lightUI.style.display = 'none';
         else {
             lightUI.style.display = 'flex'; let lights = lightUI.getElementsByClassName('light');
             for(let i=0; i<5; i++) { lights[i].className = 'light'; if(raceState === 0) lights[i].classList.add('green'); else if(5 - raceState > i) lights[i].classList.add('red'); }
             if(raceState > 0) playBeep(440, 0.2); if(raceState === 0) playBeep(880, 0.8);
         }
         lastLightState = raceState;
-    }
+    } else if (raceState === 0 && now - raceStartTime > 2000) { document.getElementById('f1-lights').style.display = 'none'; }
 
     if (players[myId]) {
         let me = players[myId];
-        document.getElementById('hud-speed').innerText = Math.round(me.speedKmh);
+        document.getElementById('hud-speed').innerText = Math.round(me.speedKmh || 0);
         document.getElementById('hud-gear').innerText = me.gear === -1 ? 'R' : (me.gear === 0 ? 'N' : me.gear);
-        document.getElementById('hud-rpm').innerText = me.rpm < 10 ? 0 : Math.round(me.rpm);
-        document.getElementById('fuel-fill').style.width = (me.fuel / me.maxFuel * 100) + '%';
+        document.getElementById('hud-rpm').innerText = me.rpm < 10 ? 0 : Math.round(me.rpm || 0);
+        document.getElementById('fuel-fill').style.width = ((me.fuel || 0) / (me.maxFuel || 100) * 100) + '%';
         document.getElementById('fuel-fill').style.background = me.fuel < me.maxFuel*0.2 ? '#e74c3c' : '#f1c40f';
         document.getElementById('hud-lap').innerText = `${Math.min(me.lap + 1, totalLaps)}/${totalLaps}`;
-        document.getElementById('hud-time').innerText = me.finished ? formatTime(me.bestLap) : (raceState === 0 ? formatTime(me.currentLapTime || 0) : "0.00");
+        document.getElementById('hud-time').innerText = me.finished ? formatTime(me.bestLap) : (raceState === 0 ? formatTime(me.currentLapTime) : "0.00");
         
         if (audioReady) {
-            engineOsc.frequency.value = Math.max(0, 40 + (me.rpm / 22));
-            engineGain.gain.value = me.rpm < 100 ? 0 : 0.08 + (Math.abs(localInputs.throttle) * 0.2);
-            let sq = Math.max(me.frontSpinSeverity, me.rearSpinSeverity);
-            if(sq > 0.1 && me.speedKmh>5) { squealGain.gain.value = sq * 0.15; squealOsc.frequency.value = 800 + Math.random()*200; } else squealGain.gain.value = 0;
+            engineOsc.frequency.value = Math.max(0, 40 + (me.rpm / 22)); engineGain.gain.value = me.rpm < 100 ? 0 : 0.08 + (Math.abs(localInputs.throttle) * 0.2);
+            let sq = Math.max(me.frontSpinSeverity, me.rearSpinSeverity); if(sq > 0.1 && me.speedKmh>5) { squealGain.gain.value = sq * 0.15; squealOsc.frequency.value = 800 + Math.random()*200; } else squealGain.gain.value = 0;
         }
     }
 
     let lbArr = Object.values(players).map(p => ({ n: p.name, b: p.bestLap, l: p.lap, fin: p.finished })).sort((a,b) => {
-        if(a.fin && !b.fin) return -1; if(!a.fin && b.fin) return 1;
-        if(a.l !== b.l) return b.l - a.l;
-        return a.b - b.b;
+        if(a.fin && !b.fin) return -1; if(!a.fin && b.fin) return 1; if(a.l !== b.l) return b.l - a.l; return a.b - b.b;
     });
-    let lbHTML = "";
-    for(let i=0; i<Math.min(5, lbArr.length); i++) {
-        lbHTML += `<li><span>${i+1}. ${lbArr[i].n}</span><span style="color:${lbArr[i].fin?'#2ecc71':'#f1c40f'};">${lbArr[i].fin?'Ferdig':formatTime(lbArr[i].b)}</span></li>`;
-    }
+    let lbHTML = ""; for(let i=0; i<Math.min(5, lbArr.length); i++) lbHTML += `<li><span>${i+1}. ${lbArr[i].n}</span><span style="color:${lbArr[i].fin?'#2ecc71':'#f1c40f'};">${lbArr[i].fin?'Ferdig':formatTime(lbArr[i].b)}</span></li>`;
     document.getElementById('lb-list').innerHTML = lbHTML;
 
-    ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = '#2d4c1e'; ctx.fillRect(0,0,canvas.width,canvas.height); 
-    ctx.save(); if(players[myId]) ctx.translate(canvas.width/2 - players[myId].x, canvas.height/2 - players[myId].y);
+    ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = '#2d4c1e'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.save(); 
+    if(players[myId] && !isNaN(players[myId].x)) ctx.translate(canvas.width/2 - players[myId].x, canvas.height/2 - players[myId].y); else ctx.translate(canvas.width/2 - activeTrack.startX, canvas.height/2 - activeTrack.startY);
 
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.lineWidth = 250; ctx.strokeStyle = '#1a2e12'; ctx.stroke(activeTrack.path); 
-    ctx.lineWidth = 240; ctx.strokeStyle = '#c2b280'; ctx.stroke(activeTrack.path);
-    ctx.lineWidth = 190; ctx.strokeStyle = '#fff'; ctx.stroke(activeTrack.path);
-    ctx.strokeStyle = '#e74c3c'; ctx.setLineDash([30,30]); ctx.stroke(activeTrack.path); ctx.setLineDash([]);
+    ctx.lineWidth = 250; ctx.strokeStyle = '#1a2e12'; ctx.stroke(activeTrack.path); ctx.lineWidth = 240; ctx.strokeStyle = '#c2b280'; ctx.stroke(activeTrack.path);
+    ctx.lineWidth = 190; ctx.strokeStyle = '#fff'; ctx.stroke(activeTrack.path); ctx.strokeStyle = '#e74c3c'; ctx.setLineDash([30,30]); ctx.stroke(activeTrack.path); ctx.setLineDash([]);
     ctx.lineWidth = 160; ctx.strokeStyle = '#2c2c2c'; ctx.stroke(activeTrack.path);
     
     ctx.fillStyle = 'rgba(52, 152, 219, 0.3)'; ctx.strokeStyle = '#3498db'; ctx.lineWidth = 4; ctx.setLineDash([10,10]);
     let pb = activeTrack.pit; ctx.fillRect(pb.x1, pb.y1, pb.x2-pb.x1, pb.y2-pb.y1); ctx.strokeRect(pb.x1, pb.y1, pb.x2-pb.x1, pb.y2-pb.y1); ctx.setLineDash([]);
     ctx.fillStyle = '#fff'; ctx.font = '20px sans-serif'; ctx.fillText('PIT', pb.x1 + 20, pb.y1 + 30);
 
-    ctx.save();
-    ctx.translate(activeTrack.startX, activeTrack.startY); ctx.rotate(activeTrack.startAngle);
+    ctx.save(); ctx.translate(activeTrack.startX, activeTrack.startY); ctx.rotate(activeTrack.startAngle);
     let cbW = 10; ctx.fillStyle = '#fff';
     for(let r=-8; r<8; r++) { for(let c=0; c<4; c++) { if((r+c)%2===0) ctx.fillRect(-c*cbW, r*cbW, cbW, cbW); } }
     
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
     for(let i=0; i<8; i++) {
-        let row = Math.floor(i / 2); let col = i % 2 === 0 ? 1 : -1; let spacing = 120, lateral = 40;
-        let gx = -(row * spacing + 60); let gy = (col * lateral);
+        let row = Math.floor(i / 2); let col = i % 2 === 0 ? 1 : -1; let spacing = 120, lateral = 40; let gx = -(row * spacing + 60); let gy = (col * lateral);
         ctx.beginPath(); ctx.moveTo(gx + 20, gy - 12); ctx.lineTo(gx - 20, gy - 12); ctx.lineTo(gx - 20, gy + 12); ctx.lineTo(gx + 20, gy + 12); ctx.stroke();
     }
     ctx.restore();
@@ -500,21 +458,17 @@ function update() {
     }
 
     for (let pid in players) {
-        let p = players[pid], pre = vehiclePresets[p.presetId]; let hw = pre.w / 2; let hl = pre.l / 2;
+        let p = players[pid], pre = vehiclePresets[p.presetId]||vehiclePresets['jaguar']; let hw = pre.w / 2; let hl = pre.l / 2;
         const fwX = Math.cos(p.angle); const fwY = Math.sin(p.angle); const rX = -Math.sin(p.angle); const rY = Math.cos(p.angle);
         if (p.rearSpinSeverity > 0.1 || p.inputs?.handbrake) skidmarks.push({ x1: p.x + fwX * (-hl + 6) + rX * (-hw + 2), y1: p.y + fwY * (-hl + 6) + rY * (-hw + 2), x2: p.x + fwX * (-hl + 6) + rX * (hw - 2), y2: p.y + fwY * (-hl + 6) + rY * (hw - 2) });
         if (p.frontSpinSeverity > 0.1) skidmarks.push({ x1: p.x + fwX * (hl - 8) + rX * (-hw + 2), y1: p.y + fwY * (hl - 8) + rY * (-hw + 2), x2: p.x + fwX * (hl - 8) + rX * (hw - 2), y2: p.y + fwY * (hl - 8) + rY * (hw - 2) });
     }
-    if (skidmarks.length > 5000) skidmarks.splice(0, skidmarks.length - 5000);
-    ctx.fillStyle = 'rgba(15, 15, 15, 0.4)'; ctx.beginPath();
+    if (skidmarks.length > 5000) skidmarks.splice(0, skidmarks.length - 5000); ctx.fillStyle = 'rgba(15, 15, 15, 0.4)'; ctx.beginPath();
     for (let i = 0; i < skidmarks.length; i++) { let m = skidmarks[i]; ctx.rect(m.x1 - 2, m.y1 - 2, 4, 4); ctx.rect(m.x2 - 2, m.y2 - 2, 4, 4); } ctx.fill();
 
     for (let pid in players) {
-        let p = players[pid], pre = vehiclePresets[p.presetId];
-        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
-        
-        let hl = pre.l/2, hw = pre.w/2; const wheelW = 14, wheelThick = 6, wheelOffset = hw - 1;
-        let maxRadian = (pre.turn * 10) * (Math.PI / 180); let delta = Math.max(-maxRadian, Math.min(maxRadian, p.steer * maxRadian));
+        let p = players[pid], pre = vehiclePresets[p.presetId]||vehiclePresets['jaguar']; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+        let hl = pre.l/2, hw = pre.w/2; const wheelW = 14, wheelThick = 6, wheelOffset = hw - 1; let maxRadian = (pre.turn * 10) * (Math.PI / 180); let delta = Math.max(-maxRadian, Math.min(maxRadian, p.steer * maxRadian));
 
         if (pre.type !== 'f1' && pre.type !== 'gokart') {
             ctx.fillStyle = '#111'; ctx.fillRect(-hl + 6 - wheelW/2, -wheelOffset - wheelThick/2, wheelW, wheelThick); ctx.fillRect(-hl + 6 - wheelW/2, wheelOffset - wheelThick/2, wheelW, wheelThick);
@@ -548,8 +502,7 @@ function update() {
         ctx.fillStyle = p.appliesBrake ? '#ff3333' : '#8b0000'; ctx.shadowColor = p.appliesBrake ? '#ff0000' : 'transparent'; ctx.shadowBlur = p.appliesBrake ? 10 : 0;
         ctx.beginPath(); ctx.roundRect(-hl - 1, -hw + 3, 3, 5, 1); ctx.roundRect(-hl - 1, hw - 8, 3, 5, 1); ctx.fill(); ctx.shadowBlur = 0;
 
-        ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='11px sans-serif'; ctx.textAlign='center'; 
-        ctx.fillText(p.name, 0, -hw-8);
+        ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center'; ctx.fillText(p.name, 0, -hw-12);
         ctx.restore();
     }
     ctx.restore(); requestAnimationFrame(update);
