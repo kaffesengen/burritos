@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Avansert Fysikkmotor v26 - Race Edition</title>
+    <title>Avansert Fysikkmotor v27 - Komplett</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="app.js" defer></script>
@@ -11,11 +11,11 @@
 <body>
 
 <div id="lobby">
-    <h1>Avansert Fysikkmotor v26</h1>
+    <h1>Avansert Fysikkmotor v27</h1>
     
     <div class="lobby-box" id="mode-selection">
         <label style="color: #aaa; font-size: 12px;">Ditt Førernavn:</label>
-        <input type="text" id="player-name" class="input-text" placeholder="Skriv inn navn" value="Fører" maxlength="15" style="margin-bottom: 20px; text-align: center; font-weight: bold; font-size: 16px;">
+        <input type="text" id="player-name" class="input-text" placeholder="Skriv inn navn" value="" maxlength="15" style="margin-bottom: 20px; text-align: center; font-weight: bold; font-size: 16px;">
 
         <button class="btn" id="btn-sandbox-mode" style="background: #8e44ad; margin-bottom: 20px;">Spill Alene (Sandbox)</button>
         <button class="btn btn-green" id="btn-host-mode">Opprett Spill (Host)</button>
@@ -106,6 +106,25 @@
             <option value="touch" selected>Touch / Tastatur</option>
             <option value="gamepad">Xbox Kontroller</option>
         </select>
+    </div>
+
+    <!-- Sandbox / Server Settings -->
+    <div class="control" id="sandbox-controls" style="display: none; grid-column: span 2; border-top: 1px solid #444; padding-top: 10px; margin-top: 5px;">
+        <label style="color: #9b59b6;">Server / Sandbox Fysikkregler (Kun Host):</label>
+        <div style="display: flex; gap: 15px; margin-top: 5px;">
+            <div style="flex:1">
+                <span style="color:#aaa; font-size:10px;">Grep Multiplikator (<span id="val-grip">1.0</span>x)</span>
+                <input type="range" id="sb-grip" min="0.1" max="3.0" step="0.1" value="1.0" style="width:100%">
+            </div>
+            <div style="flex:1">
+                <span style="color:#aaa; font-size:10px;">Motorkraft (<span id="val-power">1.0</span>x)</span>
+                <input type="range" id="sb-power" min="0.1" max="3.0" step="0.1" value="1.0" style="width:100%">
+            </div>
+            <div style="flex:1">
+                <span style="color:#aaa; font-size:10px;">Kjøretøy Vekt (<span id="val-mass">1.0</span>x)</span>
+                <input type="range" id="sb-mass" min="0.1" max="3.0" step="0.1" value="1.0" style="width:100%">
+            </div>
+        </div>
     </div>
 </div>
 
