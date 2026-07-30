@@ -51,6 +51,7 @@ generateEnvironment();
 let peer = null, isHost = true, gameActive = false, myId = null, hostConnection = null;
 const connections = {}, players = {}; 
 let raceState = -1, totalLaps = 3, raceStartTime = 0;
+let gameLoopId = null;
 
 function createPlayerRecord(id, presetId, name) {
     let safeName = "Gjest";
@@ -82,10 +83,16 @@ function assignGridPositions() {
 
 const statusMsg = document.getElementById('status-msg');
 function showMsg(msg) { statusMsg.innerText = msg; }
+
 function enterGame() {
-    gameActive = true; document.getElementById('lobby').style.display = 'none'; document.getElementById('canvas-container').style.display = 'flex';
+    if (gameActive) return; // Forhindrer dobbelt-start av klient
+    gameActive = true; 
+    document.getElementById('lobby').style.display = 'none'; 
+    document.getElementById('canvas-container').style.display = 'flex';
     if(isHost) { document.getElementById('host-actions').style.display = 'flex'; document.getElementById('sandbox-controls').style.display = 'block'; assignGridPositions(); }
-    resize(); requestAnimationFrame(update);
+    resize(); 
+    if (gameLoopId) cancelAnimationFrame(gameLoopId);
+    gameLoopId = requestAnimationFrame(update);
 }
 
 let audioCtx, engineOsc, engineGain, squealOsc, squealGain, audioReady = false;
@@ -118,7 +125,7 @@ function playBeep(freq, duration = 0.3) {
 });
 
 document.getElementById('btn-sandbox-mode').addEventListener('click', () => {
-    myId = 'sandbox'; isHost = true; gameActive = true; let pName = document.getElementById('player-name').value || "Meg";
+    myId = 'sandbox'; isHost = true; let pName = document.getElementById('player-name').value || "Meg";
     players[myId] = createPlayerRecord(myId, document.getElementById('preset-selector').value, pName);
     totalLaps = parseInt(document.getElementById('host-laps').value) || 3; enterGame();
 });
@@ -137,15 +144,14 @@ document.getElementById('btn-host-mode').addEventListener('click', () => {
             if (data.type === 'join') {
                 if (!players[conn.peer]) {
                     players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name);
-                    
                     if (gameActive) {
                         if (raceState === 0) {
                             players[conn.peer].x = activeTrack.pit.x1 + 100; players[conn.peer].y = activeTrack.pit.y1 + 40;
                         } else { assignGridPositions(); }
-                        conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps });
+                        conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
                         conn.send({ type: 'start', laps: totalLaps, rs: raceState }); 
                     } else {
-                        conn.send({ type: 'init', trackId: activeTrackId, laps: parseInt(document.getElementById('host-laps').value) });
+                        conn.send({ type: 'init', trackId: activeTrackId, laps: parseInt(document.getElementById('host-laps').value), yourId: conn.peer });
                     }
                 }
             } else if (data.type === 'inputs' && players[conn.peer]) {
@@ -203,19 +209,21 @@ function initJoiner(hostId) {
             let selPreset = document.getElementById('preset-selector').value;
             players[myId] = createPlayerRecord(myId, selPreset, pName);
             
-            // Defensiv Handshake: WebRTC spiser ofte den første pakken hvis den sendes umiddelbart.
             let joined = false;
-            hostConnection.send({ type: 'join', preset: selPreset, name: pName });
             let handshakeLoop = setInterval(() => {
                 if (joined || !hostConnection.open) { clearInterval(handshakeLoop); return; }
                 hostConnection.send({ type: 'join', preset: selPreset, name: pName });
-            }, 250);
+            }, 500);
 
             hostConnection.on('data', data => {
-                if (data.type === 'init') { joined = true; activeTrackId = data.trackId; activeTrack = tracks[activeTrackId]; generateEnvironment(); if(data.laps) totalLaps = data.laps; } 
+                if (data.type === 'init') { 
+                    joined = true; activeTrackId = data.trackId; activeTrack = tracks[activeTrackId]; generateEnvironment(); 
+                    if(data.laps) totalLaps = data.laps;
+                    if(data.yourId) { myId = data.yourId; if(!players[myId]) players[myId] = createPlayerRecord(myId, selPreset, pName); }
+                } 
                 else if (data.type === 'start') { 
                     joined = true; if(data.laps) totalLaps = data.laps; 
-                    if(data.rs === 0) { raceState = 0; raceStartTime = performance.now() - 1000; } // Gir grønt lys til de som joiner sent
+                    if(data.rs === 0) { raceState = 0; raceStartTime = performance.now() - 1000; } 
                     enterGame(); 
                 } 
                 else if (data.type === 'state') {
@@ -223,17 +231,19 @@ function initJoiner(hostId) {
                     if(data.settings) serverSettings = data.settings;
                     
                     for (let pid in data.players) {
-                        if (!players[pid]) players[pid] = createPlayerRecord(pid, data.players[pid].presetId, data.players[pid].n);
-                        let pData = data.players[pid], p = players[pid];
+                        let pData = data.players[pid];
+                        if (!players[pid]) players[pid] = createPlayerRecord(pid, pData.presetId, pData.n);
+                        let p = players[pid];
                         
-                        if (!isNaN(pData.x) && pData.x !== null) p.targetX = pData.x; 
-                        if (!isNaN(pData.y) && pData.y !== null) p.targetY = pData.y; 
-                        if (!isNaN(pData.a) && pData.a !== null) p.targetAngle = pData.a; 
+                        // Beskyttelse mot NaN og null som forårsaker "nullpunkt"-frysing
+                        if (typeof pData.x === 'number') p.targetX = pData.x; 
+                        if (typeof pData.y === 'number') p.targetY = pData.y; 
+                        if (typeof pData.a === 'number') p.targetAngle = pData.a; 
                         
                         p.steer = pData.s; p.name = pData.n;
                         p.frontSpinSeverity = pData.fS; p.rearSpinSeverity = pData.rS; p.gear = pData.g; p.rpm = pData.rpm; 
                         p.speedKmh = pData.v; p.fuel = pData.f; p.presetId = pData.presetId; p.maxFuel = vehiclePresets[pData.presetId]?.fuelCap || 100;
-                        p.appliesBrake = pData.b; p.lap = pData.l; p.bestLap = pData.bl; p.finished = pData.fin; p.currentLapTime = pData.cLT; p.lastSeen = performance.now();
+                        p.appliesBrake = pData.b; p.lap = pData.l; p.bestLap = pData.bl || Infinity; p.finished = pData.fin; p.currentLapTime = pData.cLT; p.lastSeen = performance.now();
                     }
                     for (let pid in players) { if(pid !== myId && !data.players[pid]) delete players[pid]; }
                 }
@@ -271,7 +281,7 @@ function resize() { canvas.width = canvas.parentElement.clientWidth || window.in
 window.addEventListener('resize', resize); document.getElementById('btn-fullscreen').addEventListener('click', () => { const e = document.documentElement; if(!document.fullscreenElement) e.requestFullscreen(); else document.exitFullscreen(); setTimeout(resize,200); });
 
 let lastTime = performance.now(); let lastLightState = -1; const skidmarks = [];
-let lastNetUpdate = 0; let lastInputSend = 0;
+let lastNetUpdate = 0; let lastInputSend = 0; let lastInputString = "";
 
 function formatTime(ms) { if(ms === Infinity || !ms || isNaN(ms)) return "-.--"; let total = Math.floor(ms/10); let min = Math.floor(total/6000); let sec = Math.floor((total%6000)/100); let hund = total%100; return `${min>0?min+':':''}${sec.toString().padStart(min>0?2:1,'0')}.${hund.toString().padStart(2,'0')}`; }
 
@@ -286,21 +296,22 @@ function update() {
 
     if (players[myId]) players[myId].inputs = localInputs;
     
-    // Klienter sender inputs throttlet (~30 fps) for å unngå WebRTC data-kvelning
+    // Klient input-struper: Sender KUN nettverkspakke hvis input har endret seg, eller som heartbeat hver 250ms
     if (!isHost && hostConnection && hostConnection.open) {
-        if (now - lastInputSend > 33) {
+        let currentInputString = localInputs.steering + "," + localInputs.throttle + "," + localInputs.handbrake;
+        if (currentInputString !== lastInputString || now - lastInputSend > 250) {
             try { hostConnection.send({ type: 'inputs', inputs: localInputs }); } catch(e){}
+            lastInputString = currentInputString;
             lastInputSend = now;
         }
     }
 
     if (isHost) {
-        let outState = { type: 'state', raceState: raceState, laps: totalLaps, settings: serverSettings, players: {} };
+        let outState = { players: {} };
         let pkeys = Object.keys(players);
         
         for (let pid of pkeys) {
             let p = players[pid]; 
-            
             if (pid !== myId && now - p.lastSeen > 3000) { 
                 delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } 
                 document.getElementById('player-count').innerText = `Spillere: ${Object.keys(connections).length + 1}`; continue; 
@@ -367,6 +378,10 @@ function update() {
                 } else {
                     if (p.speedKmh < 1.0 && mThrottle <= 0) p.gear = 1; else if (p.gear === 0 && raceState === 0) { p.gear = 1; p.clutchDump = p.rpm / 7500; }
                     let wheelSpeedRpm = (p.speedKmh / 3.6) / wheelRadius * 9.55; let targetRpm = 1000 + wheelSpeedRpm * gearRatios[p.gear] * finalDrive;
+                    
+                    // Simulerer sluring på clutchen slik at motoren kan ruses skikkelig ved oppstart
+                    if (p.speedKmh < 10 && mThrottle > 0) { targetRpm += Math.abs(mThrottle) * 4500 * (1 - p.speedKmh/10); }
+
                     if (targetRpm > 7500 && p.gear < 5) p.gear++; else if (targetRpm < 3500 && p.gear > 1 && p.speedKmh > 10) p.gear--;
                     p.rpm += (targetRpm - p.rpm) * 10 * dt;
                     if ((mThrottle > 0 || isRev) && p.gear > 0) {
@@ -409,7 +424,7 @@ function update() {
             p.rearSpinSeverity = Math.abs(-vSlipR * MeffR) > gripR * dt ? Math.min(1.0, (Math.abs(-vSlipR * MeffR)-gripR * dt)/(gripR * dt)) : 0;
             if (Math.abs(fLongR)/maxGrip > 0.95) p.rearSpinSeverity = 1.0; if (Math.abs(fLongF)/maxGrip > 0.95) p.frontSpinSeverity = 1.0; 
 
-            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake, n: p.name, l: p.lap, bl: p.bestLap, fin: p.finished, cLT: p.currentLapTime };
+            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake, n: p.name, l: p.lap, bl: p.bestLap === Infinity ? null : p.bestLap, fin: p.finished, cLT: p.currentLapTime };
         }
 
         for(let i=0; i<pkeys.length; i++) {
@@ -426,17 +441,21 @@ function update() {
             }
         }
         
-        // Host sender over nettverket throttlet (~30 fps) for å forhindre buffer overflow over WebRTC
-        if (now - lastNetUpdate > 33) {
-            Object.values(connections).forEach(c => { try { c.send(outState); } catch(e){} });
+        // Host sender nettverks-state throttlet til ~25 fps for å hindre PeerJS kvelning
+        if (now - lastNetUpdate > 40) {
+            let stateMsg = { type: 'state', raceState: raceState, laps: totalLaps, settings: serverSettings, players: outState.players };
+            Object.values(connections).forEach(c => { try { c.send(stateMsg); } catch(e){} });
             lastNetUpdate = now;
         }
         
     } else {
+        // Klientens sikre interpolering mot faktiske tall for å forhindre skjerm-frys
         for (let pid in players) {
-            let p = players[pid]; if(isNaN(p.x) || isNaN(p.targetX)) continue;
-            p.x += (p.targetX - p.x) * 0.3; p.y += (p.targetY - p.y) * 0.3;
-            let d = p.targetAngle - p.angle; while(d < -Math.PI) d+=Math.PI*2; while(d > Math.PI) d-=Math.PI*2; p.angle += d * 0.3;
+            let p = players[pid]; 
+            if (typeof p.targetX === 'number' && typeof p.targetY === 'number') {
+                p.x += (p.targetX - p.x) * 0.3; p.y += (p.targetY - p.y) * 0.3;
+                let d = p.targetAngle - p.angle; while(d < -Math.PI) d+=Math.PI*2; while(d > Math.PI) d-=Math.PI*2; p.angle += d * 0.3;
+            }
         }
     }
 
@@ -468,13 +487,19 @@ function update() {
     }
 
     let lbArr = Object.values(players).map(p => ({ n: p.name, b: p.bestLap, l: p.lap, fin: p.finished })).sort((a,b) => {
-        if(a.fin && !b.fin) return -1; if(!a.fin && b.fin) return 1; if(a.l !== b.l) return b.l - a.l; return a.b - b.b;
+        if(a.fin && !b.fin) return -1; if(!a.fin && b.fin) return 1; if(a.l !== b.l) return b.l - a.l; return (a.b||0) - (b.b||0);
     });
     let lbHTML = ""; for(let i=0; i<Math.min(5, lbArr.length); i++) lbHTML += `<li><span>${i+1}. ${lbArr[i].n}</span><span style="color:${lbArr[i].fin?'#2ecc71':'#f1c40f'};">${lbArr[i].fin?'Ferdig':formatTime(lbArr[i].b)}</span></li>`;
     document.getElementById('lb-list').innerHTML = lbHTML;
 
     ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = '#2d4c1e'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.save(); 
-    if(players[myId] && !isNaN(players[myId].x)) ctx.translate(canvas.width/2 - players[myId].x, canvas.height/2 - players[myId].y); else ctx.translate(canvas.width/2 - activeTrack.startX, canvas.height/2 - activeTrack.startY);
+    
+    // Sikker kameraposisjonering. Feiler den havner man på startstreken.
+    if(players[myId] && typeof players[myId].x === 'number') {
+        ctx.translate(canvas.width/2 - players[myId].x, canvas.height/2 - players[myId].y); 
+    } else { 
+        ctx.translate(canvas.width/2 - activeTrack.startX, canvas.height/2 - activeTrack.startY); 
+    }
 
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.lineWidth = 250; ctx.strokeStyle = '#1a2e12'; ctx.stroke(activeTrack.path); ctx.lineWidth = 240; ctx.strokeStyle = '#c2b280'; ctx.stroke(activeTrack.path);
@@ -505,6 +530,7 @@ function update() {
 
     for (let pid in players) {
         let p = players[pid], pre = vehiclePresets[p.presetId]||vehiclePresets['jaguar']; let hw = pre.w / 2; let hl = pre.l / 2;
+        if (typeof p.angle !== 'number' || isNaN(p.angle)) continue; // Blokkerer tegnings-krasj
         const fwX = Math.cos(p.angle); const fwY = Math.sin(p.angle); const rX = -Math.sin(p.angle); const rY = Math.cos(p.angle);
         if (p.rearSpinSeverity > 0.1 || p.inputs?.handbrake) skidmarks.push({ x1: p.x + fwX * (-hl + 6) + rX * (-hw + 2), y1: p.y + fwY * (-hl + 6) + rY * (-hw + 2), x2: p.x + fwX * (-hl + 6) + rX * (hw - 2), y2: p.y + fwY * (-hl + 6) + rY * (hw - 2) });
         if (p.frontSpinSeverity > 0.1) skidmarks.push({ x1: p.x + fwX * (hl - 8) + rX * (-hw + 2), y1: p.y + fwY * (hl - 8) + rY * (-hw + 2), x2: p.x + fwX * (hl - 8) + rX * (hw - 2), y2: p.y + fwY * (hl - 8) + rY * (hw - 2) });
@@ -513,7 +539,10 @@ function update() {
     for (let i = 0; i < skidmarks.length; i++) { let m = skidmarks[i]; ctx.rect(m.x1 - 2, m.y1 - 2, 4, 4); ctx.rect(m.x2 - 2, m.y2 - 2, 4, 4); } ctx.fill();
 
     for (let pid in players) {
-        let p = players[pid], pre = vehiclePresets[p.presetId]||vehiclePresets['jaguar']; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+        let p = players[pid], pre = vehiclePresets[p.presetId]||vehiclePresets['jaguar']; 
+        if (typeof p.x !== 'number' || typeof p.y !== 'number' || typeof p.angle !== 'number') continue;
+        
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
         let hl = pre.l/2, hw = pre.w/2; const wheelW = 14, wheelThick = 6, wheelOffset = hw - 1; let maxRadian = (pre.turn * 10 * serverSettings.steering) * (Math.PI / 180); let delta = Math.max(-maxRadian, Math.min(maxRadian, p.steer * maxRadian));
 
         if (pre.type !== 'f1' && pre.type !== 'gokart') {
@@ -551,5 +580,8 @@ function update() {
         ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center'; ctx.fillText(p.name, 0, -hw-12);
         ctx.restore();
     }
-    ctx.restore(); requestAnimationFrame(update);
+    ctx.restore(); 
+    
+    // Loopen fortsetter trygt
+    gameLoopId = requestAnimationFrame(update);
 }
