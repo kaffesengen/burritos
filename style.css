@@ -8,7 +8,7 @@ canvas { width: 100%; height: 100%; display: block; }
 #lobby h1 { margin-bottom: 20px; color: #3498db; }
 .lobby-box { background: #222; border: 1px solid #444; padding: 20px; border-radius: 8px; margin-bottom: 20px; width: 100%; max-width: 400px; }
 
-.btn { background: #3498db; color: #fff; border: none; padding: 10px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%; }
+.btn { background: #3498db; color: #fff; border: none; padding: 10px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 5px; }
 .btn:active { background: #2980b9; }
 .btn-green { background: #2ecc71; }
 .btn-green:active { background: #27ae60; }
@@ -21,7 +21,7 @@ canvas { width: 100%; height: 100%; display: block; }
 #fuel-fill { width: 100%; height: 100%; background: #f1c40f; transition: width 0.2s, background-color 0.2s; }
 
 #host-actions { position: absolute; top: 10px; right: 60px; display: none; gap: 10px; z-index: 10; }
-#host-actions .btn { width: auto; padding: 6px 12px; font-size: 12px; }
+#host-actions .btn { width: auto; padding: 6px 12px; font-size: 12px; margin-top: 0; }
 #host-actions select { padding: 5px; background: #222; color: #fff; border: 1px solid #444; border-radius: 3px; font-size: 12px; outline: none; }
 
 #f1-lights { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); display: none; gap: 15px; background: rgba(0,0,0,0.8); padding: 15px 25px; border-radius: 10px; border: 2px solid #333; z-index: 20; }
