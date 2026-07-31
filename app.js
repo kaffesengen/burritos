@@ -61,7 +61,7 @@ function createPlayerRecord(id, presetId, name, colorCode) {
     if (typeof name === 'string' && name.trim().length > 0) safeName = name.trim().substring(0, 15);
     let cap = vehiclePresets[presetId]?.fuelCap || 100;
     let t = getTrack();
-    let col = colorCode || document.getElementById('car-color')?.value || '#3498db';
+    let col = colorCode || document.getElementById('ingame-car-color')?.value || document.getElementById('car-color')?.value || '#3498db';
     return {
         id: id, name: safeName, presetId: presetId || 'jaguar', color: col,
         x: t.startX, y: t.startY, prevX: t.startX, prevY: t.startY,
@@ -105,6 +105,42 @@ function enterGame() {
     gameLoopId = requestAnimationFrame(update);
 }
 
+// In-game meny og UI-synkronisering
+let menuBtn = document.getElementById('btn-ingame-menu');
+let modal = document.getElementById('ingame-modal');
+let resumeBtn = document.getElementById('btn-resume');
+let exitBtn = document.getElementById('btn-exit');
+
+if (menuBtn && modal) menuBtn.addEventListener('click', () => modal.style.display = 'flex');
+if (resumeBtn && modal) resumeBtn.addEventListener('click', () => modal.style.display = 'none');
+if (exitBtn) exitBtn.addEventListener('click', exitToMenu);
+
+let lP = document.getElementById('preset-selector'), gP = document.getElementById('ingame-preset-selector');
+if (lP && gP) { lP.addEventListener('change', e => gP.value = e.target.value); gP.addEventListener('change', e => lP.value = e.target.value); }
+let lC = document.getElementById('car-color'), gC = document.getElementById('ingame-car-color');
+if (lC && gC) { lC.addEventListener('input', e => gC.value = e.target.value); gC.addEventListener('input', e => lC.value = e.target.value); }
+
+function exitToMenu() {
+    gameActive = false;
+    if(gameLoopId) cancelAnimationFrame(gameLoopId);
+    if(hostConnection) { hostConnection.close(); hostConnection = null; }
+    for(let id in connections) { connections[id].close(); delete connections[id]; }
+    if(peer) { peer.destroy(); peer = null; }
+    for(let id in players) delete players[id];
+    raceState = -1;
+    
+    document.getElementById('canvas-container').style.display = 'none';
+    document.getElementById('ingame-modal').style.display = 'none';
+    document.getElementById('lobby').style.display = 'flex';
+    document.getElementById('mode-selection').style.display = 'block';
+    document.getElementById('host-ui').style.display = 'none';
+    document.getElementById('host-actions').style.display = 'none';
+    document.getElementById('sandbox-controls').style.display = 'none';
+    
+    let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: 1`;
+    showMsg('');
+}
+
 let audioCtx, engineOsc, engineGain, squealOsc, squealGain, audioReady = false;
 function initAudio() {
     if (audioReady) return;
@@ -144,7 +180,7 @@ if (btnSb) {
     btnSb.addEventListener('click', () => {
         myId = 'sandbox'; isHost = true; 
         let pName = document.getElementById('player-name')?.value || "Meg";
-        let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
+        let selPreset = document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar';
         players[myId] = createPlayerRecord(myId, selPreset, pName);
         let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3; enterGame();
     });
@@ -162,7 +198,7 @@ if (btnHost) {
             let hostInput = document.getElementById('my-host-id'); if(hostInput) hostInput.value = id; 
             showMsg('');
             let pName = document.getElementById('player-name')?.value || "Host";
-            let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
+            let selPreset = document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar';
             players[myId] = createPlayerRecord(myId, selPreset, pName);
         });
         peer.on('connection', conn => {
@@ -174,9 +210,8 @@ if (btnHost) {
                         players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name, data.color);
                         let t = getTrack();
                         if (gameActive) {
-                            if (raceState === 0) {
-                                players[conn.peer].x = t.pit.x1 + 100; players[conn.peer].y = t.pit.y1 + 40;
-                            } else { assignGridPositions(); }
+                            if (raceState === 0) { players[conn.peer].x = t.pit.x1 + 100; players[conn.peer].y = t.pit.y1 + 40; } 
+                            else { assignGridPositions(); }
                             conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
                             conn.send({ type: 'start', laps: totalLaps, rs: raceState }); 
                         } else {
@@ -188,21 +223,18 @@ if (btnHost) {
                     if (!players[conn.peer]) {
                         players[conn.peer] = createPlayerRecord(conn.peer, 'jaguar', "Gjest");
                         let t = getTrack();
-                        if (gameActive && raceState === 0) {
-                            players[conn.peer].x = t.pit.x1 + 100; players[conn.peer].y = t.pit.y1 + 40;
-                        } else if (gameActive) { assignGridPositions(); }
+                        if (gameActive && raceState === 0) { players[conn.peer].x = t.pit.x1 + 100; players[conn.peer].y = t.pit.y1 + 40; } 
+                        else if (gameActive) { assignGridPositions(); }
                         conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
                         if (gameActive) conn.send({ type: 'start', laps: totalLaps, rs: raceState });
                     }
-                    players[conn.peer].inputs = data.inputs; 
-                    players[conn.peer].lastSeen = performance.now();
+                    players[conn.peer].inputs = data.inputs; players[conn.peer].lastSeen = performance.now();
                 } else if (data.type === 'changeCar') {
                     if (players[conn.peer]) { players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100; }
                 } else if (data.type === 'changeColor') {
                     if (players[conn.peer]) { players[conn.peer].color = data.color; }
                 }
             });
-            
             conn.on('close', () => { 
                 delete connections[conn.peer]; delete players[conn.peer]; 
                 let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: ${Object.keys(connections).length + 1}`; 
@@ -233,16 +265,13 @@ if (trackSel) {
     trackSel.addEventListener('change', (e) => {
         if(!isHost) return; 
         activeTrackId = (e.target.value || 'standard').toLowerCase(); 
-        generateEnvironment();
-        assignGridPositions(); raceState = -1; 
+        generateEnvironment(); assignGridPositions(); raceState = -1; 
         Object.values(connections).forEach(c => { try { c.send({ type: 'init', trackId: activeTrackId, laps: totalLaps }); } catch(e){} });
     });
 }
 
 let btnReset = document.getElementById('btn-reset');
-if (btnReset) {
-    btnReset.addEventListener('click', () => { if(isHost) { assignGridPositions(); raceState = -1; } });
-}
+if (btnReset) { btnReset.addEventListener('click', () => { if(isHost) { assignGridPositions(); raceState = -1; } }); }
 
 let btnStart = document.getElementById('btn-start-race');
 if (btnStart) {
@@ -271,8 +300,8 @@ function initJoiner(hostId) {
         hostConnection.on('open', () => {
             showMsg('Tilkoblet! Venter på host...');
             let pName = document.getElementById('player-name')?.value || "Spiller";
-            let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
-            let selColor = document.getElementById('car-color')?.value || '#3498db';
+            let selPreset = document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar';
+            let selColor = document.getElementById('ingame-car-color')?.value || document.getElementById('car-color')?.value || '#3498db';
             players[myId] = createPlayerRecord(myId, selPreset, pName, selColor);
             
             let joined = false;
@@ -326,9 +355,7 @@ function initJoiner(hostId) {
 }
 
 let btnJoin = document.getElementById('btn-join-mode');
-if (btnJoin) {
-    btnJoin.addEventListener('click', () => { const code = document.getElementById('join-code-input')?.value.trim(); if (code) initJoiner(code); });
-}
+if (btnJoin) { btnJoin.addEventListener('click', () => { const code = document.getElementById('join-code-input')?.value.trim(); if (code) initJoiner(code); }); }
 
 const urlParams = new URLSearchParams(window.location.search); 
 let joinInp = document.getElementById('join-code-input');
@@ -347,9 +374,7 @@ setupJoystick('joystick-left-zone', 'stick-left', 'left', (x, y) => localInputs.
 
 const hbBtn = document.getElementById('btn-handbrake'); 
 const hb = s => e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; e.preventDefault(); localInputs.handbrake = s; resumeAudio(); };
-if (hbBtn) {
-    hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hbBtn.addEventListener('touchend', hb(false), {passive:false});
-}
+if (hbBtn) { hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hbBtn.addEventListener('touchend', hb(false), {passive:false}); }
 
 window.addEventListener('keydown', e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; if(e.key===' ') localInputs.handbrake=true; resumeAudio(); });
 window.addEventListener('keyup', e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; if(e.key==='w'||e.key==='s'||e.key==='ArrowUp'||e.key==='ArrowDown') localInputs.throttle=0; if(e.key==='a'||e.key==='d'||e.key==='ArrowLeft'||e.key==='ArrowRight') localInputs.steering=0; if(e.key===' ') localInputs.handbrake=false; });
@@ -365,9 +390,7 @@ function resize() {
 }
 window.addEventListener('resize', resize); 
 let btnFull = document.getElementById('btn-fullscreen');
-if (btnFull) {
-    btnFull.addEventListener('click', () => { const e = document.documentElement; if(!document.fullscreenElement) e.requestFullscreen(); else document.exitFullscreen(); setTimeout(resize,200); });
-}
+if (btnFull) { btnFull.addEventListener('click', () => { const e = document.documentElement; if(!document.fullscreenElement) e.requestFullscreen(); else document.exitFullscreen(); setTimeout(resize,200); }); }
 
 let lastTime = performance.now(); let lastLightState = -1; const skidmarks = [];
 let lastNetUpdate = 0; let lastInputSend = 0; let lastInputString = "";
@@ -388,21 +411,17 @@ function update() {
     if (players[myId]) {
         players[myId].inputs = localInputs;
         
-        let carSelect = document.getElementById('preset-selector');
-        if (carSelect && carSelect.value && players[myId].presetId !== carSelect.value) {
-            players[myId].presetId = carSelect.value;
-            players[myId].maxFuel = vehiclePresets[carSelect.value]?.fuelCap || 100;
-            if (!isHost && hostConnection && hostConnection.open) {
-                try { hostConnection.send({ type: 'changeCar', preset: carSelect.value }); } catch(e){}
-            }
+        let pSel = document.getElementById('ingame-preset-selector') || document.getElementById('preset-selector');
+        if (pSel && pSel.value && players[myId].presetId !== pSel.value) {
+            players[myId].presetId = pSel.value;
+            players[myId].maxFuel = vehiclePresets[pSel.value]?.fuelCap || 100;
+            if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeCar', preset: pSel.value }); } catch(e){} }
         }
         
-        let colorSelect = document.getElementById('car-color');
-        if (colorSelect && colorSelect.value && players[myId].color !== colorSelect.value) {
-            players[myId].color = colorSelect.value;
-            if (!isHost && hostConnection && hostConnection.open) {
-                try { hostConnection.send({ type: 'changeColor', color: colorSelect.value }); } catch(e){}
-            }
+        let cSel = document.getElementById('ingame-car-color') || document.getElementById('car-color');
+        if (cSel && cSel.value && players[myId].color !== cSel.value) {
+            players[myId].color = cSel.value;
+            if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeColor', color: cSel.value }); } catch(e){} }
         }
     }
     
