@@ -23,7 +23,7 @@ class AIDriver {
         this.color = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
         this.lineIndex = null;
         
-        // "Stuck"-variabler
+        // Variabler for "Stuck"-logikk
         this.stuckTime = 0;
         this.reverseTime = 0;
         this.recoveryTime = 0;
@@ -35,7 +35,7 @@ class AIDriver {
         this.aggressionFactor = 0.5 + Math.random() * 0.5; // Hvor iltre de er av natur (0.5 til 1.0)
     }
 
-    calculateInputs(vehicle, trackWaypoints, allPlayers, trackWalls, raceStarted) {
+    calculateInputs(vehicle, trackWaypoints, allPlayers, track, ctx, raceStarted) {
         let inputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: true };
         let now = performance.now();
         let dt = (now - this.lastUpdate) / 1000;
@@ -162,34 +162,49 @@ class AIDriver {
         if (avoidSteer !== 0) inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + avoidSteer));
         if (forceBrake) inputs.throttle = -1.0;
 
-        // --- 6. "ØYNE": DETEKTER KANTER OG MURE (RAYCASTING) ---
-        // Sjekker 3 stråler foran bilen (venstre, midten, høyre)
-        if (trackWalls && trackWalls.length > 0) {
-            let rayAngles = [-0.5, 0, 0.5]; // Vinkler i radianer for øynene
-            let rayDistance = 70 + (vehicle.speedKmh * 0.5); // Lengre syn i høy hastighet
+        // --- 6. "ØYNE": CANVAS RAYCASTING MOT KANTER ---
+        if (track && ctx && track.path) {
+            let rayAngles = [-0.6, 0, 0.6]; // Venstre, Senter, Høyre stråle
+            let rayDistance = 70 + (vehicle.speedKmh * 0.4); 
             let wallAvoidance = 0;
+            let checkSteps = 4; // Deler strålen opp i punkter
+
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.lineWidth = 175; // Settes litt smalere enn curben (190) for sikkerhetsmargin
 
             rayAngles.forEach(offsetAngle => {
                 let checkAngle = vehicle.angle + offsetAngle;
-                let rayX = vehicle.x + Math.cos(checkAngle) * rayDistance;
-                let rayY = vehicle.y + Math.sin(checkAngle) * rayDistance;
+                let hitWall = false;
 
-                // Sjekk mot alle vegger i banen
-                trackWalls.forEach(wall => {
-                    let d = distToSegment({x: vehicle.x, y: vehicle.y}, {x: rayX, y: rayY}, wall.p1, wall.p2);
-                    if (d < 25) { // Kant oppdaget for nærme!
-                        // Sving unna kanten
-                        wallAvoidance += (offsetAngle <= 0) ? 0.9 : -0.9;
+                // Stepper fremover langs strålen og kjenner etter "gress"
+                for (let i = 1; i <= checkSteps; i++) {
+                    let d = (rayDistance / checkSteps) * i;
+                    let rayX = vehicle.x + Math.cos(checkAngle) * d;
+                    let rayY = vehicle.y + Math.sin(checkAngle) * d;
+
+                    // Hvis punktet IKKE er inni sporet, har øyet truffet en kant
+                    if (!ctx.isPointInStroke(track.path, rayX, rayY)) {
+                        hitWall = true;
+                        break; 
                     }
-                });
+                }
+
+                if (hitWall) {
+                    wallAvoidance += (offsetAngle <= 0) ? 1.0 : -1.0;
+                }
             });
+
+            ctx.restore();
 
             if (wallAvoidance !== 0) {
                 inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + wallAvoidance));
+                // Tving nedbremsing hvis vi er på vei i grøfta med høy fart
+                if (vehicle.speedKmh > 50) inputs.throttle = Math.min(inputs.throttle, 0.3);
             }
         }
 
-        // --- 7. STUCK-DETEKSJON (KUN NÅR LØPET ER IGANG OG HASITGHET ER LAV) ---
+        // --- 7. STUCK-DETEKSJON (KUN NÅR LØPET ER IGANG OG HASTIGHET ER LAV) ---
         if (raceStarted && inputs.throttle > 0.1 && vehicle.speedKmh < 3.0) {
             this.stuckTime += dt;
             if (this.stuckTime > 2.5) { // Må stå stille i 2.5 sekunder MIDT i løpet
@@ -205,19 +220,10 @@ class AIDriver {
     }
 }
 
-// Hjelpefunksjon for å beregne avstand fra punkt til linjesegment (kantsensorer)
-function distToSegment(p, p2, v, w) {
-    let l2 = Math.hypot(v.x - w.x, v.y - w.y);
-    if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
-    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / (l2 * l2);
-    t = Math.max(0, Math.min(1, t));
-    return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
-}
-
 class AIManager {
     constructor() {
         this.aiList = {};
-        this.maxAI = 20; // Økt grense siden vi har unnvikelse
+        this.maxAI = 20;
         this.waypoints = {}; // Format: { 'standard': [ [rute1], [rute2] ] }
     }
 
@@ -249,7 +255,7 @@ class AIManager {
         this.aiList = {};
     }
 
-    updateAll(playersObject, activeTrackId, trackWalls, raceStarted) {
+    updateAll(playersObject, activeTrackId, track, ctx, raceStarted) {
         let trackLines = this.waypoints[activeTrackId] || [];
 
         for (let aiId in this.aiList) {
@@ -263,8 +269,7 @@ class AIManager {
                 
                 let assignedLine = trackLines[aiLogic.lineIndex] || [];
                 
-                // Passerer ekstra argumenter for kanter og løpsstatus
-                vehicleData.inputs = aiLogic.calculateInputs(vehicleData, assignedLine, playersObject, trackWalls, raceStarted);
+                vehicleData.inputs = aiLogic.calculateInputs(vehicleData, assignedLine, playersObject, track, ctx, raceStarted);
                 vehicleData.lastSeen = performance.now();
             }
         }
@@ -273,7 +278,6 @@ class AIManager {
 
 const aiManager = new AIManager();
 
-// --- LIM INN OPPTAKENE DINE HERUNDER ---
 // --- LIM INN OPPTAKENE DINE HERUNDER ---
 
 if(!aiManager.waypoints['standard']) aiManager.waypoints['standard'] = [];
