@@ -49,9 +49,10 @@ class AIDriver {
             }
         }
 
-        // 2. Look-ahead (Sikt fremover, ikke rett ned i panseret)
-        // Jo fortere bilen kjører, jo lenger frem må den se for å styre jevnt
-        let lookAheadOffset = 5 + Math.floor(vehicle.speedKmh / 8); 
+        // 2. Look-ahead (Sikt fremover)
+        // Redusert sikteavstand for å unngå at svinger kuttes.
+        // Endret fra /8 til /15 for et strammere og kortere sikte.
+        let lookAheadOffset = 3 + Math.floor(vehicle.speedKmh / 15); 
         let targetIdx = (closestIdx + lookAheadOffset) % trackWaypoints.length;
         let targetPt = trackWaypoints[targetIdx];
 
@@ -60,13 +61,13 @@ class AIDriver {
         let dy = targetPt.y - vehicle.y;
         let targetAngle = Math.atan2(dy, dx);
         
-        // Normaliser vinkelforskjellen slik at AI-en alltid svinger korteste vei
+        // Normaliser vinkelforskjellen
         let angleDiff = targetAngle - vehicle.angle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-        // Sensitivitet på rattutslaget
-        inputs.steering = Math.max(-1.0, Math.min(1.0, angleDiff * 2.0));
+        // Økt styresensitivitet fra 2.0 til 3.0 for mer aggressiv innstyring
+        inputs.steering = Math.max(-1.0, Math.min(1.0, angleDiff * 3.0));
 
         // 4. Farts- og bremsekontroll
         // Se litt frem i tid for å sjekke om vi må bremse for en sving
