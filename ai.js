@@ -165,7 +165,7 @@ class AIDriver {
 class AIManager {
     constructor() {
         this.aiList = {};
-        this.maxAI = 6; // Økt grense siden vi har unnvikelse
+        this.maxAI = 20; // Økt grense siden vi har unnvikelse
         this.waypoints = {}; // Format: { 'standard': [ [rute1], [rute2] ] }
     }
 
