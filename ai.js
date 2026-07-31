@@ -21,14 +21,46 @@ class AIDriver {
         this.id = id;
         this.name = aiNames[Math.floor(Math.random() * aiNames.length)];
         this.color = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
-        this.lineIndex = null; // Avgjør hvilket lagret spor bilen skal følge
+        this.lineIndex = null;
+        
+        // Variabler for "Stuck"-logikk
+        this.stuckTime = 0;
+        this.reverseTime = 0;
+        this.recoveryTime = 0;
+        this.recoverySteer = 0;
+        this.lastUpdate = performance.now();
     }
 
     calculateInputs(vehicle, trackWaypoints, allPlayers) {
         let inputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: true };
+        let now = performance.now();
+        let dt = (now - this.lastUpdate) / 1000; // Tidsdifferanse i sekunder
+        this.lastUpdate = now;
 
-        if (!trackWaypoints || trackWaypoints.length === 0) {
-            return inputs;
+        if (!trackWaypoints || trackWaypoints.length === 0) return inputs;
+
+        // --- TILSTAND: RYGGING ---
+        if (this.reverseTime > 0) {
+            this.reverseTime -= dt;
+            inputs.throttle = -1.0; // Rygg
+            
+            // Finn retningen til neste waypoint for å styre motsatt vei når vi rygger
+            let closestDist = Infinity; let closestIdx = 0;
+            for (let i = 0; i < trackWaypoints.length; i++) {
+                let dist = Math.hypot(vehicle.x - trackWaypoints[i].x, vehicle.y - trackWaypoints[i].y);
+                if (dist < closestDist) { closestDist = dist; closestIdx = i; }
+            }
+            let targetPt = trackWaypoints[(closestIdx + 3) % trackWaypoints.length];
+            let targetAngle = Math.atan2(targetPt.y - vehicle.y, targetPt.x - vehicle.x);
+            let angleDiff = targetAngle - vehicle.angle;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            
+            // Styr motsatt for å rygge ut, eller sving hardt for å vri bilen løs
+            inputs.steering = angleDiff > 0 ? -1.0 : 1.0; 
+            
+            this.recoveryTime = 2.0; // Gjør klar unnvikelse i 2 sekunder etter rygging
+            return inputs; // Avbryt all annen logikk mens vi rygger
         }
 
         // 1. Veipunkt-navigasjon
@@ -53,6 +85,12 @@ class AIDriver {
         let angleDiff = targetAngle - vehicle.angle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+        // --- TILSTAND: UNNVIKELSE ETTER RYGGING ---
+        if (this.recoveryTime > 0) {
+            this.recoveryTime -= dt;
+            angleDiff += this.recoverySteer; // Legg på falsk offset for å kjøre utenom
+        }
 
         inputs.steering = Math.max(-1.0, Math.min(1.0, angleDiff * 3.0));
 
@@ -80,7 +118,6 @@ class AIDriver {
 
             let distToOther = Math.hypot(otherCar.x - vehicle.x, otherCar.y - vehicle.y);
             
-            // Reager kun på biler innenfor 180 piksler
             if (distToOther < 180) {
                 let dxOther = otherCar.x - vehicle.x;
                 let dyOther = otherCar.y - vehicle.y;
@@ -90,34 +127,35 @@ class AIDriver {
                 while (angleDiffOther > Math.PI) angleDiffOther -= Math.PI * 2;
                 while (angleDiffOther < -Math.PI) angleDiffOther += Math.PI * 2;
 
-                // Er bilen foran oss? (Vinkelforskjell på ca 45 grader)
                 if (Math.abs(angleDiffOther) < 0.8) {
                     if (distToOther < closestCarAhead) closestCarAhead = distToOther;
 
-                    // Velg side å passere på. Hvis vi er rett bak, tving bilen til en side basert på rattutslag.
                     let steerPush = (angleDiffOther < 0) ? 0.6 : -0.6;
-                    if (Math.abs(angleDiffOther) < 0.1) {
-                        steerPush = (inputs.steering > 0) ? 0.6 : -0.6;
-                    }
+                    if (Math.abs(angleDiffOther) < 0.1) steerPush = (inputs.steering > 0) ? 0.6 : -0.6;
                     
-                    // Jo nærmere vi er, jo mer aggressiv unnvikelse
                     let pushFactor = 1.0 - (distToOther / 180);
                     avoidSteer += steerPush * pushFactor;
 
-                    // Nødbrems hvis bilen er kritisk nærme og vi har høyere hastighet
-                    if (distToOther < 80 && vehicle.speedKmh > otherCar.speedKmh) {
-                        forceBrake = true;
-                    }
+                    if (distToOther < 80 && vehicle.speedKmh > otherCar.speedKmh) forceBrake = true;
                 }
             }
         }
 
-        // Påfør radardata på input
-        if (avoidSteer !== 0) {
-            inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + avoidSteer));
-        }
-        if (forceBrake) {
-            inputs.throttle = -1.0;
+        if (avoidSteer !== 0) inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + avoidSteer));
+        if (forceBrake) inputs.throttle = -1.0;
+
+        // --- OPPDAGELSE: SITTER BILEN FAST? ---
+        // Sjekker om AI-en gir gass, men hastigheten er nesten null
+        if (inputs.throttle > 0.1 && vehicle.speedKmh < 3.0) {
+            this.stuckTime += dt;
+            if (this.stuckTime > 2.0) { // Har sittet fast i over 2 sekunder
+                this.reverseTime = 1.5; // Rygg i 1.5 sekunder
+                this.stuckTime = 0;
+                // Bestemmer at vi skal sikte litt ut til en av sidene etter vi er ferdige med å rygge
+                this.recoverySteer = (Math.random() > 0.5 ? 0.8 : -0.8);
+            }
+        } else {
+            this.stuckTime = 0; // Nullstill hvis bilen rører på seg
         }
 
         return inputs;
