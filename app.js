@@ -103,6 +103,8 @@ let peer = null, isHost = true, gameActive = false, myId = null, hostConnection 
 const connections = {}, players = {}; 
 let raceState = -1, totalLaps = 3, raceStartTime = 0;
 let gameLoopId = null;
+let isRecording = false;
+let recordedWaypoints = [];
 
 function createPlayerRecord(id, presetId, name, colorCode) {
     let safeName = "Gjest";
@@ -441,8 +443,31 @@ if (hbBtn) { hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hb
 
 window.addEventListener('keydown', e => { 
     if(e.key.toLowerCase() === 't') toggleAssist();
+    
+    // OPPTAKSVERKTØY: Start/Stopp og Slett
+    if(e.key.toLowerCase() === 'r') {
+        isRecording = !isRecording;
+        let recInd = document.getElementById('recording-indicator');
+        if (recInd) recInd.style.display = isRecording ? 'block' : 'none';
+        
+        if (!isRecording) {
+            console.log(`%c--- OPPTAK FULLFØRT FOR BANEN: ${activeTrackId.toUpperCase()} ---`, "color: #2ecc71; font-weight: bold;");
+            console.log(`aiManager.waypoints['${activeTrackId}'] = ${JSON.stringify(recordedWaypoints)};`);
+            console.log("%cKopier linjen over og legg den i ai.js", "color: #f1c40f;");
+        }
+    }
+    if(e.key.toLowerCase() === 'c' && !isRecording) {
+        recordedWaypoints = [];
+        console.log("Lagret opptak slettet fra minnet.");
+    }
+
     if(document.getElementById('input-selector')?.value === 'gamepad') return; 
-    if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; if(e.key===' ') localInputs.handbrake=true; resumeAudio(); 
+    if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; 
+    if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; 
+    if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; 
+    if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; 
+    if(e.key===' ') localInputs.handbrake=true; 
+    resumeAudio(); 
 });
 window.addEventListener('keyup', e => { 
     if(document.getElementById('input-selector')?.value === 'gamepad') return; 
@@ -575,6 +600,19 @@ function update() {
                 p.x += nx * 4.0; p.y += ny * 4.0;
             }
 
+            // OPPTAKSVERKTØY: Lagre koordinater og hastighet
+            if (isRecording && pid === myId) {
+                if (recordedWaypoints.length === 0) {
+                    recordedWaypoints.push({ x: Math.round(p.x), y: Math.round(p.y), targetSpeed: Math.max(15, Math.round(p.speedKmh)) });
+                } else {
+                    let lastPt = recordedWaypoints[recordedWaypoints.length - 1];
+                    let dist = Math.hypot(p.x - lastPt.x, p.y - lastPt.y);
+                    if (dist > 30) { // Lagrer et punkt hver 30. piksel (ca 1-2 meter i spillverdenen)
+                        recordedWaypoints.push({ x: Math.round(p.x), y: Math.round(p.y), targetSpeed: Math.max(15, Math.round(p.speedKmh)) });
+                    }
+                }
+            }
+            
             // Integrasjon av Drift Assist System:
             let lVx = p.vx * Math.cos(-p.angle) - p.vy * Math.sin(-p.angle); 
             let lVy = p.vx * Math.sin(-p.angle) + p.vy * Math.cos(-p.angle);
@@ -864,6 +902,25 @@ function update() {
         ctx.restore();
     }
     ctx.restore(); 
+
+    // Tegn opptakslinjen grafisk på skjermen
+    if (recordedWaypoints.length > 0) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(241, 196, 15, 0.8)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(recordedWaypoints[0].x, recordedWaypoints[0].y);
+        for (let i = 1; i < recordedWaypoints.length; i++) {
+            ctx.lineTo(recordedWaypoints[i].x, recordedWaypoints[i].y);
+        }
+        ctx.stroke();
+        
+        ctx.fillStyle = '#e74c3c';
+        for (let pt of recordedWaypoints) {
+            ctx.fillRect(pt.x - 3, pt.y - 3, 6, 6);
+        }
+        ctx.restore();
+    }
     
     gameLoopId = requestAnimationFrame(update);
 }
