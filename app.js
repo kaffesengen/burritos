@@ -87,14 +87,18 @@ function assignGridPositions() {
 }
 
 const statusMsg = document.getElementById('status-msg');
-function showMsg(msg) { statusMsg.innerText = msg; }
+function showMsg(msg) { if (statusMsg) statusMsg.innerText = msg; }
 
 function enterGame() {
     if (gameActive) return; 
     gameActive = true; 
-    document.getElementById('lobby').style.display = 'none'; 
-    document.getElementById('canvas-container').style.display = 'flex';
-    if(isHost) { document.getElementById('host-actions').style.display = 'flex'; document.getElementById('sandbox-controls').style.display = 'block'; assignGridPositions(); }
+    let lobby = document.getElementById('lobby'); if(lobby) lobby.style.display = 'none'; 
+    let cCont = document.getElementById('canvas-container'); if(cCont) cCont.style.display = 'flex';
+    if(isHost) { 
+        let hAct = document.getElementById('host-actions'); if(hAct) hAct.style.display = 'flex'; 
+        let sbCtrl = document.getElementById('sandbox-controls'); if(sbCtrl) sbCtrl.style.display = 'block'; 
+        assignGridPositions(); 
+    }
     resize(); 
     if (gameLoopId) cancelAnimationFrame(gameLoopId);
     gameLoopId = requestAnimationFrame(update);
@@ -127,75 +131,99 @@ function playBeep(freq, duration = 0.3) {
     let el = document.getElementById(`sb-${id}`);
     if (el) {
         el.addEventListener('input', (e) => {
-            serverSettings[id] = parseFloat(e.target.value); document.getElementById(`val-${id}`).innerText = serverSettings[id].toFixed(1);
+            serverSettings[id] = parseFloat(e.target.value); 
+            let valEl = document.getElementById(`val-${id}`);
+            if (valEl) valEl.innerText = serverSettings[id].toFixed(1);
         });
     }
 });
 
-document.getElementById('btn-sandbox-mode').addEventListener('click', () => {
-    myId = 'sandbox'; isHost = true; let pName = document.getElementById('player-name').value || "Meg";
-    players[myId] = createPlayerRecord(myId, document.getElementById('preset-selector').value, pName);
-    let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3; enterGame();
-});
-
-document.getElementById('btn-host-mode').addEventListener('click', () => {
-    document.getElementById('mode-selection').style.display = 'none'; document.getElementById('host-ui').style.display = 'block'; showMsg('Oppretter Host...');
-    peer = new Peer();
-    peer.on('open', id => {
-        myId = id; isHost = true; document.getElementById('my-host-id').value = id; showMsg('');
-        let pName = document.getElementById('player-name').value || "Host";
-        players[myId] = createPlayerRecord(myId, document.getElementById('preset-selector').value, pName);
+let btnSb = document.getElementById('btn-sandbox-mode');
+if (btnSb) {
+    btnSb.addEventListener('click', () => {
+        myId = 'sandbox'; isHost = true; 
+        let pName = document.getElementById('player-name')?.value || "Meg";
+        let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
+        players[myId] = createPlayerRecord(myId, selPreset, pName);
+        let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3; enterGame();
     });
-    peer.on('connection', conn => {
-        connections[conn.peer] = conn; document.getElementById('player-count').innerText = `Spillere: ${Object.keys(connections).length + 1}`;
-        conn.on('data', data => {
-            if (data.type === 'join') {
-                if (!players[conn.peer]) {
-                    players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name);
-                    let t = getTrack();
-                    if (gameActive) {
-                        if (raceState === 0) {
-                            players[conn.peer].x = t.pit.x1 + 100; players[conn.peer].y = t.pit.y1 + 40;
-                        } else { assignGridPositions(); }
-                        conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
-                        conn.send({ type: 'start', laps: totalLaps, rs: raceState }); 
-                    } else {
-                        let hl = document.getElementById('host-laps');
-                        conn.send({ type: 'init', trackId: activeTrackId, laps: hl ? parseInt(hl.value) : 3, yourId: conn.peer });
-                    }
-                }
-            } else if (data.type === 'inputs') {
-                // Auto-Recovery: Tvinger inn joineren hvis join-pakken ble mistet på nettet
-                if (!players[conn.peer]) {
-                    players[conn.peer] = createPlayerRecord(conn.peer, 'jaguar', "Gjest");
-                    let t = getTrack();
-                    if (gameActive && raceState === 0) {
-                        players[conn.peer].x = t.pit.x1 + 100; players[conn.peer].y = t.pit.y1 + 40;
-                    } else if (gameActive) { assignGridPositions(); }
-                    conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
-                    if (gameActive) conn.send({ type: 'start', laps: totalLaps, rs: raceState });
-                }
-                players[conn.peer].inputs = data.inputs; 
-                players[conn.peer].lastSeen = performance.now();
-            } else if (data.type === 'changeCar' && players[conn.peer]) {
-                players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100;
-            }
+}
+
+let btnHost = document.getElementById('btn-host-mode');
+if (btnHost) {
+    btnHost.addEventListener('click', () => {
+        let mSel = document.getElementById('mode-selection'); if(mSel) mSel.style.display = 'none'; 
+        let hUi = document.getElementById('host-ui'); if(hUi) hUi.style.display = 'block'; 
+        showMsg('Oppretter Host...');
+        peer = new Peer();
+        peer.on('open', id => {
+            myId = id; isHost = true; 
+            let hostInput = document.getElementById('my-host-id'); if(hostInput) hostInput.value = id; 
+            showMsg('');
+            let pName = document.getElementById('player-name')?.value || "Host";
+            let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
+            players[myId] = createPlayerRecord(myId, selPreset, pName);
         });
-        
-        conn.on('close', () => { delete connections[conn.peer]; delete players[conn.peer]; document.getElementById('player-count').innerText = `Spillere: ${Object.keys(connections).length + 1}`; });
+        peer.on('connection', conn => {
+            connections[conn.peer] = conn; 
+            let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: ${Object.keys(connections).length + 1}`;
+            conn.on('data', data => {
+                if (data.type === 'join') {
+                    if (!players[conn.peer]) {
+                        players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name);
+                        let t = getTrack();
+                        if (gameActive) {
+                            if (raceState === 0) {
+                                players[conn.peer].x = t.pit.x1 + 100; players[conn.peer].y = t.pit.y1 + 40;
+                            } else { assignGridPositions(); }
+                            conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
+                            conn.send({ type: 'start', laps: totalLaps, rs: raceState }); 
+                        } else {
+                            let hl = document.getElementById('host-laps');
+                            conn.send({ type: 'init', trackId: activeTrackId, laps: hl ? parseInt(hl.value) : 3, yourId: conn.peer });
+                        }
+                    }
+                } else if (data.type === 'inputs') {
+                    if (!players[conn.peer]) {
+                        players[conn.peer] = createPlayerRecord(conn.peer, 'jaguar', "Gjest");
+                        let t = getTrack();
+                        if (gameActive && raceState === 0) {
+                            players[conn.peer].x = t.pit.x1 + 100; players[conn.peer].y = t.pit.y1 + 40;
+                        } else if (gameActive) { assignGridPositions(); }
+                        conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
+                        if (gameActive) conn.send({ type: 'start', laps: totalLaps, rs: raceState });
+                    }
+                    players[conn.peer].inputs = data.inputs; 
+                    players[conn.peer].lastSeen = performance.now();
+                } else if (data.type === 'changeCar' && players[conn.peer]) {
+                    players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100;
+                }
+            });
+            
+            conn.on('close', () => { 
+                delete connections[conn.peer]; delete players[conn.peer]; 
+                let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: ${Object.keys(connections).length + 1}`; 
+            });
+        });
     });
-});
+}
 
-document.getElementById('btn-share-link').addEventListener('click', () => {
-    const url = window.location.origin + window.location.pathname + '?join=' + myId;
-    if (navigator.share) navigator.share({ url: url }); else { navigator.clipboard.writeText(url); alert('Kopiert!'); }
-});
+let btnShare = document.getElementById('btn-share-link');
+if (btnShare) {
+    btnShare.addEventListener('click', () => {
+        const url = window.location.origin + window.location.pathname + '?join=' + myId;
+        if (navigator.share) navigator.share({ url: url }); else { navigator.clipboard.writeText(url); alert('Kopiert!'); }
+    });
+}
 
-document.getElementById('btn-enter-game').addEventListener('click', () => { 
-    let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3;
-    Object.values(connections).forEach(c => { try { c.send({ type: 'start', laps: totalLaps, rs: raceState }); } catch(e){} }); 
-    enterGame(); 
-});
+let btnEnter = document.getElementById('btn-enter-game');
+if (btnEnter) {
+    btnEnter.addEventListener('click', () => { 
+        let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3;
+        Object.values(connections).forEach(c => { try { c.send({ type: 'start', laps: totalLaps, rs: raceState }); } catch(e){} }); 
+        enterGame(); 
+    });
+}
 
 let trackSel = document.getElementById('track-selector');
 if (trackSel) {
@@ -207,32 +235,40 @@ if (trackSel) {
         Object.values(connections).forEach(c => { try { c.send({ type: 'init', trackId: activeTrackId, laps: totalLaps }); } catch(e){} });
     });
 }
-document.getElementById('btn-reset').addEventListener('click', () => { if(isHost) { assignGridPositions(); raceState = -1; } });
 
-document.getElementById('btn-start-race').addEventListener('click', () => {
-    if(!isHost || raceState > 0) return;
-    assignGridPositions(); let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3;
-    let count = 5; raceState = count;
-    Object.values(connections).forEach(c => { try { c.send({ type: 'state', laps: totalLaps, raceState: raceState, players: {} }); } catch(e){} }); 
-    let int = setInterval(() => {
-        count--; raceState = count;
-        if(count === 0) { 
-            let now = performance.now(); raceStartTime = now;
-            for(let pid in players) { players[pid].lapStartTime = now; players[pid].lap = 0; players[pid].cp = false; players[pid].finished = false; players[pid].bestLap = Infinity; }
-            clearInterval(int); 
-        }
-    }, 1000);
-});
+let btnReset = document.getElementById('btn-reset');
+if (btnReset) {
+    btnReset.addEventListener('click', () => { if(isHost) { assignGridPositions(); raceState = -1; } });
+}
+
+let btnStart = document.getElementById('btn-start-race');
+if (btnStart) {
+    btnStart.addEventListener('click', () => {
+        if(!isHost || raceState > 0) return;
+        assignGridPositions(); let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3;
+        let count = 5; raceState = count;
+        Object.values(connections).forEach(c => { try { c.send({ type: 'state', laps: totalLaps, raceState: raceState, players: {} }); } catch(e){} }); 
+        let int = setInterval(() => {
+            count--; raceState = count;
+            if(count === 0) { 
+                let now = performance.now(); raceStartTime = now;
+                for(let pid in players) { players[pid].lapStartTime = now; players[pid].lap = 0; players[pid].cp = false; players[pid].finished = false; players[pid].bestLap = Infinity; }
+                clearInterval(int); 
+            }
+        }, 1000);
+    });
+}
 
 function initJoiner(hostId) {
-    document.getElementById('mode-selection').style.display = 'none'; showMsg('Kobler til...');
+    let mSel = document.getElementById('mode-selection'); if (mSel) mSel.style.display = 'none'; 
+    showMsg('Kobler til...');
     peer = new Peer();
     peer.on('open', id => {
         myId = id; isHost = false; hostConnection = peer.connect(hostId);
         hostConnection.on('open', () => {
             showMsg('Tilkoblet! Venter på host...');
-            let pName = document.getElementById('player-name').value || "Spiller";
-            let selPreset = document.getElementById('preset-selector').value;
+            let pName = document.getElementById('player-name')?.value || "Spiller";
+            let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
             players[myId] = createPlayerRecord(myId, selPreset, pName);
             
             let joined = false;
@@ -261,7 +297,6 @@ function initJoiner(hostId) {
                         if (!players[pid]) players[pid] = createPlayerRecord(pid, pData.presetId, pData.n);
                         let p = players[pid];
                         
-                        // Ekstrem beskyttelse mot NaN og null som forårsaker svart skjerm
                         if (pData.x !== null && isFinite(pData.x)) p.targetX = pData.x; 
                         if (pData.y !== null && isFinite(pData.y)) p.targetY = pData.y; 
                         if (pData.a !== null && isFinite(pData.a)) p.targetAngle = pData.a; 
@@ -279,39 +314,57 @@ function initJoiner(hostId) {
     });
 }
 
-document.getElementById('btn-join-mode').addEventListener('click', () => { const code = document.getElementById('join-code-input').value.trim(); if (code) initJoiner(code); });
-const urlParams = new URLSearchParams(window.location.search); 
-if (urlParams.get('join')) { document.getElementById('join-code-input').value = urlParams.get('join'); }
+let btnJoin = document.getElementById('btn-join-mode');
+if (btnJoin) {
+    btnJoin.addEventListener('click', () => { const code = document.getElementById('join-code-input')?.value.trim(); if (code) initJoiner(code); });
+}
 
-document.getElementById('preset-selector').addEventListener('change', (e) => {
-    let preset = e.target.value; if(players[myId]) players[myId].presetId = preset;
-    if(isHost) players[myId].maxFuel = vehiclePresets[preset]?.fuelCap || 100; else if(hostConnection) { try{ hostConnection.send({ type: 'changeCar', preset: preset }); } catch(err){} }
-});
+const urlParams = new URLSearchParams(window.location.search); 
+let joinInp = document.getElementById('join-code-input');
+if (joinInp && urlParams.get('join')) { joinInp.value = urlParams.get('join'); }
+
+let preSel = document.getElementById('preset-selector');
+if (preSel) {
+    preSel.addEventListener('change', (e) => {
+        let preset = e.target.value; if(players[myId]) players[myId].presetId = preset;
+        if(isHost) players[myId].maxFuel = vehiclePresets[preset]?.fuelCap || 100; else if(hostConnection) { try{ hostConnection.send({ type: 'changeCar', preset: preset }); } catch(err){} }
+    });
+}
 
 const localInputs = { steering: 0, throttle: 0, handbrake: false }; const activeTouchState = { left: null, right: null };
 function setupJoystick(zId, sId, key, onC) {
     const z = document.getElementById(zId), s = document.getElementById(sId);
-    function move(cX, cY) { if(document.getElementById('input-selector').value==='gamepad') return; const r = z.getBoundingClientRect(); const dx = Math.max(-45, Math.min(cX-(r.left+r.width/2), 45)), dy = Math.max(-45, Math.min(cY-(r.top+r.height/2), 45)); s.style.transform = `translate(${dx}px, ${dy}px)`; onC(dx/45, dy/45); }
-    z.addEventListener('touchstart', e => { if(document.getElementById('input-selector').value==='gamepad') return; if(activeTouchState[key]===null){ activeTouchState[key]=e.changedTouches[0].identifier; move(e.changedTouches[0].clientX, e.changedTouches[0].clientY); resumeAudio(); } });
-    window.addEventListener('touchmove', e => { if(document.getElementById('input-selector').value==='gamepad') return; for(let t of e.changedTouches) if(t.identifier===activeTouchState[key]) move(t.clientX, t.clientY); });
+    if (!z || !s) return;
+    function move(cX, cY) { if(document.getElementById('input-selector')?.value === 'gamepad') return; const r = z.getBoundingClientRect(); const dx = Math.max(-45, Math.min(cX-(r.left+r.width/2), 45)), dy = Math.max(-45, Math.min(cY-(r.top+r.height/2), 45)); s.style.transform = `translate(${dx}px, ${dy}px)`; onC(dx/45, dy/45); }
+    z.addEventListener('touchstart', e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; if(activeTouchState[key]===null){ activeTouchState[key]=e.changedTouches[0].identifier; move(e.changedTouches[0].clientX, e.changedTouches[0].clientY); resumeAudio(); } });
+    window.addEventListener('touchmove', e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; for(let t of e.changedTouches) if(t.identifier===activeTouchState[key]) move(t.clientX, t.clientY); });
     window.addEventListener('touchend', e => { for(let t of e.changedTouches) if(t.identifier===activeTouchState[key]){ activeTouchState[key]=null; s.style.transform=`translate(0px, 0px)`; onC(0,0); } });
 }
 setupJoystick('joystick-left-zone', 'stick-left', 'left', (x, y) => localInputs.steering = x); setupJoystick('joystick-right-zone', 'stick-right', 'right', (x, y) => localInputs.throttle = -y);
-const hbBtn = document.getElementById('btn-handbrake'); const hb = s => e => { if(document.getElementById('input-selector').value==='gamepad') return; e.preventDefault(); localInputs.handbrake = s; resumeAudio(); };
-hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hbBtn.addEventListener('touchend', hb(false), {passive:false});
 
-window.addEventListener('keydown', e => { if(document.getElementById('input-selector').value==='gamepad') return; if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; if(e.key===' ') localInputs.handbrake=true; resumeAudio(); });
-window.addEventListener('keyup', e => { if(document.getElementById('input-selector').value==='gamepad') return; if(e.key==='w'||e.key==='s'||e.key==='ArrowUp'||e.key==='ArrowDown') localInputs.throttle=0; if(e.key==='a'||e.key==='d'||e.key==='ArrowLeft'||e.key==='ArrowRight') localInputs.steering=0; if(e.key===' ') localInputs.handbrake=false; });
+const hbBtn = document.getElementById('btn-handbrake'); 
+const hb = s => e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; e.preventDefault(); localInputs.handbrake = s; resumeAudio(); };
+if (hbBtn) {
+    hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hbBtn.addEventListener('touchend', hb(false), {passive:false});
+}
 
-const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d', { alpha: false }); 
+window.addEventListener('keydown', e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; if(e.key===' ') localInputs.handbrake=true; resumeAudio(); });
+window.addEventListener('keyup', e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; if(e.key==='w'||e.key==='s'||e.key==='ArrowUp'||e.key==='ArrowDown') localInputs.throttle=0; if(e.key==='a'||e.key==='d'||e.key==='ArrowLeft'||e.key==='ArrowRight') localInputs.steering=0; if(e.key===' ') localInputs.handbrake=false; });
+
+const canvas = document.getElementById('gameCanvas'); const ctx = canvas ? canvas.getContext('2d', { alpha: false }) : null; 
 function resize() { 
+    if(!canvas) return;
     let cw = canvas.parentElement.clientWidth || window.innerWidth || 800;
     let ch = canvas.parentElement.clientHeight || window.innerHeight || 600;
     canvas.width = cw > 0 ? cw : 800;
     canvas.height = ch > 0 ? ch : 600;
     ctx.setTransform(1,0,0,1,0,0); 
 }
-window.addEventListener('resize', resize); document.getElementById('btn-fullscreen').addEventListener('click', () => { const e = document.documentElement; if(!document.fullscreenElement) e.requestFullscreen(); else document.exitFullscreen(); setTimeout(resize,200); });
+window.addEventListener('resize', resize); 
+let btnFull = document.getElementById('btn-fullscreen');
+if (btnFull) {
+    btnFull.addEventListener('click', () => { const e = document.documentElement; if(!document.fullscreenElement) e.requestFullscreen(); else document.exitFullscreen(); setTimeout(resize,200); });
+}
 
 let lastTime = performance.now(); let lastLightState = -1; const skidmarks = [];
 let lastNetUpdate = 0; let lastInputSend = 0; let lastInputString = "";
@@ -319,11 +372,11 @@ let lastNetUpdate = 0; let lastInputSend = 0; let lastInputString = "";
 function formatTime(ms) { if(ms === Infinity || !isFinite(ms)) return "-.--"; let total = Math.floor(ms/10); let min = Math.floor(total/6000); let sec = Math.floor((total%6000)/100); let hund = total%100; return `${min>0?min+':':''}${sec.toString().padStart(min>0?2:1,'0')}.${hund.toString().padStart(2,'0')}`; }
 
 function update() {
-    if (!gameActive) return;
+    if (!gameActive || !canvas || !ctx) return;
     const now = performance.now(); const dt = Math.max(0.001, Math.min((now - lastTime) / 1000, 0.1)); lastTime = now;
     let track = getTrack();
 
-    if (document.getElementById('input-selector').value === 'gamepad') {
+    if (document.getElementById('input-selector')?.value === 'gamepad') {
         let gps = navigator.getGamepads ? navigator.getGamepads() : [];
         let gp = gps[0];
         if (gp) { localInputs.steering = gp.axes[0]||0; localInputs.throttle = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0); localInputs.handbrake = gp.buttons[0]?.pressed||false; resumeAudio(); }
@@ -347,10 +400,10 @@ function update() {
             let p = players[pid]; 
             if (pid !== myId && now - p.lastSeen > 3000) { 
                 delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } 
-                document.getElementById('player-count').innerText = `Spillere: ${Object.keys(connections).length + 1}`; continue; 
+                let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: ${Object.keys(connections).length + 1}`; 
+                continue; 
             }
 
-            // Rensker opp korrupte verdier
             if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.vx) || !isFinite(p.angle) || !isFinite(p.rpm)) { 
                 p.x = track.startX; p.y = track.startY; p.vx=0; p.vy=0; p.angle=track.startAngle; p.yawRate=0; p.rpm=1000; p.speedKmh=0;
             }
@@ -511,19 +564,18 @@ function update() {
 
     if (players[myId]) {
         let me = players[myId];
-        document.getElementById('hud-speed').innerText = Math.round(me.speedKmh || 0);
-        document.getElementById('hud-gear').innerText = me.gear === -1 ? 'R' : (me.gear === 0 ? 'N' : me.gear);
-        document.getElementById('hud-rpm').innerText = me.rpm < 10 ? 0 : Math.round(me.rpm || 0);
+        let hs = document.getElementById('hud-speed'); if(hs) hs.innerText = Math.round(me.speedKmh || 0);
+        let hg = document.getElementById('hud-gear'); if(hg) hg.innerText = me.gear === -1 ? 'R' : (me.gear === 0 ? 'N' : me.gear);
+        let hr = document.getElementById('hud-rpm'); if(hr) hr.innerText = me.rpm < 10 ? 0 : Math.round(me.rpm || 0);
         let ff = document.getElementById('fuel-fill');
         if (ff) {
             ff.style.width = ((me.fuel || 0) / (me.maxFuel || 100) * 100) + '%';
             ff.style.background = me.fuel < (me.maxFuel||100)*0.2 ? '#e74c3c' : '#f1c40f';
         }
-        document.getElementById('hud-lap').innerText = `${Math.min(me.lap + 1, totalLaps)}/${totalLaps}`;
-        document.getElementById('hud-time').innerText = me.finished ? formatTime(me.bestLap) : (raceState === 0 ? formatTime(me.currentLapTime) : "0.00");
+        let hLp = document.getElementById('hud-lap'); if(hLp) hLp.innerText = `${Math.min(me.lap + 1, totalLaps)}/${totalLaps}`;
+        let hTm = document.getElementById('hud-time'); if(hTm) hTm.innerText = me.finished ? formatTime(me.bestLap) : (raceState === 0 ? formatTime(me.currentLapTime) : "0.00");
         
         if (audioReady && engineOsc && engineGain) {
-            // Failsafe for lyd-APIt for å unngå krasj (krever absolutte og endelige flyttall)
             let sRpm = isFinite(me.rpm) && me.rpm > 0 ? me.rpm : 0;
             let sSpd = isFinite(me.speedKmh) && me.speedKmh > 0 ? me.speedKmh : 0;
             let sThr = isFinite(localInputs.throttle) ? localInputs.throttle : 0;
@@ -543,11 +595,10 @@ function update() {
         if(a.fin && !b.fin) return -1; if(!a.fin && b.fin) return 1; if(a.l !== b.l) return b.l - a.l; return (a.b||0) - (b.b||0);
     });
     let lbHTML = ""; for(let i=0; i<Math.min(5, lbArr.length); i++) lbHTML += `<li><span>${i+1}. ${lbArr[i].n}</span><span style="color:${lbArr[i].fin?'#2ecc71':'#f1c40f'};">${lbArr[i].fin?'Ferdig':formatTime(lbArr[i].b)}</span></li>`;
-    document.getElementById('lb-list').innerHTML = lbHTML;
+    let lbL = document.getElementById('lb-list'); if(lbL) lbL.innerHTML = lbHTML;
 
     ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = '#2d4c1e'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.save(); 
     
-    // Streng kamerakontroll: Hvis koordinatene mangler, tvinges den til pit i stedet for å krasje lerretet.
     if(players[myId] && isFinite(players[myId].x) && isFinite(players[myId].y)) {
         ctx.translate(canvas.width/2 - players[myId].x, canvas.height/2 - players[myId].y); 
     } else { 
@@ -590,7 +641,6 @@ function update() {
     }
     if (skidmarks.length > 5000) skidmarks.splice(0, skidmarks.length - 5000); ctx.fillStyle = 'rgba(15, 15, 15, 0.4)'; ctx.beginPath();
     
-    // Streng beskyttelse av skidmark-koordinater. Om en er NaN, kræsjer nettleserens tegnemotor.
     for (let i = 0; i < skidmarks.length; i++) { 
         let m = skidmarks[i]; 
         if (isFinite(m.x1) && isFinite(m.y1) && isFinite(m.x2) && isFinite(m.y2)) {
