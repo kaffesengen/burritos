@@ -149,10 +149,12 @@ class AIManager {
             if (vehicleData && !vehicleData.finished) {
                 // Kalkuler og overskriv inputs
                 vehicleData.inputs = aiLogic.calculateInputs(vehicleData, currentWaypoints);
+                
+                // LØSNING: Oppdater tidsstempelet slik at app.js ikke sletter bilen
+                vehicleData.lastSeen = performance.now();
             }
         }
     }
-}
 
 // Global instans
 const aiManager = new AIManager();
