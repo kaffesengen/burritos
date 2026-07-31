@@ -61,7 +61,7 @@ function createPlayerRecord(id, presetId, name, colorCode) {
     if (typeof name === 'string' && name.trim().length > 0) safeName = name.trim().substring(0, 15);
     let cap = vehiclePresets[presetId]?.fuelCap || 100;
     let t = getTrack();
-    let col = colorCode || document.querySelector('input[type="color"]')?.value || '#3498db';
+    let col = colorCode || document.getElementById('car-color')?.value || '#3498db';
     return {
         id: id, name: safeName, presetId: presetId || 'jaguar', color: col,
         x: t.startX, y: t.startY, prevX: t.startX, prevY: t.startY,
@@ -272,7 +272,7 @@ function initJoiner(hostId) {
             showMsg('Tilkoblet! Venter på host...');
             let pName = document.getElementById('player-name')?.value || "Spiller";
             let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
-            let selColor = document.querySelector('input[type="color"]')?.value || '#3498db';
+            let selColor = document.getElementById('car-color')?.value || '#3498db';
             players[myId] = createPlayerRecord(myId, selPreset, pName, selColor);
             
             let joined = false;
@@ -311,7 +311,6 @@ function initJoiner(hostId) {
                         p.speedKmh = pData.v || 0; p.fuel = pData.f || 100;
                         p.appliesBrake = !!pData.b; p.lap = pData.l || 0; p.bestLap = pData.bl || Infinity; p.finished = !!pData.fin; p.currentLapTime = pData.cLT || 0; p.lastSeen = performance.now();
                         
-                        // Pass på å ikke overskrive lokalt valgt bil/farge for egen klient
                         if (pid !== myId) {
                             p.presetId = pData.presetId || 'jaguar'; 
                             p.maxFuel = vehiclePresets[p.presetId]?.fuelCap || 100;
@@ -398,7 +397,7 @@ function update() {
             }
         }
         
-        let colorSelect = document.querySelector('input[type="color"]');
+        let colorSelect = document.getElementById('car-color');
         if (colorSelect && colorSelect.value && players[myId].color !== colorSelect.value) {
             players[myId].color = colorSelect.value;
             if (!isHost && hostConnection && hostConnection.open) {
@@ -452,7 +451,6 @@ function update() {
             if (inPit && p.speedKmh < 10) p.fuel = Math.min(preset.fuelCap, p.fuel + 20 * dt); else p.fuel -= Math.abs(ins.throttle) * aPower * 0.00015 * dt;
             if (p.fuel <= 0) { p.fuel = 0; ins.throttle = 0; }
 
-            // LØSNING PÅ FYSIKKBUGEN: Transformasjonen må nullstilles før vi tester om bilen er på banen
             ctx.save();
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.lineWidth = 160; const onAsphalt = ctx.isPointInStroke(track.path, p.x, p.y);
@@ -467,7 +465,6 @@ function update() {
             if (!inBounds && dt > 0) {
                 p.x = p.prevX; p.y = p.prevY; let nx = 0, ny = 0;
                 for (let r = 20; r <= 80; r += 20) {
-                    // Må nullstilles for raycasting også
                     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
                     if (ctx.isPointInStroke(track.path, p.x + r, p.y)) nx += 1; if (ctx.isPointInStroke(track.path, p.x - r, p.y)) nx -= 1;
                     if (ctx.isPointInStroke(track.path, p.x, p.y + r)) ny += 1; if (ctx.isPointInStroke(track.path, p.x, p.y - r)) ny -= 1;
