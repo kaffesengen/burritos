@@ -464,8 +464,9 @@ window.addEventListener('keydown', e => {
         
         if (!isRecording) {
             console.log(`%c--- OPPTAK FULLFØRT FOR BANEN: ${activeTrackId.toUpperCase()} ---`, "color: #2ecc71; font-weight: bold;");
-            console.log(`aiManager.waypoints['${activeTrackId}'] = ${JSON.stringify(recordedWaypoints)};`);
-            console.log("%cKopier linjen over og legg den i ai.js", "color: #f1c40f;");
+            console.log(`if(!aiManager.waypoints['${activeTrackId}']) aiManager.waypoints['${activeTrackId}'] = [];`);
+            console.log(`aiManager.waypoints['${activeTrackId}'].push(${JSON.stringify(recordedWaypoints)});`);
+            console.log("%cKopier BEGGE kodelinjene over og legg dem i bunnen av ai.js", "color: #f1c40f;");
         }
     }
     if(e.key.toLowerCase() === 'c' && !isRecording) {
