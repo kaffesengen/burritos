@@ -743,10 +743,8 @@ function update() {
         // Under nedtelling (raceState > 0) vil flagget være false, og stuck-deteksjon ignoreres.
         let raceIsRunning = (raceState === 0 || raceState === -1);
         
-        // Henter banens vegger. (Settes til et tomt array hvis banen mangler vegg-data).
-        let currentWalls = track.walls || [];
-        
-        aiManager.updateAll(players, activeTrackId, currentWalls, raceIsRunning);
+        // Sender inn track og ctx direkte for Canvas Raycasting ("øyne" som ser kanter automatisk)
+        aiManager.updateAll(players, activeTrackId, track, ctx, raceIsRunning);
         
         if (now - lastNetUpdate > 40) {
             let stateMsg = { type: 'state', raceState: raceState, laps: totalLaps, settings: serverSettings, players: outState.players };
