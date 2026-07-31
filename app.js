@@ -61,8 +61,9 @@ function createPlayerRecord(id, presetId, name) {
     if (typeof name === 'string' && name.trim().length > 0) safeName = name.trim().substring(0, 15);
     let cap = vehiclePresets[presetId]?.fuelCap || 100;
     let t = getTrack();
+    let col = document.querySelector('input[type="color"]')?.value || '#3498db';
     return {
-        id: id, name: safeName, presetId: presetId || 'jaguar',
+        id: id, name: safeName, presetId: presetId || 'jaguar', color: col,
         x: t.startX, y: t.startY, prevX: t.startX, prevY: t.startY,
         vx: 0, vy: 0, angle: t.startAngle, yawRate: 0,
         gear: 1, rpm: 1000, steer: 0, targetX: t.startX, targetY: t.startY, targetAngle: t.startAngle,
@@ -171,6 +172,7 @@ if (btnHost) {
                 if (data.type === 'join') {
                     if (!players[conn.peer]) {
                         players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name);
+                        players[conn.peer].color = data.color || '#3498db';
                         let t = getTrack();
                         if (gameActive) {
                             if (raceState === 0) {
@@ -197,6 +199,8 @@ if (btnHost) {
                     players[conn.peer].lastSeen = performance.now();
                 } else if (data.type === 'changeCar' && players[conn.peer]) {
                     players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100;
+                } else if (data.type === 'changeColor' && players[conn.peer]) {
+                    players[conn.peer].color = data.color;
                 }
             });
             
@@ -269,12 +273,14 @@ function initJoiner(hostId) {
             showMsg('Tilkoblet! Venter på host...');
             let pName = document.getElementById('player-name')?.value || "Spiller";
             let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
+            let selColor = document.querySelector('input[type="color"]')?.value || '#3498db';
             players[myId] = createPlayerRecord(myId, selPreset, pName);
+            players[myId].color = selColor;
             
             let joined = false;
             let handshakeLoop = setInterval(() => {
                 if (joined || !hostConnection.open) { clearInterval(handshakeLoop); return; }
-                hostConnection.send({ type: 'join', preset: selPreset, name: pName });
+                hostConnection.send({ type: 'join', preset: selPreset, name: pName, color: selColor });
             }, 500);
 
             hostConnection.on('data', data => {
@@ -301,7 +307,7 @@ function initJoiner(hostId) {
                         if (pData.y !== null && isFinite(pData.y)) p.targetY = pData.y; 
                         if (pData.a !== null && isFinite(pData.a)) p.targetAngle = pData.a; 
                         
-                        p.steer = pData.s || 0; p.name = pData.n || "Gjest";
+                        p.steer = pData.s || 0; p.name = pData.n || "Gjest"; p.color = pData.c || '#3498db';
                         p.frontSpinSeverity = pData.fS || 0; p.rearSpinSeverity = pData.rS || 0; 
                         p.gear = pData.g || 1; p.rpm = pData.rpm || 1000; 
                         p.speedKmh = pData.v || 0; p.fuel = pData.f || 100; p.presetId = pData.presetId; p.maxFuel = vehiclePresets[pData.presetId]?.fuelCap || 100;
@@ -322,14 +328,6 @@ if (btnJoin) {
 const urlParams = new URLSearchParams(window.location.search); 
 let joinInp = document.getElementById('join-code-input');
 if (joinInp && urlParams.get('join')) { joinInp.value = urlParams.get('join'); }
-
-let preSel = document.getElementById('preset-selector');
-if (preSel) {
-    preSel.addEventListener('change', (e) => {
-        let preset = e.target.value; if(players[myId]) players[myId].presetId = preset;
-        if(isHost) players[myId].maxFuel = vehiclePresets[preset]?.fuelCap || 100; else if(hostConnection) { try{ hostConnection.send({ type: 'changeCar', preset: preset }); } catch(err){} }
-    });
-}
 
 const localInputs = { steering: 0, throttle: 0, handbrake: false }; const activeTouchState = { left: null, right: null };
 function setupJoystick(zId, sId, key, onC) {
@@ -382,7 +380,26 @@ function update() {
         if (gp) { localInputs.steering = gp.axes[0]||0; localInputs.throttle = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0); localInputs.handbrake = gp.buttons[0]?.pressed||false; resumeAudio(); }
     }
 
-    if (players[myId]) players[myId].inputs = localInputs;
+    if (players[myId]) {
+        players[myId].inputs = localInputs;
+        
+        let carSelect = document.getElementById('preset-selector');
+        if (carSelect && carSelect.value && players[myId].presetId !== carSelect.value) {
+            players[myId].presetId = carSelect.value;
+            players[myId].maxFuel = vehiclePresets[carSelect.value]?.fuelCap || 100;
+            if (!isHost && hostConnection && hostConnection.open) {
+                try { hostConnection.send({ type: 'changeCar', preset: carSelect.value }); } catch(e){}
+            }
+        }
+        
+        let colorSelect = document.querySelector('input[type="color"]');
+        if (colorSelect && colorSelect.value && players[myId].color !== colorSelect.value) {
+            players[myId].color = colorSelect.value;
+            if (!isHost && hostConnection && hostConnection.open) {
+                try { hostConnection.send({ type: 'changeColor', color: colorSelect.value }); } catch(e){}
+            }
+        }
+    }
     
     if (!isHost && hostConnection && hostConnection.open) {
         let currentInputString = localInputs.steering + "," + localInputs.throttle + "," + localInputs.handbrake;
@@ -513,7 +530,7 @@ function update() {
             p.rearSpinSeverity = Math.abs(-vSlipR * MeffR) > gripR * dt ? Math.min(1.0, (Math.abs(-vSlipR * MeffR)-gripR * dt)/(gripR * dt)) : 0;
             if (Math.abs(fLongR)/maxGrip > 0.95) p.rearSpinSeverity = 1.0; if (Math.abs(fLongF)/maxGrip > 0.95) p.frontSpinSeverity = 1.0; 
 
-            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake, n: p.name, l: p.lap, bl: p.bestLap === Infinity ? null : p.bestLap, fin: p.finished, cLT: p.currentLapTime };
+            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, c: p.color, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake, n: p.name, l: p.lap, bl: p.bestLap === Infinity ? null : p.bestLap, fin: p.finished, cLT: p.currentLapTime };
         }
 
         for(let i=0; i<pkeys.length; i++) {
@@ -666,7 +683,7 @@ function update() {
             ctx.fillStyle = '#111'; ctx.fillRect(-hl + 8 - wheelW/2, -hw, wheelW, wheelThick*1.5); ctx.fillRect(-hl + 8 - wheelW/2, hw - wheelThick*1.5, wheelW, wheelThick*1.5);
             ctx.save(); ctx.translate(hl - 6, -hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, 0, wheelW, wheelThick*1.5); ctx.restore();
             ctx.save(); ctx.translate(hl - 6, hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, -wheelThick*1.5, wheelW, wheelThick*1.5); ctx.restore();
-            ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.roundRect(-hl + 6, -hw*0.35, pre.l - 12, pre.w*0.7, 4); ctx.fill(); 
+            ctx.fillStyle = p.color || '#e74c3c'; ctx.beginPath(); ctx.roundRect(-hl + 6, -hw*0.35, pre.l - 12, pre.w*0.7, 4); ctx.fill(); 
             ctx.fillStyle = '#111'; ctx.fillRect(2, -hw*0.25, 10, pre.w*0.5); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(7, 0, 4, 0, Math.PI*2); ctx.fill(); 
             ctx.fillStyle = '#111'; ctx.fillRect(hl - 4, -hw*0.9, 3, pre.w*1.8); ctx.fillRect(-hl, -hw*0.7, 4, pre.w*1.4); 
         } 
@@ -674,15 +691,15 @@ function update() {
             ctx.fillStyle = '#111'; ctx.fillRect(-hl + 4 - wheelW/2, -hw, wheelW, wheelThick); ctx.fillRect(-hl + 4 - wheelW/2, hw - wheelThick, wheelW, wheelThick);
             ctx.save(); ctx.translate(hl - 4, -hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, 0, wheelW, wheelThick); ctx.restore();
             ctx.save(); ctx.translate(hl - 4, hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, -wheelThick, wheelW, wheelThick); ctx.restore();
-            ctx.fillStyle = '#7f8c8d'; ctx.beginPath(); ctx.roundRect(-hl+2, -hw*0.5, pre.l-4, pre.w, 2); ctx.fill(); 
+            ctx.fillStyle = p.color || '#7f8c8d'; ctx.beginPath(); ctx.roundRect(-hl+2, -hw*0.5, pre.l-4, pre.w, 2); ctx.fill(); 
             ctx.fillStyle = '#e67e22'; ctx.fillRect(hl - 3, -hw*0.7, 2, pre.w*1.4); 
             ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl + 6, -hw*0.4, 8, pre.w*0.8, 2); ctx.fill(); 
             ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(-hl + 10, 0, 5, 0, Math.PI*2); ctx.fill(); 
         } 
-        else if (pre.type === 'mx5') { ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#222'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 3, pre.l*0.35, pre.w - 6, 4); ctx.fill(); } 
-        else if (pre.type === 'r34') { ctx.fillStyle = '#2980b9'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 5); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.05, -hw + 2, pre.l*0.4, pre.w - 4, 3); ctx.fill(); ctx.fillStyle = '#2980b9'; ctx.fillRect(-hl - 3, -hw, 4, pre.w); } 
-        else if (pre.type === 's15') { ctx.fillStyle = '#8e44ad'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 6); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 2, pre.l*0.45, pre.w - 4, 4); ctx.fill(); ctx.fillStyle = '#f39c12'; ctx.fillRect(-hl - 4, -hw - 2, 5, pre.w + 4); } 
-        else if (pre.type === 'jaguar') { ctx.fillStyle = '#1abc9c'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.15, -hw + 3, pre.l*0.5, pre.w - 6, 6); ctx.fill(); }
+        else if (pre.type === 'mx5') { ctx.fillStyle = p.color || '#c0392b'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#222'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 3, pre.l*0.35, pre.w - 6, 4); ctx.fill(); } 
+        else if (pre.type === 'r34') { ctx.fillStyle = p.color || '#2980b9'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 5); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.05, -hw + 2, pre.l*0.4, pre.w - 4, 3); ctx.fill(); ctx.fillStyle = '#2980b9'; ctx.fillRect(-hl - 3, -hw, 4, pre.w); } 
+        else if (pre.type === 's15') { ctx.fillStyle = p.color || '#8e44ad'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 6); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 2, pre.l*0.45, pre.w - 4, 4); ctx.fill(); ctx.fillStyle = '#f39c12'; ctx.fillRect(-hl - 4, -hw - 2, 5, pre.w + 4); } 
+        else if (pre.type === 'jaguar') { ctx.fillStyle = p.color || '#1abc9c'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.15, -hw + 3, pre.l*0.5, pre.w - 6, 6); ctx.fill(); }
 
         ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.roundRect(hl - 3, -hw + 3, 4, 5, 2); ctx.roundRect(hl - 3, hw - 8, 4, 5, 2); ctx.fill();
         ctx.fillStyle = p.appliesBrake ? '#ff3333' : '#8b0000'; ctx.shadowColor = p.appliesBrake ? '#ff0000' : 'transparent'; ctx.shadowBlur = p.appliesBrake ? 10 : 0;
