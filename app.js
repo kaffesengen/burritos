@@ -4,7 +4,27 @@ const vehiclePresets = {
     mx5: { power: 184, mass: 1050, drivetrain: 'RWD', grip: 1.60, turn: 4.5, roll: 0.04, w: 20, l: 42, ev: false, type: 'mx5', fuelCap: 50 },
     r34: { power: 330, mass: 1560, drivetrain: 'AWD', grip: 1.85, turn: 3.8, roll: 0.04, w: 22, l: 48, ev: false, type: 'r34', fuelCap: 70 },
     s15: { power: 420, mass: 1240, drivetrain: 'RWD', grip: 1.70, turn: 5.5, roll: 0.04, w: 21, l: 45, ev: false, type: 's15', fuelCap: 65 },
-    f1: { power: 1050, mass: 798, drivetrain: 'RWD', grip: 3.60, turn: 6.0, roll: 0.09, w: 26, l: 64, ev: false, type: 'f1', fuelCap: 110 }
+    f1: { power: 1050, mass: 798, drivetrain: 'RWD', grip: 3.60, turn: 6.0, roll: 0.09, w: 26, l: 64, ev: false, type: 'f1', fuelCap: 110 },
+    gt3rs: { power: 525, mass: 1450, drivetrain: 'RWD', grip: 2.20, turn: 5.0, roll: 0.03, w: 20, l: 46, ev: false, type: 'r34', fuelCap: 64 },
+    f40: { power: 478, mass: 1369, drivetrain: 'RWD', grip: 1.70, turn: 4.8, roll: 0.04, w: 20, l: 44, ev: false, type: 'r34', fuelCap: 120 },
+    mclarenf1: { power: 627, mass: 1138, drivetrain: 'RWD', grip: 1.80, turn: 5.2, roll: 0.03, w: 19, l: 43, ev: false, type: 'r34', fuelCap: 90 },
+    mazda787b: { power: 700, mass: 830, drivetrain: 'RWD', grip: 2.80, turn: 5.8, roll: 0.02, w: 20, l: 47, ev: false, type: 'r34', fuelCap: 100 },
+    m3e30: { power: 238, mass: 1200, drivetrain: 'RWD', grip: 1.65, turn: 4.6, roll: 0.04, w: 18, l: 43, ev: false, type: 'r34', fuelCap: 62 },
+    elise: { power: 118, mass: 725, drivetrain: 'RWD', grip: 1.90, turn: 5.5, roll: 0.03, w: 17, l: 37, ev: false, type: 'mx5', fuelCap: 40 },
+    gt40: { power: 485, mass: 1210, drivetrain: 'RWD', grip: 1.60, turn: 4.2, roll: 0.04, w: 19, l: 41, ev: false, type: 'r34', fuelCap: 140 },
+    c8z06: { power: 670, mass: 1560, drivetrain: 'RWD', grip: 2.10, turn: 4.8, roll: 0.03, w: 21, l: 46, ev: false, type: 'r34', fuelCap: 70 },
+    quattro: { power: 500, mass: 1090, drivetrain: 'AWD', grip: 2.00, turn: 5.3, roll: 0.03, w: 19, l: 42, ev: false, type: 'r34', fuelCap: 90 },
+    r32: { power: 280, mass: 1430, drivetrain: 'AWD', grip: 1.80, turn: 4.4, roll: 0.04, w: 19, l: 45, ev: false, type: 'r34', fuelCap: 72 },
+    alfa33: { power: 230, mass: 700, drivetrain: 'RWD', grip: 1.60, turn: 5.0, roll: 0.03, w: 17, l: 40, ev: false, type: 'r34', fuelCap: 50 },
+    amggt: { power: 730, mass: 1615, drivetrain: 'RWD', grip: 2.20, turn: 4.7, roll: 0.03, w: 21, l: 46, ev: false, type: 'r34', fuelCap: 75 },
+    nsxr: { power: 290, mass: 1230, drivetrain: 'RWD', grip: 1.80, turn: 5.1, roll: 0.03, w: 19, l: 44, ev: false, type: 'r34', fuelCap: 70 },
+    type49: { power: 400, mass: 500, drivetrain: 'RWD', grip: 1.50, turn: 5.6, roll: 0.02, w: 18, l: 40, ev: false, type: 'f1', fuelCap: 60 },
+    jesko: { power: 1600, mass: 1420, drivetrain: 'RWD', grip: 2.50, turn: 4.5, roll: 0.03, w: 21, l: 46, ev: false, type: 'r34', fuelCap: 72 },
+    delta: { power: 210, mass: 1300, drivetrain: 'AWD', grip: 1.80, turn: 4.9, roll: 0.04, w: 18, l: 40, ev: false, type: 'r34', fuelCap: 57 },
+    valkyrie: { power: 1160, mass: 1030, drivetrain: 'RWD', grip: 3.20, turn: 5.8, roll: 0.02, w: 21, l: 45, ev: false, type: 'r34', fuelCap: 65 },
+    yaris: { power: 261, mass: 1280, drivetrain: 'AWD', grip: 1.90, turn: 5.0, roll: 0.04, w: 18, l: 40, ev: false, type: 'r34', fuelCap: 50 },
+    porsche917: { power: 630, mass: 800, drivetrain: 'RWD', grip: 2.00, turn: 4.8, roll: 0.02, w: 20, l: 41, ev: false, type: 'r34', fuelCap: 120 },
+    caterham: { power: 310, mass: 545, drivetrain: 'RWD', grip: 2.10, turn: 6.0, roll: 0.03, w: 16, l: 32, ev: false, type: 'f1', fuelCap: 36 }
 };
 
 const gearRatios = [0, 3.5, 2.2, 1.6, 1.2, 0.9];
@@ -26,6 +46,46 @@ const tracks = {
         path: (() => { let p = new Path2D(); p.moveTo(1000, 3000); p.bezierCurveTo(500, 3000, 500, 2000, 1000, 2000); p.lineTo(3000, 2000); p.bezierCurveTo(3500, 2000, 3500, 1000, 3000, 1000); p.lineTo(1000, 1000); p.bezierCurveTo(500, 1000, 500, 500, 1000, 500); p.lineTo(4000, 500); p.bezierCurveTo(4500, 500, 4500, 3000, 4000, 3000); p.closePath(); return p; })(),
         startX: 2000, startY: 3000, startAngle: Math.PI, pit: { x1: 1700, x2: 2100, y1: 2800, y2: 2880 },
         finish: { x: 2000, y: 3000, radius: 200 }, checkpoint: { x: 3000, y: 1000, radius: 200 }
+    },
+    nordschleife: { 
+        path: (() => { let p=new Path2D(); p.moveTo(5000,8000); p.lineTo(2000,8000); p.bezierCurveTo(1000,7000,1000,5000,2000,4000); p.lineTo(3000,3000); p.bezierCurveTo(4000,2000,5000,1000,6000,2000); p.lineTo(8000,3000); p.bezierCurveTo(9000,4000,9000,6000,8000,7000); p.closePath(); return p; })(), 
+        startX: 4000, startY: 8000, startAngle: Math.PI, pit: {x1:3800, x2:4200, y1:7700, y2:7800}, finish: {x:4000, y:8000, radius:250}, checkpoint: {x:5500, y:2000, radius:250} 
+    },
+    spa: { 
+        path: (() => { let p=new Path2D(); p.moveTo(3000,7000); p.lineTo(3500,4000); p.bezierCurveTo(3700,2000,5000,1000,6000,1500); p.lineTo(6500,3000); p.bezierCurveTo(7000,4000,6500,6000,5500,7500); p.closePath(); return p; })(), 
+        startX: 3250, startY: 5500, startAngle: -1.405, pit: {x1:3050, x2:3450, y1:5500, y2:5600}, finish: {x:3250, y:5500, radius:250}, checkpoint: {x:6000, y:1500, radius:250} 
+    },
+    lemans: { 
+        path: (() => { let p=new Path2D(); p.moveTo(2000,8000); p.lineTo(1000,5000); p.bezierCurveTo(500,3000,1500,1000,3000,1000); p.lineTo(8000,1000); p.bezierCurveTo(9000,1000,9500,2000,9000,4000); p.lineTo(5000,8000); p.closePath(); return p; })(), 
+        startX: 1500, startY: 6500, startAngle: -1.892, pit: {x1:1300, x2:1700, y1:6500, y2:6600}, finish: {x:1500, y:6500, radius:250}, checkpoint: {x:9000, y:4000, radius:250} 
+    },
+    suzuka: { 
+        path: (() => { let p=new Path2D(); p.moveTo(3000,6000); p.bezierCurveTo(1000,4000,3000,2000,5000,4000); p.lineTo(7000,6000); p.bezierCurveTo(9000,8000,7000,10000,5000,8000); p.closePath(); return p; })(), 
+        startX: 3000, startY: 6000, startAngle: -2.356, pit: {x1:2800, x2:3200, y1:5800, y2:5900}, finish: {x:3000, y:6000, radius:250}, checkpoint: {x:7000, y:6000, radius:250} 
+    },
+    monaco: { 
+        path: (() => { let p=new Path2D(); p.moveTo(4000,6000); p.lineTo(3000,6000); p.bezierCurveTo(2000,6000,2000,4000,3000,4000); p.lineTo(4000,4000); p.bezierCurveTo(5000,4000,6000,5000,5000,6000); p.closePath(); return p; })(), 
+        startX: 3500, startY: 6000, startAngle: Math.PI, pit: {x1:3300, x2:3700, y1:5800, y2:5900}, finish: {x:3500, y:6000, radius:200}, checkpoint: {x:3500, y:4000, radius:200} 
+    },
+    bathurst: { 
+        path: (() => { let p=new Path2D(); p.moveTo(3000,8000); p.lineTo(2000,4000); p.bezierCurveTo(1500,2000,3000,1000,4000,2000); p.bezierCurveTo(5000,3000,5500,2000,6000,4000); p.lineTo(5000,8000); p.closePath(); return p; })(), 
+        startX: 2500, startY: 6000, startAngle: -1.815, pit: {x1:2300, x2:2700, y1:6000, y2:6100}, finish: {x:2500, y:6000, radius:250}, checkpoint: {x:4000, y:2000, radius:250} 
+    },
+    lagunaseca: { 
+        path: (() => { let p=new Path2D(); p.moveTo(4000,7000); p.lineTo(2000,5000); p.bezierCurveTo(1000,3000,3000,1000,5000,2000); p.lineTo(7000,2000); p.bezierCurveTo(7500,3000,6500,4000,7000,5000); p.bezierCurveTo(8000,7000,6000,8000,4000,7000); p.closePath(); return p; })(), 
+        startX: 3000, startY: 6000, startAngle: -2.356, pit: {x1:2800, x2:3200, y1:6000, y2:6100}, finish: {x:3000, y:6000, radius:250}, checkpoint: {x:6000, y:2000, radius:250} 
+    },
+    silverstone: { 
+        path: (() => { let p=new Path2D(); p.moveTo(4000,8000); p.lineTo(2000,6000); p.bezierCurveTo(1000,4000,3000,2000,5000,2000); p.lineTo(8000,4000); p.bezierCurveTo(9000,6000,7000,9000,4000,8000); p.closePath(); return p; })(), 
+        startX: 3000, startY: 7000, startAngle: -2.356, pit: {x1:2800, x2:3200, y1:7000, y2:7100}, finish: {x:3000, y:7000, radius:250}, checkpoint: {x:6500, y:3000, radius:250} 
+    },
+    monza: { 
+        path: (() => { let p=new Path2D(); p.moveTo(3000,7000); p.lineTo(7000,7000); p.bezierCurveTo(9000,7000,9000,4000,7000,3000); p.lineTo(3000,1000); p.bezierCurveTo(1000,0,1000,3000,3000,4000); p.bezierCurveTo(4000,4500,2000,5500,3000,7000); p.closePath(); return p; })(), 
+        startX: 5000, startY: 7000, startAngle: 0, pit: {x1:4800, x2:5200, y1:6800, y2:6900}, finish: {x:5000, y:7000, radius:250}, checkpoint: {x:5000, y:2000, radius:250} 
+    },
+    targaflorio: { 
+        path: (() => { let p=new Path2D(); p.moveTo(5000,9000); p.bezierCurveTo(1000,9000,1000,6000,3000,5000); p.bezierCurveTo(5000,4000,2000,2000,5000,1000); p.bezierCurveTo(8000,0,9000,4000,7000,5000); p.bezierCurveTo(5000,6000,9000,9000,5000,9000); p.closePath(); return p; })(), 
+        startX: 5000, startY: 9000, startAngle: Math.PI, pit: {x1:4800, x2:5200, y1:8800, y2:8900}, finish: {x:5000, y:9000, radius:250}, checkpoint: {x:5000, y:1000, radius:250} 
     }
 };
 
