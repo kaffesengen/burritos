@@ -324,6 +324,17 @@ if (trackSel) {
 let btnReset = document.getElementById('btn-reset');
 if (btnReset) { btnReset.addEventListener('click', () => { if(isHost) { assignGridPositions(); raceState = -1; } }); }
 
+let btnAddAi = document.getElementById('btn-add-ai');
+if (btnAddAi) {
+    btnAddAi.addEventListener('click', () => {
+        if(isHost) {
+            let t = getTrack();
+            aiManager.spawnAI(players, t.startX, t.startY, t.startAngle);
+            assignGridPositions(); // Plasserer bilene riktig på grid-en
+        }
+    });
+}
+
 let btnStart = document.getElementById('btn-start-race');
 if (btnStart) {
     btnStart.addEventListener('click', () => {
@@ -722,6 +733,8 @@ function update() {
                 }
             }
         }
+
+        aiManager.updateAll(players, activeTrackId);
         
         if (now - lastNetUpdate > 40) {
             let stateMsg = { type: 'state', raceState: raceState, laps: totalLaps, settings: serverSettings, players: outState.players };
