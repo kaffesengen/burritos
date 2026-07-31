@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Avansert Fysikkmotor v28 - Sandbox & Sync Fix</title>
+    <title>Avansert Fysikkmotor v29 - Stabil</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="app.js" defer></script>
@@ -11,11 +11,14 @@
 <body>
 
 <div id="lobby">
-    <h1>Avansert Fysikkmotor v28</h1>
+    <h1>Avansert Fysikkmotor v29</h1>
     
     <div class="lobby-box" id="mode-selection">
         <label style="color: #aaa; font-size: 12px;">Ditt Førernavn:</label>
-        <input type="text" id="player-name" class="input-text" placeholder="Skriv inn navn" value="" maxlength="15" style="margin-bottom: 20px; text-align: center; font-weight: bold; font-size: 16px;">
+        <input type="text" id="player-name" class="input-text" placeholder="Skriv inn navn" value="" maxlength="15" style="margin-bottom: 10px; text-align: center; font-weight: bold; font-size: 16px;">
+        
+        <label style="color: #aaa; font-size: 12px; display: block; margin-top: 10px;">Bilfarge:</label>
+        <input type="color" id="player-color" value="#3498db" style="width: 100%; height: 40px; border: none; background: none; cursor: pointer; margin-bottom: 20px;">
 
         <button class="btn" id="btn-sandbox-mode" style="background: #8e44ad; margin-bottom: 20px;">Spill Alene (Sandbox)</button>
         <button class="btn btn-green" id="btn-host-mode">Opprett Spill (Host)</button>
@@ -89,22 +92,27 @@
 
 <div id="ui-panel">
     <div class="control">
-        <label>Bytt Kjøretøy (Sanntid):</label>
+        <label>Bytt Kjøretøy:</label>
         <select id="preset-selector">
             <option value="jaguar" selected>Jaguar I-PACE EV400 (AWD)</option>
-            <option value="gokart">Proff Go-Kart (RWD)</option>
-            <option value="mx5">Mazda MX-5 (RWD)</option>
+            <option value="plaid">Tesla Model S Plaid (AWD)</option>
+            <option value="porsche911">Porsche 911 (RWD)</option>
+            <option value="f50">Ferrari F50 (RWD)</option>
+            <option value="mclarenf1">McLaren F1 (RWD)</option>
             <option value="r34">Nissan Skyline R34 (AWD)</option>
-            <option value="s15">Nissan Silvia S15 (Driftebil)</option>
+            <option value="supra">Toyota Supra (RWD)</option>
+            <option value="s15">Nissan Silvia S15 (Drift)</option>
+            <option value="golfr">VW Golf R (AWD)</option>
+            <option value="mx5">Mazda MX-5 (RWD)</option>
+            <option value="lemans">Le Mans Prototype (AWD)</option>
+            <option value="gokart">Proff Go-Kart (RWD)</option>
             <option value="f1">Formel 1 (RWD)</option>
         </select>
     </div>
+    
     <div class="control">
-        <label>Styring:</label>
-        <select id="input-selector">
-            <option value="touch" selected>Touch / Tastatur</option>
-            <option value="gamepad">Xbox Kontroller</option>
-        </select>
+        <label>Farge:</label>
+        <input type="color" id="ui-color" value="#3498db" style="width: 100%; height: 32px; border: none; background: none; cursor: pointer;">
     </div>
 
     <div class="control" id="sandbox-controls" style="display: none; grid-column: span 2; border-top: 1px solid #444; padding-top: 10px; margin-top: 5px;">
