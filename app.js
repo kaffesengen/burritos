@@ -128,7 +128,10 @@ function createPlayerRecord(id, presetId, name, colorCode) {
 function assignGridPositions() {
     let ids = Object.keys(players); let t = getTrack();
     ids.forEach((pid, index) => {
-        let row = Math.floor(index / 2); let col = index % 2 === 0 ? 1 : -1; let spacing = 120, lateral = 40;
+        let row = Math.floor(index / 2); // 2 biler per rad
+        let col = index % 2 === 0 ? 1 : -1; 
+        let spacing = 120, lateral = 40;
+        
         players[pid].x = t.startX - Math.cos(t.startAngle) * (row * spacing + 60) + Math.sin(t.startAngle) * (col * lateral);
         players[pid].y = t.startY - Math.sin(t.startAngle) * (row * spacing + 60) - Math.cos(t.startAngle) * (col * lateral);
         players[pid].angle = t.startAngle; players[pid].vx = 0; players[pid].vy = 0; players[pid].yawRate = 0;
