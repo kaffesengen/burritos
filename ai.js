@@ -52,7 +52,7 @@ class AIDriver {
         // 2. Look-ahead (Sikt fremover)
         // Redusert sikteavstand for å unngå at svinger kuttes.
         // Endret fra /8 til /15 for et strammere og kortere sikte.
-        let lookAheadOffset = 3 + Math.floor(vehicle.speedKmh / 15); 
+        let lookAheadOffset = 2 + Math.floor(vehicle.speedKmh / 15); 
         let targetIdx = (closestIdx + lookAheadOffset) % trackWaypoints.length;
         let targetPt = trackWaypoints[targetIdx];
 
