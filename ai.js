@@ -23,28 +23,45 @@ class AIDriver {
         this.color = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
         this.lineIndex = null;
         
-        // Variabler for "Stuck"-logikk
+        // "Stuck"-variabler
         this.stuckTime = 0;
         this.reverseTime = 0;
         this.recoveryTime = 0;
         this.recoverySteer = 0;
         this.lastUpdate = performance.now();
+
+        // Hevn- og aggresjonssystem: lagrer { enemyId: angerLevel }
+        this.grudgeMap = {};
+        this.aggressionFactor = 0.5 + Math.random() * 0.5; // Hvor iltre de er av natur (0.5 til 1.0)
     }
 
-    calculateInputs(vehicle, trackWaypoints, allPlayers) {
+    calculateInputs(vehicle, trackWaypoints, allPlayers, trackWalls, raceStarted) {
         let inputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: true };
         let now = performance.now();
-        let dt = (now - this.lastUpdate) / 1000; // Tidsdifferanse i sekunder
+        let dt = (now - this.lastUpdate) / 1000;
         this.lastUpdate = now;
 
         if (!trackWaypoints || trackWaypoints.length === 0) return inputs;
 
-        // --- TILSTAND: RYGGING ---
+        // --- 1. SJEKK OM BILER SKUBBER OG OPPBYGG HEVN ---
+        for (let otherId in allPlayers) {
+            if (otherId === this.id) continue;
+            let other = allPlayers[otherId];
+            let dist = Math.hypot(other.x - vehicle.x, other.y - vehicle.y);
+            
+            // Hvis en bil er nærmere enn 35px (fysisk berøring/kontakt)
+            if (dist < 35) {
+                if (!this.grudgeMap[otherId]) this.grudgeMap[otherId] = 0;
+                // Øk hevn-måleren mot denne bilen
+                this.grudgeMap[otherId] = Math.min(1.0, this.grudgeMap[otherId] + 0.4 * dt);
+            }
+        }
+
+        // --- 2. TILSTAND: RYGGING (STUCK) ---
         if (this.reverseTime > 0) {
             this.reverseTime -= dt;
-            inputs.throttle = -1.0; // Rygg
+            inputs.throttle = -1.0;
             
-            // Finn retningen til neste waypoint for å styre motsatt vei når vi rygger
             let closestDist = Infinity; let closestIdx = 0;
             for (let i = 0; i < trackWaypoints.length; i++) {
                 let dist = Math.hypot(vehicle.x - trackWaypoints[i].x, vehicle.y - trackWaypoints[i].y);
@@ -56,14 +73,12 @@ class AIDriver {
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
             while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
             
-            // Styr motsatt for å rygge ut, eller sving hardt for å vri bilen løs
             inputs.steering = angleDiff > 0 ? -1.0 : 1.0; 
-            
-            this.recoveryTime = 2.0; // Gjør klar unnvikelse i 2 sekunder etter rygging
-            return inputs; // Avbryt all annen logikk mens vi rygger
+            this.recoveryTime = 2.0;
+            return inputs;
         }
 
-        // 1. Veipunkt-navigasjon
+        // --- 3. VEIPUNKT-NAVIGASJON ---
         let closestDist = Infinity;
         let closestIdx = 0;
         for (let i = 0; i < trackWaypoints.length; i++) {
@@ -78,23 +93,19 @@ class AIDriver {
         let targetIdx = (closestIdx + lookAheadOffset) % trackWaypoints.length;
         let targetPt = trackWaypoints[targetIdx];
 
-        let dx = targetPt.x - vehicle.x;
-        let dy = targetPt.y - vehicle.y;
-        let targetAngle = Math.atan2(dy, dx);
-        
+        let targetAngle = Math.atan2(targetPt.y - vehicle.y, targetPt.x - vehicle.x);
         let angleDiff = targetAngle - vehicle.angle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-        // --- TILSTAND: UNNVIKELSE ETTER RYGGING ---
         if (this.recoveryTime > 0) {
             this.recoveryTime -= dt;
-            angleDiff += this.recoverySteer; // Legg på falsk offset for å kjøre utenom
+            angleDiff += this.recoverySteer;
         }
 
         inputs.steering = Math.max(-1.0, Math.min(1.0, angleDiff * 3.0));
 
-        // 2. Farts- og bremsekontroll basert på veipunkt
+        // --- 4. FARTSKONTROLL ---
         let brakeCheckOffset = Math.floor(vehicle.speedKmh / 5);
         let upcomingTarget = trackWaypoints[(closestIdx + brakeCheckOffset) % trackWaypoints.length];
         let maxSafeSpeed = upcomingTarget.targetSpeed;
@@ -106,10 +117,9 @@ class AIDriver {
             if (Math.abs(inputs.steering) > 0.6) inputs.throttle = 0.4;
         }
 
-        // 3. RADAR: Kollisjonsunnvikelse og Forbikjøring
+        // --- 5. RADAR & HEVN-PRESSELOGIKK ---
         let avoidSteer = 0;
         let forceBrake = false;
-        let closestCarAhead = Infinity;
 
         for (let otherId in allPlayers) {
             if (otherId === this.id) continue;
@@ -119,24 +129,32 @@ class AIDriver {
             let distToOther = Math.hypot(otherCar.x - vehicle.x, otherCar.y - vehicle.y);
             
             if (distToOther < 180) {
-                let dxOther = otherCar.x - vehicle.x;
-                let dyOther = otherCar.y - vehicle.y;
-                let angleToOther = Math.atan2(dyOther, dxOther);
-                
+                let angleToOther = Math.atan2(otherCar.y - vehicle.y, otherCar.x - vehicle.x);
                 let angleDiffOther = angleToOther - vehicle.angle;
                 while (angleDiffOther > Math.PI) angleDiffOther -= Math.PI * 2;
                 while (angleDiffOther < -Math.PI) angleDiffOther += Math.PI * 2;
 
-                if (Math.abs(angleDiffOther) < 0.8) {
-                    if (distToOther < closestCarAhead) closestCarAhead = distToOther;
+                let grudge = this.grudgeMap[otherId] || 0;
 
-                    let steerPush = (angleDiffOther < 0) ? 0.6 : -0.6;
-                    if (Math.abs(angleDiffOther) < 0.1) steerPush = (inputs.steering > 0) ? 0.6 : -0.6;
+                // Er bilen foran eller på siden?
+                if (Math.abs(angleDiffOther) < 1.2) {
                     
-                    let pushFactor = 1.0 - (distToOther / 180);
-                    avoidSteer += steerPush * pushFactor;
+                    // Sjekk om vi skal PRESSE (Hevn/Aggresjon) eller UNNVIKE
+                    if (grudge > 0.3 && distToOther < 90) {
+                        // Sving MOT motstanderen for å presse dem ut!
+                        let pressDirection = (angleDiffOther > 0) ? 0.8 : -0.8;
+                        avoidSteer += pressDirection * (grudge * this.aggressionFactor);
+                    } else {
+                        // Standard unnvikelse hvis vi ikke er sinte på dem
+                        let steerPush = (angleDiffOther < 0) ? 0.6 : -0.6;
+                        if (Math.abs(angleDiffOther) < 0.1) steerPush = (inputs.steering > 0) ? 0.6 : -0.6;
+                        let pushFactor = 1.0 - (distToOther / 180);
+                        avoidSteer += steerPush * pushFactor;
 
-                    if (distToOther < 80 && vehicle.speedKmh > otherCar.speedKmh) forceBrake = true;
+                        if (distToOther < 80 && vehicle.speedKmh > otherCar.speedKmh && raceStarted) {
+                            forceBrake = true;
+                        }
+                    }
                 }
             }
         }
@@ -144,22 +162,56 @@ class AIDriver {
         if (avoidSteer !== 0) inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + avoidSteer));
         if (forceBrake) inputs.throttle = -1.0;
 
-        // --- OPPDAGELSE: SITTER BILEN FAST? ---
-        // Sjekker om AI-en gir gass, men hastigheten er nesten null
-        if (inputs.throttle > 0.1 && vehicle.speedKmh < 3.0) {
+        // --- 6. "ØYNE": DETEKTER KANTER OG MURE (RAYCASTING) ---
+        // Sjekker 3 stråler foran bilen (venstre, midten, høyre)
+        if (trackWalls && trackWalls.length > 0) {
+            let rayAngles = [-0.5, 0, 0.5]; // Vinkler i radianer for øynene
+            let rayDistance = 70 + (vehicle.speedKmh * 0.5); // Lengre syn i høy hastighet
+            let wallAvoidance = 0;
+
+            rayAngles.forEach(offsetAngle => {
+                let checkAngle = vehicle.angle + offsetAngle;
+                let rayX = vehicle.x + Math.cos(checkAngle) * rayDistance;
+                let rayY = vehicle.y + Math.sin(checkAngle) * rayDistance;
+
+                // Sjekk mot alle vegger i banen
+                trackWalls.forEach(wall => {
+                    let d = distToSegment({x: vehicle.x, y: vehicle.y}, {x: rayX, y: rayY}, wall.p1, wall.p2);
+                    if (d < 25) { // Kant oppdaget for nærme!
+                        // Sving unna kanten
+                        wallAvoidance += (offsetAngle <= 0) ? 0.9 : -0.9;
+                    }
+                });
+            });
+
+            if (wallAvoidance !== 0) {
+                inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + wallAvoidance));
+            }
+        }
+
+        // --- 7. STUCK-DETEKSJON (KUN NÅR LØPET ER IGANG OG HASITGHET ER LAV) ---
+        if (raceStarted && inputs.throttle > 0.1 && vehicle.speedKmh < 3.0) {
             this.stuckTime += dt;
-            if (this.stuckTime > 2.0) { // Har sittet fast i over 2 sekunder
-                this.reverseTime = 1.5; // Rygg i 1.5 sekunder
+            if (this.stuckTime > 2.5) { // Må stå stille i 2.5 sekunder MIDT i løpet
+                this.reverseTime = 1.5;
                 this.stuckTime = 0;
-                // Bestemmer at vi skal sikte litt ut til en av sidene etter vi er ferdige med å rygge
-                this.recoverySteer = (Math.random() > 0.5 ? 0.8 : -0.8);
+                this.recoverySteer = (Math.random() > 0.5 ? 0.9 : -0.9);
             }
         } else {
-            this.stuckTime = 0; // Nullstill hvis bilen rører på seg
+            this.stuckTime = 0;
         }
 
         return inputs;
     }
+}
+
+// Hjelpefunksjon for å beregne avstand fra punkt til linjesegment (kantsensorer)
+function distToSegment(p, p2, v, w) {
+    let l2 = Math.hypot(v.x - w.x, v.y - w.y);
+    if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / (l2 * l2);
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
 }
 
 class AIManager {
@@ -197,7 +249,7 @@ class AIManager {
         this.aiList = {};
     }
 
-    updateAll(playersObject, activeTrackId) {
+    updateAll(playersObject, activeTrackId, trackWalls, raceStarted) {
         let trackLines = this.waypoints[activeTrackId] || [];
 
         for (let aiId in this.aiList) {
@@ -205,15 +257,14 @@ class AIManager {
             let vehicleData = playersObject[aiId];
 
             if (vehicleData && !vehicleData.finished) {
-                // Tildel en fast, tilfeldig rute for dette løpet hvis det finnes alternativer
                 if (aiLogic.lineIndex === null || trackLines.length === 0) {
                     aiLogic.lineIndex = trackLines.length > 0 ? Math.floor(Math.random() * trackLines.length) : 0;
                 }
                 
                 let assignedLine = trackLines[aiLogic.lineIndex] || [];
                 
-                // Kalkuler inputs. Legg merke til at vi sender inn playersObject for radaren.
-                vehicleData.inputs = aiLogic.calculateInputs(vehicleData, assignedLine, playersObject);
+                // Passerer ekstra argumenter for kanter og løpsstatus
+                vehicleData.inputs = aiLogic.calculateInputs(vehicleData, assignedLine, playersObject, trackWalls, raceStarted);
                 vehicleData.lastSeen = performance.now();
             }
         }
