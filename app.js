@@ -56,12 +56,12 @@ const connections = {}, players = {};
 let raceState = -1, totalLaps = 3, raceStartTime = 0;
 let gameLoopId = null;
 
-function createPlayerRecord(id, presetId, name) {
+function createPlayerRecord(id, presetId, name, colorCode) {
     let safeName = "Gjest";
     if (typeof name === 'string' && name.trim().length > 0) safeName = name.trim().substring(0, 15);
     let cap = vehiclePresets[presetId]?.fuelCap || 100;
     let t = getTrack();
-    let col = document.querySelector('input[type="color"]')?.value || '#3498db';
+    let col = colorCode || document.querySelector('input[type="color"]')?.value || '#3498db';
     return {
         id: id, name: safeName, presetId: presetId || 'jaguar', color: col,
         x: t.startX, y: t.startY, prevX: t.startX, prevY: t.startY,
@@ -171,8 +171,7 @@ if (btnHost) {
             conn.on('data', data => {
                 if (data.type === 'join') {
                     if (!players[conn.peer]) {
-                        players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name);
-                        players[conn.peer].color = data.color || '#3498db';
+                        players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name, data.color);
                         let t = getTrack();
                         if (gameActive) {
                             if (raceState === 0) {
@@ -197,10 +196,10 @@ if (btnHost) {
                     }
                     players[conn.peer].inputs = data.inputs; 
                     players[conn.peer].lastSeen = performance.now();
-                } else if (data.type === 'changeCar' && players[conn.peer]) {
-                    players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100;
-                } else if (data.type === 'changeColor' && players[conn.peer]) {
-                    players[conn.peer].color = data.color;
+                } else if (data.type === 'changeCar') {
+                    if (players[conn.peer]) { players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100; }
+                } else if (data.type === 'changeColor') {
+                    if (players[conn.peer]) { players[conn.peer].color = data.color; }
                 }
             });
             
@@ -274,8 +273,7 @@ function initJoiner(hostId) {
             let pName = document.getElementById('player-name')?.value || "Spiller";
             let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
             let selColor = document.querySelector('input[type="color"]')?.value || '#3498db';
-            players[myId] = createPlayerRecord(myId, selPreset, pName);
-            players[myId].color = selColor;
+            players[myId] = createPlayerRecord(myId, selPreset, pName, selColor);
             
             let joined = false;
             let handshakeLoop = setInterval(() => {
@@ -287,7 +285,7 @@ function initJoiner(hostId) {
                 if (data.type === 'init') { 
                     joined = true; activeTrackId = data.trackId || 'standard'; generateEnvironment(); 
                     if(data.laps) totalLaps = data.laps;
-                    if(data.yourId) { myId = data.yourId; if(!players[myId]) players[myId] = createPlayerRecord(myId, selPreset, pName); }
+                    if(data.yourId) { myId = data.yourId; if(!players[myId]) players[myId] = createPlayerRecord(myId, selPreset, pName, selColor); }
                 } 
                 else if (data.type === 'start') { 
                     joined = true; if(data.laps) totalLaps = data.laps; 
@@ -300,18 +298,26 @@ function initJoiner(hostId) {
                     
                     for (let pid in data.players) {
                         let pData = data.players[pid];
-                        if (!players[pid]) players[pid] = createPlayerRecord(pid, pData.presetId, pData.n);
+                        if (!players[pid]) players[pid] = createPlayerRecord(pid, pData.presetId, pData.n, pData.c);
                         let p = players[pid];
                         
                         if (pData.x !== null && isFinite(pData.x)) p.targetX = pData.x; 
                         if (pData.y !== null && isFinite(pData.y)) p.targetY = pData.y; 
                         if (pData.a !== null && isFinite(pData.a)) p.targetAngle = pData.a; 
                         
-                        p.steer = pData.s || 0; p.name = pData.n || "Gjest"; p.color = pData.c || '#3498db';
+                        p.steer = pData.s || 0; 
                         p.frontSpinSeverity = pData.fS || 0; p.rearSpinSeverity = pData.rS || 0; 
                         p.gear = pData.g || 1; p.rpm = pData.rpm || 1000; 
-                        p.speedKmh = pData.v || 0; p.fuel = pData.f || 100; p.presetId = pData.presetId; p.maxFuel = vehiclePresets[pData.presetId]?.fuelCap || 100;
+                        p.speedKmh = pData.v || 0; p.fuel = pData.f || 100;
                         p.appliesBrake = !!pData.b; p.lap = pData.l || 0; p.bestLap = pData.bl || Infinity; p.finished = !!pData.fin; p.currentLapTime = pData.cLT || 0; p.lastSeen = performance.now();
+                        
+                        // Pass på å ikke overskrive lokalt valgt bil/farge for egen klient
+                        if (pid !== myId) {
+                            p.presetId = pData.presetId || 'jaguar'; 
+                            p.maxFuel = vehiclePresets[p.presetId]?.fuelCap || 100;
+                            p.color = pData.c || '#3498db';
+                            p.name = pData.n || "Gjest";
+                        }
                     }
                     for (let pid in players) { if(pid !== myId && !data.players[pid]) delete players[pid]; }
                 }
@@ -446,18 +452,26 @@ function update() {
             if (inPit && p.speedKmh < 10) p.fuel = Math.min(preset.fuelCap, p.fuel + 20 * dt); else p.fuel -= Math.abs(ins.throttle) * aPower * 0.00015 * dt;
             if (p.fuel <= 0) { p.fuel = 0; ins.throttle = 0; }
 
+            // LØSNING PÅ FYSIKKBUGEN: Transformasjonen må nullstilles før vi tester om bilen er på banen
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.lineWidth = 160; const onAsphalt = ctx.isPointInStroke(track.path, p.x, p.y);
             ctx.lineWidth = 190; const onCurbs = ctx.isPointInStroke(track.path, p.x, p.y) && !onAsphalt;
             ctx.lineWidth = 240; const onSand = ctx.isPointInStroke(track.path, p.x, p.y) && !onAsphalt && !onCurbs;
             ctx.lineWidth = 250; const inBounds = ctx.isPointInStroke(track.path, p.x, p.y);
+            ctx.restore();
+
             let surfaceMu = preset.grip * serverSettings.grip; let rollingResistance = preset.roll;
             if (onCurbs) surfaceMu *= 0.85; else if (onSand) { surfaceMu *= 0.4; rollingResistance = 0.35; } else if (!onAsphalt) { surfaceMu *= 0.55; rollingResistance = 0.15; }
 
             if (!inBounds && dt > 0) {
                 p.x = p.prevX; p.y = p.prevY; let nx = 0, ny = 0;
                 for (let r = 20; r <= 80; r += 20) {
+                    // Må nullstilles for raycasting også
+                    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
                     if (ctx.isPointInStroke(track.path, p.x + r, p.y)) nx += 1; if (ctx.isPointInStroke(track.path, p.x - r, p.y)) nx -= 1;
                     if (ctx.isPointInStroke(track.path, p.x, p.y + r)) ny += 1; if (ctx.isPointInStroke(track.path, p.x, p.y - r)) ny -= 1;
+                    ctx.restore();
                     if (nx !== 0 || ny !== 0) break;
                 }
                 let nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = -Math.sign(p.vx); ny = -Math.sign(p.vy); nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = 1; ny = 0; nLen = 1; } }
