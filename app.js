@@ -34,60 +34,48 @@ const wheelRadius = 0.32;
 const tracks = {
     standard: {
         path: (() => { let p = new Path2D(); p.moveTo(4400, 3200); p.lineTo(800, 3200); p.bezierCurveTo(200, 3200, 200, 2600, 600, 2200); p.lineTo(1400, 1400); p.bezierCurveTo(1600, 1200, 2000, 1400, 1800, 1800); p.lineTo(1200, 2400); p.bezierCurveTo(1000, 2600, 1400, 2800, 1800, 2600); p.lineTo(3200, 1600); p.bezierCurveTo(3600, 1400, 3800, 800, 4200, 800); p.bezierCurveTo(4800, 800, 4800, 1600, 4400, 1800); p.lineTo(4600, 2400); p.bezierCurveTo(4800, 2800, 4800, 3200, 4400, 3200); p.closePath(); return p; })(),
-        startX: 2100, startY: 3200, startAngle: Math.PI, pit: { x1: 1800, x2: 2400, y1: 3000, y2: 3080 },
-        finish: { x: 2100, y: 3200, radius: 250 }, checkpoint: { x: 4400, y: 1800, radius: 250 }
+        startX: 2100, startY: 3200, startAngle: Math.PI, finish: { x: 2100, y: 3200, radius: 250 }, checkpoint: { x: 4400, y: 1800, radius: 250 }
     },
     drift: {
         path: (() => { let p = new Path2D(); p.moveTo(2500, 2000); p.bezierCurveTo(1500, 3500, 500, 3000, 500, 2000); p.bezierCurveTo(500, 1000, 1500, 500, 2500, 2000); p.bezierCurveTo(3500, 3500, 4500, 3000, 4500, 2000); p.bezierCurveTo(4500, 1000, 3500, 500, 2500, 2000); p.closePath(); return p; })(),
-        startX: 2500, startY: 2000, startAngle: Math.PI/4, pit: { x1: 2300, x2: 2600, y1: 1700, y2: 1800 },
-        finish: { x: 2500, y: 2000, radius: 250 }, checkpoint: { x: 500, y: 2000, radius: 250 }
+        startX: 2500, startY: 2000, startAngle: Math.PI/4, finish: { x: 2500, y: 2000, radius: 250 }, checkpoint: { x: 500, y: 2000, radius: 250 }
     },
     gokart: {
         path: (() => { let p = new Path2D(); p.moveTo(1000, 3000); p.bezierCurveTo(500, 3000, 500, 2000, 1000, 2000); p.lineTo(3000, 2000); p.bezierCurveTo(3500, 2000, 3500, 1000, 3000, 1000); p.lineTo(1000, 1000); p.bezierCurveTo(500, 1000, 500, 500, 1000, 500); p.lineTo(4000, 500); p.bezierCurveTo(4500, 500, 4500, 3000, 4000, 3000); p.closePath(); return p; })(),
-        startX: 2000, startY: 3000, startAngle: Math.PI, pit: { x1: 1700, x2: 2100, y1: 2800, y2: 2880 },
-        finish: { x: 2000, y: 3000, radius: 200 }, checkpoint: { x: 3000, y: 1000, radius: 200 }
+        startX: 2000, startY: 3000, startAngle: Math.PI, finish: { x: 2000, y: 3000, radius: 200 }, checkpoint: { x: 3000, y: 1000, radius: 200 }
     },
-    nordschleife: { 
-        path: (() => { let p=new Path2D(); p.moveTo(5000,8000); p.lineTo(2000,8000); p.bezierCurveTo(1000,7000,1000,5000,2000,4000); p.lineTo(3000,3000); p.bezierCurveTo(4000,2000,5000,1000,6000,2000); p.lineTo(8000,3000); p.bezierCurveTo(9000,4000,9000,6000,8000,7000); p.closePath(); return p; })(), 
-        startX: 4000, startY: 8000, startAngle: Math.PI, pit: {x1:3800, x2:4200, y1:7700, y2:7800}, finish: {x:4000, y:8000, radius:250}, checkpoint: {x:5500, y:2000, radius:250} 
-    },
-    spa: { 
-        path: (() => { let p=new Path2D(); p.moveTo(3000,7000); p.lineTo(3500,4000); p.bezierCurveTo(3700,2000,5000,1000,6000,1500); p.lineTo(6500,3000); p.bezierCurveTo(7000,4000,6500,6000,5500,7500); p.closePath(); return p; })(), 
-        startX: 3250, startY: 5500, startAngle: -1.405, pit: {x1:3050, x2:3450, y1:5500, y2:5600}, finish: {x:3250, y:5500, radius:250}, checkpoint: {x:6000, y:1500, radius:250} 
-    },
-    lemans: { 
-        path: (() => { let p=new Path2D(); p.moveTo(2000,8000); p.lineTo(1000,5000); p.bezierCurveTo(500,3000,1500,1000,3000,1000); p.lineTo(8000,1000); p.bezierCurveTo(9000,1000,9500,2000,9000,4000); p.lineTo(5000,8000); p.closePath(); return p; })(), 
-        startX: 1500, startY: 6500, startAngle: -1.892, pit: {x1:1300, x2:1700, y1:6500, y2:6600}, finish: {x:1500, y:6500, radius:250}, checkpoint: {x:9000, y:4000, radius:250} 
-    },
-    suzuka: { 
-        path: (() => { let p=new Path2D(); p.moveTo(3000,6000); p.bezierCurveTo(1000,4000,3000,2000,5000,4000); p.lineTo(7000,6000); p.bezierCurveTo(9000,8000,7000,10000,5000,8000); p.closePath(); return p; })(), 
-        startX: 3000, startY: 6000, startAngle: -2.356, pit: {x1:2800, x2:3200, y1:5800, y2:5900}, finish: {x:3000, y:6000, radius:250}, checkpoint: {x:7000, y:6000, radius:250} 
-    },
-    monaco: { 
-        path: (() => { let p=new Path2D(); p.moveTo(4000,6000); p.lineTo(3000,6000); p.bezierCurveTo(2000,6000,2000,4000,3000,4000); p.lineTo(4000,4000); p.bezierCurveTo(5000,4000,6000,5000,5000,6000); p.closePath(); return p; })(), 
-        startX: 3500, startY: 6000, startAngle: Math.PI, pit: {x1:3300, x2:3700, y1:5800, y2:5900}, finish: {x:3500, y:6000, radius:200}, checkpoint: {x:3500, y:4000, radius:200} 
-    },
-    bathurst: { 
-        path: (() => { let p=new Path2D(); p.moveTo(3000,8000); p.lineTo(2000,4000); p.bezierCurveTo(1500,2000,3000,1000,4000,2000); p.bezierCurveTo(5000,3000,5500,2000,6000,4000); p.lineTo(5000,8000); p.closePath(); return p; })(), 
-        startX: 2500, startY: 6000, startAngle: -1.815, pit: {x1:2300, x2:2700, y1:6000, y2:6100}, finish: {x:2500, y:6000, radius:250}, checkpoint: {x:4000, y:2000, radius:250} 
-    },
-    lagunaseca: { 
-        path: (() => { let p=new Path2D(); p.moveTo(4000,7000); p.lineTo(2000,5000); p.bezierCurveTo(1000,3000,3000,1000,5000,2000); p.lineTo(7000,2000); p.bezierCurveTo(7500,3000,6500,4000,7000,5000); p.bezierCurveTo(8000,7000,6000,8000,4000,7000); p.closePath(); return p; })(), 
-        startX: 3000, startY: 6000, startAngle: -2.356, pit: {x1:2800, x2:3200, y1:6000, y2:6100}, finish: {x:3000, y:6000, radius:250}, checkpoint: {x:6000, y:2000, radius:250} 
-    },
-    silverstone: { 
-        path: (() => { let p=new Path2D(); p.moveTo(4000,8000); p.lineTo(2000,6000); p.bezierCurveTo(1000,4000,3000,2000,5000,2000); p.lineTo(8000,4000); p.bezierCurveTo(9000,6000,7000,9000,4000,8000); p.closePath(); return p; })(), 
-        startX: 3000, startY: 7000, startAngle: -2.356, pit: {x1:2800, x2:3200, y1:7000, y2:7100}, finish: {x:3000, y:7000, radius:250}, checkpoint: {x:6500, y:3000, radius:250} 
-    },
-    monza: { 
-        path: (() => { let p=new Path2D(); p.moveTo(3000,7000); p.lineTo(7000,7000); p.bezierCurveTo(9000,7000,9000,4000,7000,3000); p.lineTo(3000,1000); p.bezierCurveTo(1000,0,1000,3000,3000,4000); p.bezierCurveTo(4000,4500,2000,5500,3000,7000); p.closePath(); return p; })(), 
-        startX: 5000, startY: 7000, startAngle: 0, pit: {x1:4800, x2:5200, y1:6800, y2:6900}, finish: {x:5000, y:7000, radius:250}, checkpoint: {x:5000, y:2000, radius:250} 
-    },
-    targaflorio: { 
-        path: (() => { let p=new Path2D(); p.moveTo(5000,9000); p.bezierCurveTo(1000,9000,1000,6000,3000,5000); p.bezierCurveTo(5000,4000,2000,2000,5000,1000); p.bezierCurveTo(8000,0,9000,4000,7000,5000); p.bezierCurveTo(5000,6000,9000,9000,5000,9000); p.closePath(); return p; })(), 
-        startX: 5000, startY: 9000, startAngle: Math.PI, pit: {x1:4800, x2:5200, y1:8800, y2:8900}, finish: {x:5000, y:9000, radius:250}, checkpoint: {x:5000, y:1000, radius:250} 
-    }
+    nordschleife: { path: (() => { let p=new Path2D(); p.moveTo(5000,8000); p.lineTo(2000,8000); p.bezierCurveTo(1000,7000,1000,5000,2000,4000); p.lineTo(3000,3000); p.bezierCurveTo(4000,2000,5000,1000,6000,2000); p.lineTo(8000,3000); p.bezierCurveTo(9000,4000,9000,6000,8000,7000); p.closePath(); return p; })(), startX: 4000, startY: 8000, startAngle: Math.PI, finish: {x:4000, y:8000, radius:250}, checkpoint: {x:5500, y:2000, radius:250} },
+    spa: { path: (() => { let p=new Path2D(); p.moveTo(3000,7000); p.lineTo(3500,4000); p.bezierCurveTo(3700,2000,5000,1000,6000,1500); p.lineTo(6500,3000); p.bezierCurveTo(7000,4000,6500,6000,5500,7500); p.closePath(); return p; })(), startX: 3250, startY: 5500, startAngle: -1.405, finish: {x:3250, y:5500, radius:250}, checkpoint: {x:6000, y:1500, radius:250} },
+    lemans: { path: (() => { let p=new Path2D(); p.moveTo(2000,8000); p.lineTo(1000,5000); p.bezierCurveTo(500,3000,1500,1000,3000,1000); p.lineTo(8000,1000); p.bezierCurveTo(9000,1000,9500,2000,9000,4000); p.lineTo(5000,8000); p.closePath(); return p; })(), startX: 1500, startY: 6500, startAngle: -1.892, finish: {x:1500, y:6500, radius:250}, checkpoint: {x:9000, y:4000, radius:250} },
+    suzuka: { path: (() => { let p=new Path2D(); p.moveTo(3000,6000); p.bezierCurveTo(1000,4000,3000,2000,5000,4000); p.lineTo(7000,6000); p.bezierCurveTo(9000,8000,7000,10000,5000,8000); p.closePath(); return p; })(), startX: 3000, startY: 6000, startAngle: -2.356, finish: {x:3000, y:6000, radius:250}, checkpoint: {x:7000, y:6000, radius:250} },
+    monaco: { path: (() => { let p=new Path2D(); p.moveTo(4000,6000); p.lineTo(3000,6000); p.bezierCurveTo(2000,6000,2000,4000,3000,4000); p.lineTo(4000,4000); p.bezierCurveTo(5000,4000,6000,5000,5000,6000); p.closePath(); return p; })(), startX: 3500, startY: 6000, startAngle: Math.PI, finish: {x:3500, y:6000, radius:200}, checkpoint: {x:3500, y:4000, radius:200} },
+    bathurst: { path: (() => { let p=new Path2D(); p.moveTo(3000,8000); p.lineTo(2000,4000); p.bezierCurveTo(1500,2000,3000,1000,4000,2000); p.bezierCurveTo(5000,3000,5500,2000,6000,4000); p.lineTo(5000,8000); p.closePath(); return p; })(), startX: 2500, startY: 6000, startAngle: -1.815, finish: {x:2500, y:6000, radius:250}, checkpoint: {x:4000, y:2000, radius:250} },
+    lagunaseca: { path: (() => { let p=new Path2D(); p.moveTo(4000,7000); p.lineTo(2000,5000); p.bezierCurveTo(1000,3000,3000,1000,5000,2000); p.lineTo(7000,2000); p.bezierCurveTo(7500,3000,6500,4000,7000,5000); p.bezierCurveTo(8000,7000,6000,8000,4000,7000); p.closePath(); return p; })(), startX: 3000, startY: 6000, startAngle: -2.356, finish: {x:3000, y:6000, radius:250}, checkpoint: {x:6000, y:2000, radius:250} },
+    silverstone: { path: (() => { let p=new Path2D(); p.moveTo(4000,8000); p.lineTo(2000,6000); p.bezierCurveTo(1000,4000,3000,2000,5000,2000); p.lineTo(8000,4000); p.bezierCurveTo(9000,6000,7000,9000,4000,8000); p.closePath(); return p; })(), startX: 3000, startY: 7000, startAngle: -2.356, finish: {x:3000, y:7000, radius:250}, checkpoint: {x:6500, y:3000, radius:250} },
+    monza: { path: (() => { let p=new Path2D(); p.moveTo(3000,7000); p.lineTo(7000,7000); p.bezierCurveTo(9000,7000,9000,4000,7000,3000); p.lineTo(3000,1000); p.bezierCurveTo(1000,0,1000,3000,3000,4000); p.bezierCurveTo(4000,4500,2000,5500,3000,7000); p.closePath(); return p; })(), startX: 5000, startY: 7000, startAngle: 0, finish: {x:5000, y:7000, radius:250}, checkpoint: {x:5000, y:2000, radius:250} },
+    targaflorio: { path: (() => { let p=new Path2D(); p.moveTo(5000,9000); p.bezierCurveTo(1000,9000,1000,6000,3000,5000); p.bezierCurveTo(5000,4000,2000,2000,5000,1000); p.bezierCurveTo(8000,0,9000,4000,7000,5000); p.bezierCurveTo(5000,6000,9000,9000,5000,9000); p.closePath(); return p; })(), startX: 5000, startY: 9000, startAngle: Math.PI, finish: {x:5000, y:9000, radius:250}, checkpoint: {x:5000, y:1000, radius:250} },
+    mini1: { path: (() => { let p=new Path2D(); p.moveTo(1000,2000); p.lineTo(2000,2000); p.bezierCurveTo(2500,2000,2500,1000,2000,1000); p.lineTo(1000,1000); p.bezierCurveTo(500,1000,500,2000,1000,2000); p.closePath(); return p; })(), startX: 1500, startY: 2000, startAngle: 0, finish: {x:1500, y:2000, radius:200}, checkpoint: {x:1500, y:1000, radius:200} },
+    mini2: { path: (() => { let p=new Path2D(); p.moveTo(1000,2000); p.lineTo(2000,2000); p.bezierCurveTo(2500,2000,2500,1500,2000,1500); p.lineTo(1500,1500); p.bezierCurveTo(1000,1500,1000,1000,1500,1000); p.lineTo(2500,1000); p.bezierCurveTo(3000,1000,3000,500,2500,500); p.lineTo(1000,500); p.bezierCurveTo(0,500,0,2000,1000,2000); p.closePath(); return p; })(), startX: 1500, startY: 2000, startAngle: 0, finish: {x:1500, y:2000, radius:200}, checkpoint: {x:2000, y:1000, radius:200} },
+    mini3: { path: (() => { let p=new Path2D(); p.moveTo(1000,1000); p.lineTo(2000,1000); p.lineTo(2500,2000); p.lineTo(1500,2500); p.lineTo(500,2000); p.closePath(); return p; })(), startX: 1500, startY: 1000, startAngle: 0, finish: {x:1500, y:1000, radius:200}, checkpoint: {x:1500, y:2500, radius:200} },
+    mini4: { path: (() => { let p=new Path2D(); p.moveTo(1500,1500); p.bezierCurveTo(2500,500,3500,1500,2500,2500); p.lineTo(1500,1500); p.bezierCurveTo(500,500,-500,1500,500,2500); p.closePath(); return p; })(), startX: 1500, startY: 1500, startAngle: Math.PI/4, finish: {x:1500, y:1500, radius:200}, checkpoint: {x:2500, y:2500, radius:200} },
+    mini5: { path: (() => { let p=new Path2D(); p.moveTo(1500,2000); p.bezierCurveTo(2000,2000,2000,1000,1500,1000); p.bezierCurveTo(1000,1000,1000,2000,1500,2000); p.closePath(); return p; })(), startX: 1500, startY: 2000, startAngle: 0, finish: {x:1500, y:2000, radius:200}, checkpoint: {x:1500, y:1000, radius:200} },
+    mini6: { path: (() => { let p=new Path2D(); p.moveTo(1000,2000); p.lineTo(3000,2000); p.bezierCurveTo(3500,2000,3500,1500,3000,1500); p.lineTo(1500,1500); p.bezierCurveTo(1200,1500,1200,1000,1500,1000); p.lineTo(3000,1000); p.bezierCurveTo(3500,1000,3500,500,3000,500); p.lineTo(1000,500); p.bezierCurveTo(500,500,500,2000,1000,2000); p.closePath(); return p; })(), startX: 2000, startY: 2000, startAngle: 0, finish: {x:2000, y:2000, radius:200}, checkpoint: {x:2000, y:1000, radius:200} },
+    mini7: { path: (() => { let p=new Path2D(); p.moveTo(1500,500); p.lineTo(2000,1500); p.lineTo(3000,1500); p.lineTo(2200,2200); p.lineTo(2500,3200); p.lineTo(1500,2600); p.lineTo(500,3200); p.lineTo(800,2200); p.lineTo(0,1500); p.lineTo(1000,1500); p.closePath(); return p; })(), startX: 1000, startY: 1500, startAngle: -Math.PI/2, finish: {x:1000, y:1500, radius:200}, checkpoint: {x:2500, y:3200, radius:200} },
+    mini8: { path: (() => { let p=new Path2D(); p.moveTo(1000,1000); p.lineTo(1500,2000); p.lineTo(2000,1000); p.lineTo(2500,2000); p.lineTo(3000,1000); p.lineTo(3000,2500); p.lineTo(1000,2500); p.closePath(); return p; })(), startX: 1500, startY: 1000, startAngle: 0, finish: {x:1500, y:1000, radius:200}, checkpoint: {x:2000, y:2500, radius:200} },
+    mini9: { path: (() => { let p=new Path2D(); p.moveTo(2000,2000); p.bezierCurveTo(2000,3000,1000,3000,1000,2000); p.bezierCurveTo(1000,1000,3000,1000,3000,2000); p.bezierCurveTo(3000,4000,0,4000,0,2000); p.bezierCurveTo(0,0,4000,0,4000,2000); p.lineTo(2000,2000); p.closePath(); return p; })(), startX: 2000, startY: 2000, startAngle: 0, finish: {x:2000, y:2000, radius:200}, checkpoint: {x:0, y:2000, radius:200} },
+    mini10: { path: (() => { let p=new Path2D(); p.moveTo(1000,2000); p.bezierCurveTo(1500,2500,2000,1500,2500,2000); p.lineTo(2500,1000); p.bezierCurveTo(2000,500,1500,1500,1000,1000); p.closePath(); return p; })(), startX: 1000, startY: 2000, startAngle: 0, finish: {x:1000, y:2000, radius:200}, checkpoint: {x:2500, y:1000, radius:200} }
 };
+
+for (let tId in tracks) {
+    let t = tracks[tId];
+    if (!t.pit) {
+        t.pit = {
+            x: t.startX + Math.cos(t.startAngle - Math.PI/2) * 150,
+            y: t.startY + Math.sin(t.startAngle - Math.PI/2) * 150,
+            w: 120, l: 450, angle: t.startAngle
+        };
+    }
+}
 
 let activeTrackId = 'standard'; let envObjects = [];
 let serverSettings = { grip: 1.0, power: 1.0, mass: 1.0, steering: 1.0, caster: 1.0 };
@@ -127,9 +115,9 @@ function createPlayerRecord(id, presetId, name, colorCode) {
         x: t.startX, y: t.startY, prevX: t.startX, prevY: t.startY,
         vx: 0, vy: 0, angle: t.startAngle, yawRate: 0,
         gear: 1, rpm: 1000, steer: 0, targetX: t.startX, targetY: t.startY, targetAngle: t.startAngle,
-        inputs: { steering: 0, throttle: 0, handbrake: false },
+        inputs: { steering: 0, throttle: 0, handbrake: false, driftAssist: false },
         frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0, fuel: cap, maxFuel: cap,
-        lastSeen: performance.now(), clutchDump: 0,
+        lastSeen: performance.now(), clutchDump: 0, prevThrottle: 0,
         lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, totalTime: 0, finished: false
     };
 }
@@ -145,7 +133,7 @@ function assignGridPositions() {
         players[pid].lapStartTime = performance.now(); players[pid].currentLapTime = 0; players[pid].bestLap = Infinity;
         players[pid].targetX = players[pid].x; players[pid].targetY = players[pid].y; players[pid].targetAngle = players[pid].angle;
         players[pid].fuel = vehiclePresets[players[pid].presetId]?.fuelCap || 100;
-        players[pid].gear = 1; players[pid].rpm = 1000; players[pid].clutchDump = 0;
+        players[pid].gear = 1; players[pid].rpm = 1000; players[pid].clutchDump = 0; players[pid].prevThrottle = 0;
     });
 }
 
@@ -271,7 +259,7 @@ if (btnHost) {
                         players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name, data.color);
                         let t = getTrack();
                         if (gameActive) {
-                            if (raceState === 0) { players[conn.peer].x = t.pit.x1 + 100; players[conn.peer].y = t.pit.y1 + 40; } 
+                            if (raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; } 
                             else { assignGridPositions(); }
                             conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
                             conn.send({ type: 'start', laps: totalLaps, rs: raceState }); 
@@ -284,7 +272,7 @@ if (btnHost) {
                     if (!players[conn.peer]) {
                         players[conn.peer] = createPlayerRecord(conn.peer, 'jaguar', "Gjest");
                         let t = getTrack();
-                        if (gameActive && raceState === 0) { players[conn.peer].x = t.pit.x1 + 100; players[conn.peer].y = t.pit.y1 + 40; } 
+                        if (gameActive && raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; } 
                         else if (gameActive) { assignGridPositions(); }
                         conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
                         if (gameActive) conn.send({ type: 'start', laps: totalLaps, rs: raceState });
@@ -422,7 +410,21 @@ const urlParams = new URLSearchParams(window.location.search);
 let joinInp = document.getElementById('join-code-input');
 if (joinInp && urlParams.get('join')) { joinInp.value = urlParams.get('join'); }
 
-const localInputs = { steering: 0, throttle: 0, handbrake: false }; const activeTouchState = { left: null, right: null };
+const localInputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: false }; 
+const activeTouchState = { left: null, right: null };
+
+function toggleAssist() { 
+    localInputs.driftAssist = !localInputs.driftAssist; 
+    let lA = document.getElementById('lobby-assist-selector'), gA = document.getElementById('ingame-assist-selector');
+    if(lA) lA.value = localInputs.driftAssist ? 'on' : 'off';
+    if(gA) gA.value = localInputs.driftAssist ? 'on' : 'off';
+}
+let lA = document.getElementById('lobby-assist-selector'), gA = document.getElementById('ingame-assist-selector');
+if (lA && gA) { 
+    lA.addEventListener('change', e => { localInputs.driftAssist = e.target.value === 'on'; gA.value = e.target.value; });
+    gA.addEventListener('change', e => { localInputs.driftAssist = e.target.value === 'on'; lA.value = e.target.value; });
+}
+
 function setupJoystick(zId, sId, key, onC) {
     const z = document.getElementById(zId), s = document.getElementById(sId);
     if (!z || !s) return;
@@ -437,8 +439,15 @@ const hbBtn = document.getElementById('btn-handbrake');
 const hb = s => e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; e.preventDefault(); localInputs.handbrake = s; resumeAudio(); };
 if (hbBtn) { hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hbBtn.addEventListener('touchend', hb(false), {passive:false}); }
 
-window.addEventListener('keydown', e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; if(e.key===' ') localInputs.handbrake=true; resumeAudio(); });
-window.addEventListener('keyup', e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; if(e.key==='w'||e.key==='s'||e.key==='ArrowUp'||e.key==='ArrowDown') localInputs.throttle=0; if(e.key==='a'||e.key==='d'||e.key==='ArrowLeft'||e.key==='ArrowRight') localInputs.steering=0; if(e.key===' ') localInputs.handbrake=false; });
+window.addEventListener('keydown', e => { 
+    if(e.key.toLowerCase() === 't') toggleAssist();
+    if(document.getElementById('input-selector')?.value === 'gamepad') return; 
+    if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; if(e.key===' ') localInputs.handbrake=true; resumeAudio(); 
+});
+window.addEventListener('keyup', e => { 
+    if(document.getElementById('input-selector')?.value === 'gamepad') return; 
+    if(e.key==='w'||e.key==='s'||e.key==='ArrowUp'||e.key==='ArrowDown') localInputs.throttle=0; if(e.key==='a'||e.key==='d'||e.key==='ArrowLeft'||e.key==='ArrowRight') localInputs.steering=0; if(e.key===' ') localInputs.handbrake=false; 
+});
 
 const canvas = document.getElementById('gameCanvas'); const ctx = canvas ? canvas.getContext('2d', { alpha: false }) : null; 
 function resize() { 
@@ -487,7 +496,7 @@ function update() {
     }
     
     if (!isHost && hostConnection && hostConnection.open) {
-        let currentInputString = localInputs.steering + "," + localInputs.throttle + "," + localInputs.handbrake;
+        let currentInputString = localInputs.steering + "," + localInputs.throttle + "," + localInputs.handbrake + "," + localInputs.driftAssist;
         if (currentInputString !== lastInputString || now - lastInputSend > 250) {
             try { hostConnection.send({ type: 'inputs', inputs: localInputs }); } catch(e){}
             lastInputString = currentInputString; lastInputSend = now;
@@ -507,10 +516,10 @@ function update() {
             }
 
             if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.vx) || !isFinite(p.angle) || !isFinite(p.rpm)) { 
-                p.x = track.startX; p.y = track.startY; p.vx=0; p.vy=0; p.angle=track.startAngle; p.yawRate=0; p.rpm=1000; p.speedKmh=0;
+                p.x = track.startX; p.y = track.startY; p.vx=0; p.vy=0; p.angle=track.startAngle; p.yawRate=0; p.rpm=1000; p.speedKmh=0; p.prevThrottle = 0;
             }
 
-            let preset = vehiclePresets[p.presetId] || vehiclePresets['jaguar']; let ins = p.inputs || { steering: 0, throttle: 0, handbrake: false };
+            let preset = vehiclePresets[p.presetId] || vehiclePresets['jaguar']; let ins = p.inputs || { steering: 0, throttle: 0, handbrake: false, driftAssist: false };
             if (p.finished) { ins.throttle = 0; ins.handbrake = true; }
 
             if (raceState === 0 && !p.finished) {
@@ -525,18 +534,24 @@ function update() {
                 }
             } else if (raceState > 0) { p.currentLapTime = 0; }
 
-            let inPit = (p.x >= track.pit.x1 && p.x <= track.pit.x2 && p.y >= track.pit.y1 && p.y <= track.pit.y2);
+            let pt = track.pit;
+            let dx = p.x - pt.x; let dy = p.y - pt.y;
+            let pCos = Math.cos(-pt.angle); let pSin = Math.sin(-pt.angle);
+            let lx = dx * pCos - dy * pSin; let ly = dx * pSin + dy * pCos;
+            let inPitBox = Math.abs(lx) <= pt.l/2 && Math.abs(ly) <= pt.w/2;
+
             let aPower = preset.power * serverSettings.power; let aMass = preset.mass * serverSettings.mass;
             
-            if (inPit && p.speedKmh < 10) p.fuel = Math.min(preset.fuelCap, p.fuel + 20 * dt); else p.fuel -= Math.abs(ins.throttle) * aPower * 0.00015 * dt;
+            if (inPitBox && p.speedKmh < 10) p.fuel = Math.min(preset.fuelCap, p.fuel + 20 * dt); 
+            else p.fuel -= Math.abs(ins.throttle) * aPower * 0.00015 * dt;
             if (p.fuel <= 0) { p.fuel = 0; ins.throttle = 0; }
 
             ctx.save();
             ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.lineWidth = 160; const onAsphalt = ctx.isPointInStroke(track.path, p.x, p.y);
+            ctx.lineWidth = 160; const onAsphalt = ctx.isPointInStroke(track.path, p.x, p.y) || inPitBox;
             ctx.lineWidth = 190; const onCurbs = ctx.isPointInStroke(track.path, p.x, p.y) && !onAsphalt;
             ctx.lineWidth = 240; const onSand = ctx.isPointInStroke(track.path, p.x, p.y) && !onAsphalt && !onCurbs;
-            ctx.lineWidth = 250; const inBounds = ctx.isPointInStroke(track.path, p.x, p.y);
+            const inBounds = ctx.isPointInStroke(track.path, p.x, p.y) || inPitBox;
             ctx.restore();
 
             let surfaceMu = preset.grip * serverSettings.grip; let rollingResistance = preset.roll;
@@ -560,9 +575,41 @@ function update() {
                 p.x += nx * 4.0; p.y += ny * 4.0;
             }
 
+            // Integrasjon av Drift Assist System:
+            let lVx = p.vx * Math.cos(-p.angle) - p.vy * Math.sin(-p.angle); 
+            let lVy = p.vx * Math.sin(-p.angle) + p.vy * Math.cos(-p.angle);
+            
+            let slipAngleDeg = 0;
+            if (Math.abs(lVx) > 1.0) {
+                slipAngleDeg = Math.atan2(lVy, Math.abs(lVx)) * (180 / Math.PI);
+            }
+
+            let isSuddenThrottle = (ins.throttle - (p.prevThrottle || 0)) > 0.5;
+            p.prevThrottle = ins.throttle;
+
             let steerInputTarget = Math.abs(ins.steering) > 0.08 ? Math.sign(ins.steering) * ((Math.abs(ins.steering) - 0.08) / 0.92) : 0;
-            p.steer += (steerInputTarget - p.steer) * 12.0 * dt; let mThrottle = Math.pow(Math.abs(ins.throttle), 2.5) * Math.sign(ins.throttle);
-            let lVx = p.vx * Math.cos(-p.angle) - p.vy * Math.sin(-p.angle); let lVy = p.vx * Math.sin(-p.angle) + p.vy * Math.cos(-p.angle);
+            let torqueMultiplier = 1.0;
+
+            if (ins.driftAssist) {
+                let isSpinningOut = Math.abs(slipAngleDeg) > 45.0 || (Math.sign(slipAngleDeg) !== Math.sign(ins.steering) && Math.abs(ins.steering) > 0.2);
+
+                if (isSpinningOut) {
+                    torqueMultiplier = 0.5; // Kutt moment for å hente grep
+                    steerInputTarget += -Math.sign(ins.steering) * 0.15; // Autokorreksjon / counter-steer
+                } else {
+                    torqueMultiplier = 1.0 + (Math.abs(ins.steering) * 0.2); // Kontrollert flyt
+                    if (isSuddenThrottle && p.speedKmh > 30.0) {
+                        torqueMultiplier *= 1.25; // Clutch-kick moment-boost
+                    }
+                }
+            }
+            
+            steerInputTarget = Math.max(-1.0, Math.min(1.0, steerInputTarget));
+            p.steer += (steerInputTarget - p.steer) * 12.0 * dt; 
+            
+            let mThrottle = Math.pow(Math.abs(ins.throttle), 2.5) * Math.sign(ins.throttle);
+            mThrottle *= torqueMultiplier; // Påfører regulert drift assist (eller 1.0 hvis inaktiv)
+
             p.speedKmh = Math.abs(lVx * 3.6) || 0; p.appliesBrake = mThrottle < 0 && lVx >= 1.0;
 
             let dForce = 0; let bForce = p.appliesBrake ? aMass * 15.0 * Math.abs(mThrottle) : 0; const isRev = mThrottle < 0 && lVx < 1.0; 
@@ -675,6 +722,13 @@ function update() {
         let hs = document.getElementById('hud-speed'); if(hs) hs.innerText = Math.round(me.speedKmh || 0);
         let hg = document.getElementById('hud-gear'); if(hg) hg.innerText = me.gear === -1 ? 'R' : (me.gear === 0 ? 'N' : me.gear);
         let hr = document.getElementById('hud-rpm'); if(hr) hr.innerText = me.rpm < 10 ? 0 : Math.round(me.rpm || 0);
+        
+        let ha = document.getElementById('hud-assist'); 
+        if (ha) { 
+            ha.innerText = localInputs.driftAssist ? "PÅ" : "AV";
+            ha.style.color = localInputs.driftAssist ? "#2ecc71" : "#e74c3c";
+        }
+        
         let ff = document.getElementById('fuel-fill');
         if (ff) {
             ff.style.width = ((me.fuel || 0) / (me.maxFuel || 100) * 100) + '%';
@@ -713,14 +767,23 @@ function update() {
         ctx.translate(canvas.width/2 - track.startX, canvas.height/2 - track.startY); 
     }
 
+    let pt = track.pit;
+    ctx.save(); ctx.translate(pt.x, pt.y); ctx.rotate(pt.angle);
+    ctx.fillStyle = '#2c2c2c';
+    ctx.beginPath(); ctx.roundRect(-pt.l/2 - 40, -pt.w/2, pt.l + 80, pt.w, 40); ctx.fill();
+    ctx.restore();
+
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.lineWidth = 250; ctx.strokeStyle = '#1a2e12'; ctx.stroke(track.path); ctx.lineWidth = 240; ctx.strokeStyle = '#c2b280'; ctx.stroke(track.path);
     ctx.lineWidth = 190; ctx.strokeStyle = '#fff'; ctx.stroke(track.path); ctx.strokeStyle = '#e74c3c'; ctx.setLineDash([30,30]); ctx.stroke(track.path); ctx.setLineDash([]);
     ctx.lineWidth = 160; ctx.strokeStyle = '#2c2c2c'; ctx.stroke(track.path);
     
+    ctx.save(); ctx.translate(pt.x, pt.y); ctx.rotate(pt.angle);
     ctx.fillStyle = 'rgba(52, 152, 219, 0.3)'; ctx.strokeStyle = '#3498db'; ctx.lineWidth = 4; ctx.setLineDash([10,10]);
-    let pb = track.pit; ctx.fillRect(pb.x1, pb.y1, pb.x2-pb.x1, pb.y2-pb.y1); ctx.strokeRect(pb.x1, pb.y1, pb.x2-pb.x1, pb.y2-pb.y1); ctx.setLineDash([]);
-    ctx.fillStyle = '#fff'; ctx.font = '20px sans-serif'; ctx.fillText('PIT', pb.x1 + 20, pb.y1 + 30);
+    ctx.beginPath(); ctx.roundRect(-pt.l/2, -pt.w/2, pt.l, pt.w, 10); ctx.fill(); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#fff'; ctx.font = '20px sans-serif'; ctx.fillText('PIT', -15, 6);
+    ctx.restore();
 
     ctx.save(); ctx.translate(track.startX, track.startY); ctx.rotate(track.startAngle);
     let cbW = 10; ctx.fillStyle = '#fff';
@@ -791,6 +854,7 @@ function update() {
         else if (pre.type === 'r34') { ctx.fillStyle = p.color || '#2980b9'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 5); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.05, -hw + 2, pre.l*0.4, pre.w - 4, 3); ctx.fill(); ctx.fillStyle = '#2980b9'; ctx.fillRect(-hl - 3, -hw, 4, pre.w); } 
         else if (pre.type === 's15') { ctx.fillStyle = p.color || '#8e44ad'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 6); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 2, pre.l*0.45, pre.w - 4, 4); ctx.fill(); ctx.fillStyle = '#f39c12'; ctx.fillRect(-hl - 4, -hw - 2, 5, pre.w + 4); } 
         else if (pre.type === 'jaguar') { ctx.fillStyle = p.color || '#1abc9c'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.15, -hw + 3, pre.l*0.5, pre.w - 6, 6); ctx.fill(); }
+        else { ctx.fillStyle = p.color || '#e67e22'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 3, pre.l*0.4, pre.w - 6, 4); ctx.fill(); } // Standardvisning for de resterende
 
         ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.roundRect(hl - 3, -hw + 3, 4, 5, 2); ctx.roundRect(hl - 3, hw - 8, 4, 5, 2); ctx.fill();
         ctx.fillStyle = p.appliesBrake ? '#ff3333' : '#8b0000'; ctx.shadowColor = p.appliesBrake ? '#ff0000' : 'transparent'; ctx.shadowBlur = p.appliesBrake ? 10 : 0;
