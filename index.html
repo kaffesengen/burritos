@@ -50,6 +50,7 @@
             <span>Fart: <span id="hud-speed" style="color: #2ecc71;">0</span> km/t</span>
             <span>Gir: <span id="hud-gear" style="color: #3498db;">N</span></span>
             <span>RPM: <span id="hud-rpm" style="color: #e67e22;">0</span></span>
+            <span style="margin-left: 10px;">Assist: <span id="hud-assist" style="color: #e74c3c; font-weight: bold;">AV</span></span>
         </div>
         <div class="hud-row" style="margin-top: 5px;">
             <span>Bensin:</span>
@@ -119,7 +120,7 @@
             <h2 style="color: #fff; margin-bottom: 20px;">Spillmeny</h2>
             
             <label style="color: #aaa; font-size: 12px; display: block; text-align: left;">Bytt Kjøretøy:</label>
-            <select id="ingame-preset-selector" class="input-text" style="margin-top: 5px; margin-bottom: 15px;">
+            <select id="ingame-preset-selector" class="input-text" style="margin-top: 5px; margin-bottom: 10px;">
                 <optgroup label="Standard / Elbiler">
                     <option value="jaguar">Jaguar I-PACE EV400 (AWD)</option>
                 </optgroup>
@@ -158,6 +159,12 @@
                     <option value="caterham">Caterham Seven 620R (RWD)</option>
                     <option value="yaris">Toyota GR Yaris (AWD)</option>
                 </optgroup>
+            </select>
+
+            <label style="color: #aaa; font-size: 12px; display: block; text-align: left;">Drift / Stabilitets-Assist (T):</label>
+            <select id="ingame-assist-selector" class="input-text" style="margin-top: 5px; margin-bottom: 10px;">
+                <option value="off" selected>AV (Ren fysikk)</option>
+                <option value="on">PÅ (Aktiv assistanse)</option>
             </select>
 
             <label style="color: #aaa; font-size: 12px; display: block; text-align: left;">Bytt Farge:</label>
@@ -217,11 +224,18 @@
         <label>Farge:</label>
         <input type="color" id="car-color" value="#3498db" style="width: 100%; height: 28px; background: #222; border: 1px solid #444; border-radius: 3px; cursor: pointer;">
     </div>
-    <div class="control" style="grid-column: 1 / -1;">
+    <div class="control">
         <label>Styring:</label>
         <select id="input-selector">
             <option value="touch" selected>Touch / Tastatur</option>
             <option value="gamepad">Xbox Kontroller</option>
+        </select>
+    </div>
+    <div class="control">
+        <label>Drift Assist:</label>
+        <select id="lobby-assist-selector">
+            <option value="off" selected>AV</option>
+            <option value="on">PÅ</option>
         </select>
     </div>
 
