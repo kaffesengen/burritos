@@ -155,6 +155,7 @@ class AIManager {
             }
         }
     }
+}
 
 // Global instans
 const aiManager = new AIManager();
