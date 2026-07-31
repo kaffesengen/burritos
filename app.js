@@ -1,4 +1,5 @@
 const vehiclePresets = {
+    ai_standard: { power: 350, mass: 1400, drivetrain: 'AWD', grip: 2.10, turn: 4.8, roll: 0.04, w: 20, l: 45, ev: false, type: 'r34', fuelCap: 100 },
     jaguar: { power: 400, mass: 2200, drivetrain: 'AWD', grip: 1.85, turn: 4.0, roll: 0.05, w: 24, l: 52, ev: true, type: 'jaguar', fuelCap: 100 },
     gokart: { power: 30, mass: 150, drivetrain: 'RWD', grip: 2.10, turn: 5.5, roll: 0.02, w: 16, l: 26, ev: false, type: 'gokart', fuelCap: 10 },
     mx5: { power: 184, mass: 1050, drivetrain: 'RWD', grip: 1.60, turn: 4.5, roll: 0.04, w: 20, l: 42, ev: false, type: 'mx5', fuelCap: 50 },
