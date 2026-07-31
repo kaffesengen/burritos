@@ -61,7 +61,7 @@ function createPlayerRecord(id, presetId, name, colorCode) {
     if (typeof name === 'string' && name.trim().length > 0) safeName = name.trim().substring(0, 15);
     let cap = vehiclePresets[presetId]?.fuelCap || 100;
     let t = getTrack();
-    let col = colorCode || document.getElementById('car-color')?.value || '#3498db';
+    let col = colorCode || document.getElementById('ingame-car-color')?.value || document.getElementById('car-color')?.value || '#3498db';
     return {
         id: id, name: safeName, presetId: presetId || 'jaguar', color: col,
         x: t.startX, y: t.startY, prevX: t.startX, prevY: t.startY,
@@ -84,6 +84,8 @@ function assignGridPositions() {
         players[pid].lap = 0; players[pid].cp = false; players[pid].finished = false; players[pid].totalTime = 0; 
         players[pid].lapStartTime = performance.now(); players[pid].currentLapTime = 0; players[pid].bestLap = Infinity;
         players[pid].targetX = players[pid].x; players[pid].targetY = players[pid].y; players[pid].targetAngle = players[pid].angle;
+        players[pid].fuel = vehiclePresets[players[pid].presetId]?.fuelCap || 100;
+        players[pid].gear = 1; players[pid].rpm = 1000; players[pid].clutchDump = 0;
     });
 }
 
@@ -103,6 +105,41 @@ function enterGame() {
     resize(); 
     if (gameLoopId) cancelAnimationFrame(gameLoopId);
     gameLoopId = requestAnimationFrame(update);
+}
+
+let menuBtn = document.getElementById('btn-ingame-menu');
+let modal = document.getElementById('ingame-modal');
+let resumeBtn = document.getElementById('btn-resume');
+let exitBtn = document.getElementById('btn-exit');
+
+if (menuBtn && modal) menuBtn.addEventListener('click', () => modal.style.display = 'flex');
+if (resumeBtn && modal) resumeBtn.addEventListener('click', () => modal.style.display = 'none');
+if (exitBtn) exitBtn.addEventListener('click', exitToMenu);
+
+let lP = document.getElementById('preset-selector'), gP = document.getElementById('ingame-preset-selector');
+if (lP && gP) { lP.addEventListener('change', e => gP.value = e.target.value); gP.addEventListener('change', e => lP.value = e.target.value); }
+let lC = document.getElementById('car-color'), gC = document.getElementById('ingame-car-color');
+if (lC && gC) { lC.addEventListener('input', e => gC.value = e.target.value); gC.addEventListener('input', e => lC.value = e.target.value); }
+
+function exitToMenu() {
+    gameActive = false;
+    if(gameLoopId) cancelAnimationFrame(gameLoopId);
+    if(hostConnection) { hostConnection.close(); hostConnection = null; }
+    for(let id in connections) { connections[id].close(); delete connections[id]; }
+    if(peer) { peer.destroy(); peer = null; }
+    for(let id in players) delete players[id];
+    raceState = -1;
+    
+    document.getElementById('canvas-container').style.display = 'none';
+    document.getElementById('ingame-modal').style.display = 'none';
+    document.getElementById('lobby').style.display = 'flex';
+    document.getElementById('mode-selection').style.display = 'block';
+    document.getElementById('host-ui').style.display = 'none';
+    document.getElementById('host-actions').style.display = 'none';
+    document.getElementById('sandbox-controls').style.display = 'none';
+    
+    let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: 1`;
+    showMsg('');
 }
 
 let audioCtx, engineOsc, engineGain, squealOsc, squealGain, audioReady = false;
@@ -144,7 +181,7 @@ if (btnSb) {
     btnSb.addEventListener('click', () => {
         myId = 'sandbox'; isHost = true; 
         let pName = document.getElementById('player-name')?.value || "Meg";
-        let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
+        let selPreset = document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar';
         players[myId] = createPlayerRecord(myId, selPreset, pName);
         let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3; enterGame();
     });
@@ -162,7 +199,7 @@ if (btnHost) {
             let hostInput = document.getElementById('my-host-id'); if(hostInput) hostInput.value = id; 
             showMsg('');
             let pName = document.getElementById('player-name')?.value || "Host";
-            let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
+            let selPreset = document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar';
             players[myId] = createPlayerRecord(myId, selPreset, pName);
         });
         peer.on('connection', conn => {
@@ -264,8 +301,8 @@ function initJoiner(hostId) {
         hostConnection.on('open', () => {
             showMsg('Tilkoblet! Venter på host...');
             let pName = document.getElementById('player-name')?.value || "Spiller";
-            let selPreset = document.getElementById('preset-selector')?.value || 'jaguar';
-            let selColor = document.getElementById('car-color')?.value || '#3498db';
+            let selPreset = document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar';
+            let selColor = document.getElementById('ingame-car-color')?.value || document.getElementById('car-color')?.value || '#3498db';
             players[myId] = createPlayerRecord(myId, selPreset, pName, selColor);
             
             let joined = false;
@@ -375,14 +412,14 @@ function update() {
     if (players[myId]) {
         players[myId].inputs = localInputs;
         
-        let pSel = document.getElementById('preset-selector');
+        let pSel = document.getElementById('ingame-preset-selector') || document.getElementById('preset-selector');
         if (pSel && pSel.value && players[myId].presetId !== pSel.value) {
             players[myId].presetId = pSel.value;
             players[myId].maxFuel = vehiclePresets[pSel.value]?.fuelCap || 100;
             if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeCar', preset: pSel.value }); } catch(e){} }
         }
         
-        let cSel = document.getElementById('car-color');
+        let cSel = document.getElementById('ingame-car-color') || document.getElementById('car-color');
         if (cSel && cSel.value && players[myId].color !== cSel.value) {
             players[myId].color = cSel.value;
             if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeColor', color: cSel.value }); } catch(e){} }
