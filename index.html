@@ -76,19 +76,35 @@
         <button id="btn-start-race" class="btn btn-green">🏁 Start Race</button>
         <button id="btn-reset" class="btn" style="background:#e74c3c;">↺ Reset Grid</button>
         <select id="track-selector">
-            <option value="standard" selected>Bane: Standard</option>
-            <option value="drift">Bane: Drift</option>
-            <option value="gokart">Bane: Gokart</option>
-            <option value="nordschleife">Bane: Nürburgring Nordschleife</option>
-            <option value="spa">Bane: Circuit de Spa-Francorchamps</option>
-            <option value="lemans">Bane: Circuit de la Sarthe / Le Mans</option>
-            <option value="suzuka">Bane: Suzuka Circuit</option>
-            <option value="monaco">Bane: Circuit de Monaco</option>
-            <option value="bathurst">Bane: Mount Panorama / Bathurst</option>
-            <option value="lagunaseca">Bane: Laguna Seca</option>
-            <option value="silverstone">Bane: Silverstone Circuit</option>
-            <option value="monza">Bane: Autodromo Nazionale Monza</option>
-            <option value="targaflorio">Bane: Targa Florio</option>
+            <optgroup label="Lekeplasser">
+                <option value="standard" selected>Standard</option>
+                <option value="drift">Drift Arena</option>
+                <option value="gokart">Gokart Bane</option>
+            </optgroup>
+            <optgroup label="Virkelige Legender">
+                <option value="nordschleife">Nürburgring Nordschleife</option>
+                <option value="spa">Circuit de Spa-Francorchamps</option>
+                <option value="lemans">Circuit de la Sarthe / Le Mans</option>
+                <option value="suzuka">Suzuka Circuit</option>
+                <option value="monaco">Circuit de Monaco</option>
+                <option value="bathurst">Mount Panorama / Bathurst</option>
+                <option value="lagunaseca">Laguna Seca</option>
+                <option value="silverstone">Silverstone Circuit</option>
+                <option value="monza">Autodromo Nazionale Monza</option>
+                <option value="targaflorio">Targa Florio</option>
+            </optgroup>
+            <optgroup label="Nye Minibaner (Tekniske)">
+                <option value="mini1">Mini 1: Karusellen</option>
+                <option value="mini2">Mini 2: Slangen</option>
+                <option value="mini3">Mini 3: Triangelet</option>
+                <option value="mini4">Mini 4: Åttetallet</option>
+                <option value="mini5">Mini 5: Egget</option>
+                <option value="mini6">Mini 6: Hårnålen</option>
+                <option value="mini7">Mini 7: Stjernen</option>
+                <option value="mini8">Mini 8: Sikksakk</option>
+                <option value="mini9">Mini 9: Labyrinten</option>
+                <option value="mini10">Mini 10: Sprinten</option>
+            </optgroup>
         </select>
     </div>
 
@@ -104,32 +120,44 @@
             
             <label style="color: #aaa; font-size: 12px; display: block; text-align: left;">Bytt Kjøretøy:</label>
             <select id="ingame-preset-selector" class="input-text" style="margin-top: 5px; margin-bottom: 15px;">
-                <option value="jaguar">Jaguar I-PACE EV400 (AWD)</option>
-                <option value="gokart">Proff Go-Kart (RWD)</option>
-                <option value="mx5">Mazda MX-5 (RWD)</option>
-                <option value="r34">Nissan Skyline R34 (AWD)</option>
-                <option value="s15">Nissan Silvia S15 (Driftebil)</option>
-                <option value="f1">Formel 1 (RWD)</option>
-                <option value="gt3rs">Porsche 911 GT3 RS (992)</option>
-                <option value="f40">Ferrari F40</option>
-                <option value="mclarenf1">McLaren F1</option>
-                <option value="mazda787b">Mazda 787B</option>
-                <option value="m3e30">BMW M3 (E30 Sport Evo)</option>
-                <option value="elise">Lotus Elise S1</option>
-                <option value="gt40">Ford GT40 Mk II</option>
-                <option value="c8z06">Chevrolet Corvette C8.Z06</option>
-                <option value="quattro">Audi Sport Quattro S1 E2</option>
-                <option value="r32">Nissan Skyline GT-R (BNR32)</option>
-                <option value="alfa33">Alfa Romeo 33 Stradale</option>
-                <option value="amggt">Mercedes-AMG GT Black Series</option>
-                <option value="nsxr">Honda NSX-R (NA1)</option>
-                <option value="type49">Lotus Type 49</option>
-                <option value="jesko">Koenigsegg Jesko Attack</option>
-                <option value="delta">Lancia Delta Integrale Evo</option>
-                <option value="valkyrie">Aston Martin Valkyrie</option>
-                <option value="yaris">Toyota GR Yaris</option>
-                <option value="porsche917">Porsche 917K</option>
-                <option value="caterham">Caterham Seven 620R</option>
+                <optgroup label="Standard / Elbiler">
+                    <option value="jaguar">Jaguar I-PACE EV400 (AWD)</option>
+                </optgroup>
+                <optgroup label="Japanske Legender">
+                    <option value="r34">Nissan Skyline R34 (AWD)</option>
+                    <option value="r32">Nissan Skyline GT-R BNR32 (AWD)</option>
+                    <option value="s15">Nissan Silvia S15 (RWD)</option>
+                    <option value="mx5">Mazda MX-5 (RWD)</option>
+                    <option value="nsxr">Honda NSX-R NA1 (RWD)</option>
+                </optgroup>
+                <optgroup label="Historisk / Rally">
+                    <option value="m3e30">BMW M3 E30 Sport Evo (RWD)</option>
+                    <option value="quattro">Audi Sport Quattro S1 E2 (AWD)</option>
+                    <option value="delta">Lancia Delta Integrale Evo (AWD)</option>
+                    <option value="gt40">Ford GT40 Mk II (RWD)</option>
+                    <option value="porsche917">Porsche 917K (RWD)</option>
+                </optgroup>
+                <optgroup label="Superbiler / Analoge">
+                    <option value="f40">Ferrari F40 (RWD)</option>
+                    <option value="mclarenf1">McLaren F1 (RWD)</option>
+                    <option value="alfa33">Alfa Romeo 33 Stradale (RWD)</option>
+                    <option value="c8z06">Corvette C8.Z06 (RWD)</option>
+                </optgroup>
+                <optgroup label="Bane / Hypercars">
+                    <option value="gt3rs">Porsche 911 GT3 RS 992 (RWD)</option>
+                    <option value="amggt">Mercedes-AMG GT Black (RWD)</option>
+                    <option value="valkyrie">Aston Martin Valkyrie (RWD)</option>
+                    <option value="jesko">Koenigsegg Jesko Attack (RWD)</option>
+                </optgroup>
+                <optgroup label="Lette Biler / Motorsport">
+                    <option value="gokart">Proff Go-Kart (RWD)</option>
+                    <option value="f1">Formel 1 (RWD)</option>
+                    <option value="type49">Lotus Type 49 (RWD)</option>
+                    <option value="mazda787b">Mazda 787B (RWD)</option>
+                    <option value="elise">Lotus Elise S1 (RWD)</option>
+                    <option value="caterham">Caterham Seven 620R (RWD)</option>
+                    <option value="yaris">Toyota GR Yaris (AWD)</option>
+                </optgroup>
             </select>
 
             <label style="color: #aaa; font-size: 12px; display: block; text-align: left;">Bytt Farge:</label>
@@ -145,32 +173,44 @@
     <div class="control">
         <label>Bytt Kjøretøy:</label>
         <select id="preset-selector">
-            <option value="jaguar" selected>Jaguar I-PACE EV400 (AWD)</option>
-            <option value="gokart">Proff Go-Kart (RWD)</option>
-            <option value="mx5">Mazda MX-5 (RWD)</option>
-            <option value="r34">Nissan Skyline R34 (AWD)</option>
-            <option value="s15">Nissan Silvia S15 (Driftebil)</option>
-            <option value="f1">Formel 1 (RWD)</option>
-            <option value="gt3rs">Porsche 911 GT3 RS (992)</option>
-            <option value="f40">Ferrari F40</option>
-            <option value="mclarenf1">McLaren F1</option>
-            <option value="mazda787b">Mazda 787B</option>
-            <option value="m3e30">BMW M3 (E30 Sport Evo)</option>
-            <option value="elise">Lotus Elise S1</option>
-            <option value="gt40">Ford GT40 Mk II</option>
-            <option value="c8z06">Chevrolet Corvette C8.Z06</option>
-            <option value="quattro">Audi Sport Quattro S1 E2</option>
-            <option value="r32">Nissan Skyline GT-R (BNR32)</option>
-            <option value="alfa33">Alfa Romeo 33 Stradale</option>
-            <option value="amggt">Mercedes-AMG GT Black Series</option>
-            <option value="nsxr">Honda NSX-R (NA1)</option>
-            <option value="type49">Lotus Type 49</option>
-            <option value="jesko">Koenigsegg Jesko Attack</option>
-            <option value="delta">Lancia Delta Integrale Evo</option>
-            <option value="valkyrie">Aston Martin Valkyrie</option>
-            <option value="yaris">Toyota GR Yaris</option>
-            <option value="porsche917">Porsche 917K</option>
-            <option value="caterham">Caterham Seven 620R</option>
+            <optgroup label="Standard / Elbiler">
+                <option value="jaguar">Jaguar I-PACE EV400 (AWD)</option>
+            </optgroup>
+            <optgroup label="Japanske Legender">
+                <option value="r34">Nissan Skyline R34 (AWD)</option>
+                <option value="r32">Nissan Skyline GT-R BNR32 (AWD)</option>
+                <option value="s15">Nissan Silvia S15 (RWD)</option>
+                <option value="mx5">Mazda MX-5 (RWD)</option>
+                <option value="nsxr">Honda NSX-R NA1 (RWD)</option>
+            </optgroup>
+            <optgroup label="Historisk / Rally">
+                <option value="m3e30">BMW M3 E30 Sport Evo (RWD)</option>
+                <option value="quattro">Audi Sport Quattro S1 E2 (AWD)</option>
+                <option value="delta">Lancia Delta Integrale Evo (AWD)</option>
+                <option value="gt40">Ford GT40 Mk II (RWD)</option>
+                <option value="porsche917">Porsche 917K (RWD)</option>
+            </optgroup>
+            <optgroup label="Superbiler / Analoge">
+                <option value="f40">Ferrari F40 (RWD)</option>
+                <option value="mclarenf1">McLaren F1 (RWD)</option>
+                <option value="alfa33">Alfa Romeo 33 Stradale (RWD)</option>
+                <option value="c8z06">Corvette C8.Z06 (RWD)</option>
+            </optgroup>
+            <optgroup label="Bane / Hypercars">
+                <option value="gt3rs">Porsche 911 GT3 RS 992 (RWD)</option>
+                <option value="amggt">Mercedes-AMG GT Black (RWD)</option>
+                <option value="valkyrie">Aston Martin Valkyrie (RWD)</option>
+                <option value="jesko">Koenigsegg Jesko Attack (RWD)</option>
+            </optgroup>
+            <optgroup label="Lette Biler / Motorsport">
+                <option value="gokart">Proff Go-Kart (RWD)</option>
+                <option value="f1">Formel 1 (RWD)</option>
+                <option value="type49">Lotus Type 49 (RWD)</option>
+                <option value="mazda787b">Mazda 787B (RWD)</option>
+                <option value="elise">Lotus Elise S1 (RWD)</option>
+                <option value="caterham">Caterham Seven 620R (RWD)</option>
+                <option value="yaris">Toyota GR Yaris (AWD)</option>
+            </optgroup>
         </select>
     </div>
     <div class="control">
