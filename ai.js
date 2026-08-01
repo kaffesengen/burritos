@@ -39,23 +39,56 @@ class AIDriver {
         let dt = (now - this.lastUpdate) / 1000;
         this.lastUpdate = now;
 
+        // Tidsstyring for Spøkelsesmodus (Ghost Timer)
+        if (vehicle.ghostTimer > 0) {
+            vehicle.ghostTimer -= dt;
+            vehicle.isGhost = true;
+        } else {
+            vehicle.isGhost = false;
+        }
+
         if (!trackWaypoints || trackWaypoints.length === 0) return inputs;
 
-        // --- 1. SJEKK OM BILER SPERRER OG OPPBYGG HEVN ---
+        // --- 1. SJEKK OM BILER SPERRER OG DETEKTER KLYNGER ---
+        let nearbyCars = 0;
         for (let otherId in allPlayers) {
             if (otherId === this.id) continue;
             let other = allPlayers[otherId];
             let dist = Math.hypot(other.x - vehicle.x, other.y - vehicle.y);
             
-            // Økt rekkevidde til 65px for å fange opp "bremsing rett foran"
+            if (dist < 100) nearbyCars++;
+
             if (dist < 65) {
                 if (!this.grudgeMap[otherId]) this.grudgeMap[otherId] = 0;
-                // Bygger sinne aggressivt (rask oppbygging)
                 this.grudgeMap[otherId] = Math.min(1.0, this.grudgeMap[otherId] + 0.8 * dt);
             }
         }
 
-        // --- 2. TILSTAND: RYGGING (STUCK) ---
+        // AKSJON: Hvis bilen står i en klynge (3+ biler) eller fast i gresset, tving spøkelsesmodus
+        if (nearbyCars >= 2 && vehicle.speedKmh < 25) {
+            vehicle.ghostTimer = 3.0; // 3 sekunder spøkelsesmodus for å oppløse klyngen
+        }
+
+        // --- 2. START-LAUNCH OVERSTYRING (Fikser AI som blir stående ved start) ---
+        let timeSinceStart = (now - raceStartTime) / 1000;
+        if (raceStarted && timeSinceStart < 3.5 && vehicle.speedKmh < 50) {
+            this.stuckTime = 0;
+            this.reverseTime = 0;
+            inputs.throttle = 1.0;
+            inputs.handbrake = false;
+            
+            // Finn retning mot et punkt litt lenger fremme for å unngå bråsving i starten
+            let targetPt = trackWaypoints[Math.min(5, trackWaypoints.length - 1)];
+            let targetAngle = Math.atan2(targetPt.y - vehicle.y, targetPt.x - vehicle.x);
+            let angleDiff = targetAngle - vehicle.angle;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            
+            inputs.steering = Math.max(-0.4, Math.min(0.4, angleDiff * 2.0));
+            return inputs;
+        }
+
+        // --- 3. TILSTAND: RYGGING (STUCK) ---
         if (this.reverseTime > 0) {
             this.reverseTime -= dt;
             inputs.throttle = -1.0;
@@ -76,7 +109,7 @@ class AIDriver {
             return inputs;
         }
 
-        // --- 3. VEIPUNKT-NAVIGASJON ---
+        // --- 4. VEIPUNKT-NAVIGASJON ---
         let closestDist = Infinity; let closestIdx = 0;
         for (let i = 0; i < trackWaypoints.length; i++) {
             let dist = Math.hypot(vehicle.x - trackWaypoints[i].x, vehicle.y - trackWaypoints[i].y);
@@ -99,7 +132,7 @@ class AIDriver {
 
         inputs.steering = Math.max(-1.0, Math.min(1.0, angleDiff * 3.0));
 
-        // --- 4. STANDARD FARTSKONTROLL ---
+        // --- 5. STANDARD FARTSKONTROLL ---
         let brakeCheckOffset = Math.floor(vehicle.speedKmh / 5);
         let upcomingTarget = trackWaypoints[(closestIdx + brakeCheckOffset) % trackWaypoints.length];
         let maxSafeSpeed = upcomingTarget.targetSpeed;
@@ -111,58 +144,55 @@ class AIDriver {
             if (Math.abs(inputs.steering) > 0.6) inputs.throttle = 0.4;
         }
 
-        // --- 5. AGGRESSIV RADAR & KNIVING ---
-        let avoidSteer = 0;
-        let forceBrake = false;
-        let angryOverride = false;
+        // --- 6. RADAR & KNIVING (Deaktiveres i spøkelsesmodus) ---
+        if (!vehicle.isGhost) {
+            let avoidSteer = 0;
+            let forceBrake = false;
+            let angryOverride = false;
 
-        for (let otherId in allPlayers) {
-            if (otherId === this.id) continue;
-            let otherCar = allPlayers[otherId];
-            if (otherCar.finished) continue;
+            for (let otherId in allPlayers) {
+                if (otherId === this.id) continue;
+                let otherCar = allPlayers[otherId];
+                if (otherCar.finished || otherCar.isGhost) continue;
 
-            let distToOther = Math.hypot(otherCar.x - vehicle.x, otherCar.y - vehicle.y);
-            
-            if (distToOther < 180) {
-                let angleToOther = Math.atan2(otherCar.y - vehicle.y, otherCar.x - vehicle.x);
-                let angleDiffOther = angleToOther - vehicle.angle;
-                while (angleDiffOther > Math.PI) angleDiffOther -= Math.PI * 2;
-                while (angleDiffOther < -Math.PI) angleDiffOther += Math.PI * 2;
+                let distToOther = Math.hypot(otherCar.x - vehicle.x, otherCar.y - vehicle.y);
+                
+                if (distToOther < 180) {
+                    let angleToOther = Math.atan2(otherCar.y - vehicle.y, otherCar.x - vehicle.x);
+                    let angleDiffOther = angleToOther - vehicle.angle;
+                    while (angleDiffOther > Math.PI) angleDiffOther -= Math.PI * 2;
+                    while (angleDiffOther < -Math.PI) angleDiffOther += Math.PI * 2;
 
-                let grudge = this.grudgeMap[otherId] || 0;
+                    let grudge = this.grudgeMap[otherId] || 0;
 
-                // Bil i front eller på siden (synsfelt på ca 70 grader)
-                if (Math.abs(angleDiffOther) < 1.2) {
-                    
-                    if (grudge > 0.4 && distToOther < 120) {
-                        // HEVN: Svinger inn i motstanderen (Ramming/PIT-manøver)
-                        let pressDirection = (angleDiffOther > 0) ? 1.0 : -1.0;
-                        avoidSteer += pressDirection * grudge * 1.5; 
-                        angryOverride = true; // Forbyr bremsing, tvinger gass
-                    } else {
-                        // KNIVING: Kast bilen ut til siden for å stikke forbi
-                        let steerPush = (angleDiffOther < 0) ? 1.2 : -1.2;
-                        // Hvis bilen foran er rett frem, velg en side brutalt
-                        if (Math.abs(angleDiffOther) < 0.2) {
-                            steerPush = (inputs.steering > 0) ? 1.5 : -1.5;
-                        }
-                        
-                        let pushFactor = 1.0 - (distToOther / 180);
-                        avoidSteer += steerPush * pushFactor * (1.0 + this.aggressionFactor);
+                    if (Math.abs(angleDiffOther) < 1.2) {
+                        if (grudge > 0.4 && distToOther < 120) {
+                            let pressDirection = (angleDiffOther > 0) ? 1.0 : -1.0;
+                            avoidSteer += pressDirection * grudge * 1.5; 
+                            angryOverride = true;
+                        } else {
+                            let steerPush = (angleDiffOther < 0) ? 1.2 : -1.2;
+                            if (Math.abs(angleDiffOther) < 0.2) {
+                                steerPush = (inputs.steering > 0) ? 1.5 : -1.5;
+                            }
+                            
+                            let pushFactor = 1.0 - (distToOther / 180);
+                            avoidSteer += steerPush * pushFactor * (1.0 + this.aggressionFactor);
 
-                        // KUN brems hvis vi er millimeter unna å treffe rett i ræva på dem
-                        if (distToOther < 40 && vehicle.speedKmh > otherCar.speedKmh && raceStarted && Math.abs(angleDiffOther) < 0.3) {
-                            forceBrake = true;
+                            if (distToOther < 40 && vehicle.speedKmh > otherCar.speedKmh && raceStarted && Math.abs(angleDiffOther) < 0.3) {
+                                forceBrake = true;
+                            }
                         }
                     }
                 }
             }
+
+            if (avoidSteer !== 0) inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + avoidSteer));
+            if (angryOverride) { inputs.throttle = 1.0; inputs.handbrake = false; }
+            else if (forceBrake) { inputs.throttle = -1.0; }
         }
 
-        // Påfør radardata på rattet
-        if (avoidSteer !== 0) inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + avoidSteer));
-        
-        // --- 6. "ØYNE": KANTSENSORER ---
+        // --- 7. "ØYNE": KANTSENSORER ---
         if (track && ctx && track.path) {
             let rayAngles = [-0.6, 0, 0.6];
             let rayDistance = 70 + (vehicle.speedKmh * 0.4); 
@@ -193,29 +223,20 @@ class AIDriver {
 
             if (wallAvoidance !== 0) {
                 inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + wallAvoidance));
-                if (vehicle.speedKmh > 50 && !angryOverride) inputs.throttle = Math.min(inputs.throttle, 0.3);
             }
         }
 
-        // --- OVERSTYRING VED AGGRESJON ELLER NØDBREMS ---
-        if (angryOverride) {
-            inputs.throttle = 1.0; // Pinned throttle for hevn
-            inputs.handbrake = false;
-        } else if (forceBrake) {
-            inputs.throttle = -1.0;
-        }
-
-        // --- 7. AGGRESSIV STUCK-DETEKSJON (VEGG-UTBRYTING) ---
+        // --- 8. STUCK-DETEKSJON VED LAV HASTIGHET ---
         if (raceStarted && vehicle.speedKmh < 4.0) {
             this.stuckTime += dt;
-            // Hvis bilen står fast i mer enn 0.8 sekunder, tving umiddelbart en unnamanøver i revers
             if (this.stuckTime > 0.8) {
-                this.reverseTime = 1.2; // Rygg i 1.2 sekunder
+                vehicle.ghostTimer = 2.5; // Blir spøkelse umiddelbart ved rygge-manøver for å slippe unna gressfella
+                this.reverseTime = 1.2;
                 this.stuckTime = 0;
-                this.recoverySteer = (Math.random() > 0.5 ? 1.5 : -1.5); // Sving hardt ut fra veggen
+                this.recoverySteer = (Math.random() > 0.5 ? 1.5 : -1.5);
             }
         } else if (vehicle.speedKmh > 15.0) {
-            this.stuckTime = 0; // Nullstill stående-tid med en gang farten er tilbake
+            this.stuckTime = 0;
         }
 
         return inputs;
