@@ -264,14 +264,21 @@ class AIManager {
             let aiLogic = this.aiList[aiId];
             let vehicleData = playersObject[aiId];
 
-            if (vehicleData && !vehicleData.finished) {
-                if (aiLogic.lineIndex === null || trackLines.length === 0) {
-                    aiLogic.lineIndex = trackLines.length > 0 ? Math.floor(Math.random() * trackLines.length) : 0;
+            if (vehicleData) {
+                if (!vehicleData.finished) {
+                    if (aiLogic.lineIndex === null || trackLines.length === 0) {
+                        aiLogic.lineIndex = trackLines.length > 0 ? Math.floor(Math.random() * trackLines.length) : 0;
+                    }
+                    
+                    let assignedLine = trackLines[aiLogic.lineIndex] || [];
+                    vehicleData.inputs = aiLogic.calculateInputs(vehicleData, assignedLine, playersObject, track, ctx, raceStarted);
+                } else {
+                    // Bot er i mål. Stopp kjøring og lås bremsene.
+                    vehicleData.inputs = { steering: 0, throttle: -1, handbrake: true, driftAssist: false };
                 }
                 
-                let assignedLine = trackLines[aiLogic.lineIndex] || [];
-                
-                vehicleData.inputs = aiLogic.calculateInputs(vehicleData, assignedLine, playersObject, track, ctx, raceStarted);
+                // Oppdater lastSeen uansett om boten er ferdig eller ikke, 
+                // slik at app.js ikke tror boten har forlatt spillet og sletter den.
                 vehicleData.lastSeen = performance.now();
             }
         }
