@@ -607,16 +607,22 @@ function update() {
                     ctx.restore();
                     if (nx !== 0 || ny !== 0) break;
                 }
-                let nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = -Math.sign(p.vx); ny = -Math.sign(p.vy); nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = 1; ny = 0; nLen = 1; } }
-                nx /= nLen; ny /= nLen; let vn = p.vx * nx + p.vy * ny;
-                if (vn < 0) {
-                    let j = -(1 + 0.1) * vn; 
-                    p.vx += j * nx; p.vy += j * ny;
-                    let tx = -ny; let ty = nx; let vt = p.vx * tx + p.vy * ty;
-                    let j_friction = -Math.sign(vt) * Math.min(Math.abs(vt), Math.abs(j) * 0.02); // Glatt is-vegg
-                    p.vx += j_friction * tx; p.vy += j_friction * ty;
-                }
-                p.x += nx * 2.0; p.y += ny * 2.0; // Mykere korrigering ut av veggen
+                let nLen = Math.hypot(nx, ny); 
+                if (nLen === 0) { nx = -Math.sign(p.vx); ny = -Math.sign(p.vy); nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = 1; ny = 0; nLen = 1; } }
+                nx /= nLen; ny /= nLen; 
+
+                // Beholder farten langs veggen (tangenten), eliminerer bare dult-reaksjonen som klistrer dem
+                let tx = -ny; 
+                let ty = nx; 
+                let vt = p.vx * tx + p.vy * ty; // Fart langsgående av veggen
+                
+                // Sett farten utelukkende i veggens retning (glir friksjonsfritt)
+                p.vx = tx * vt * 0.98;
+                p.vy = ty * vt * 0.98;
+
+                // Skyv bilen umiddelbart ut av gresset/kanten
+                p.x += nx * 4.0; 
+                p.y += ny * 4.0;
             }
 
             // OPPTAKSVERKTØY: Lagre koordinater og hastighet
