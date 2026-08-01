@@ -270,6 +270,13 @@ function resumeAudio() { if (audioCtx && audioCtx.state === 'suspended') audioCt
 document.body.addEventListener('pointerdown', () => { initAudio(); resumeAudio(); }, { once: true });
 document.body.addEventListener('keydown', () => { initAudio(); resumeAudio(); }, { once: true });
 
+function playBeep(freq, duration = 0.3) {
+    if (!audioReady || audioCtx.state !== 'running' || !isFinite(freq)) return;
+    let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+    osc.frequency.value = freq; osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration); osc.stop(audioCtx.currentTime + duration);
+}
+
 ['grip', 'power', 'mass', 'steering', 'caster'].forEach(id => {
     let el = document.getElementById(`sb-${id}`);
     if (el) {
