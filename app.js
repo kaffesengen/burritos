@@ -459,10 +459,10 @@ if (hbBtn) { hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hb
 window.addEventListener('keydown', e => { 
     if(e.key.toLowerCase() === 't') toggleAssist();
     
-    // SKJULT ASSISTENT (Av/På med 'H')
+    // EVAN-MODUS (Av/På med 'H')
     if(e.key.toLowerCase() === 'h') {
         localInputs.smartAssist = !localInputs.smartAssist;
-        showMsg(localInputs.smartAssist ? 'Smart Assist: PÅ' : 'Smart Assist: AV');
+        showMsg(localInputs.smartAssist ? 'EVAN-MODUS PÅ' : 'EVAN-MODUS AV');
         setTimeout(() => showMsg(''), 2000);
     }
     
@@ -523,7 +523,47 @@ function update() {
     if (document.getElementById('input-selector')?.value === 'gamepad') {
         let gps = navigator.getGamepads ? navigator.getGamepads() : [];
         let gp = gps[0];
-        if (gp) { localInputs.steering = gp.axes[0]||0; localInputs.throttle = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0); localInputs.handbrake = gp.buttons[0]?.pressed||false; resumeAudio(); }
+        if (gp) { 
+            localInputs.steering = gp.axes[0]||0; 
+            localInputs.throttle = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0); 
+            localInputs.handbrake = gp.buttons[0]?.pressed||false; 
+
+            // Oppretter et register for å hindre at knapper avfyres 60 ganger i sekundet (når de holdes inne)
+            if (!window.prevGamepadState) window.prevGamepadState = {};
+
+            // B-knapp (Index 1) - Bytt Evan-modus
+            if (gp.buttons[1]?.pressed && !window.prevGamepadState[1]) {
+                localInputs.smartAssist = !localInputs.smartAssist;
+                showMsg(localInputs.smartAssist ? 'EVAN-MODUS PÅ' : 'EVAN-MODUS AV');
+                setTimeout(() => showMsg(''), 2000);
+            }
+
+            // X-knapp (Index 2) - Reset Grid
+            if (gp.buttons[2]?.pressed && !window.prevGamepadState[2]) {
+                if(isHost) { assignGridPositions(); raceState = -1; }
+            }
+
+            // Y-knapp (Index 3) - Start Race
+            if (gp.buttons[3]?.pressed && !window.prevGamepadState[3]) {
+                let btnStart = document.getElementById('btn-start-race');
+                if(isHost && raceState <= 0 && btnStart) btnStart.click(); // Gjenbruker eksisterende start-logikk
+            }
+
+            // Menu-knapp / Hamburger (Index 9) - Åpne/lukke meny
+            if (gp.buttons[9]?.pressed && !window.prevGamepadState[9]) {
+                let modal = document.getElementById('ingame-modal');
+                if (modal) {
+                    modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
+                }
+            }
+
+            // Lagre tilstanden på alle knapper til neste bildeoppdatering (frame)
+            for(let i = 0; i < gp.buttons.length; i++) {
+                window.prevGamepadState[i] = gp.buttons[i].pressed;
+            }
+
+            resumeAudio(); 
+        }
     }
 
     if (players[myId]) {
