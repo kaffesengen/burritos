@@ -81,6 +81,63 @@ for (let tId in tracks) {
 let activeTrackId = 'standard'; let envObjects = [];
 let serverSettings = { grip: 1.0, power: 1.0, mass: 1.0, steering: 1.0, caster: 1.0 };
 
+// --- ENHET OG ZOOM SYSTEM ---
+let deviceType = 'pc'; // 'pc', 'tablet', 'phone'
+let cameraZoom = 1.0;  // Trinnvis zoom-faktor
+
+function detectDevice() {
+    let w = window.innerWidth;
+    let h = window.innerHeight;
+    let minDim = Math.min(w, h);
+    let maxDim = Math.max(w, h);
+
+    // Galaxy Fold 5 i åpen/tablet-modus har stor oppløsning eller ca kvadratisk aspekt.
+    // Standard telefoner har typisk smal bredde iportrett eller høy iandre.
+    if (minDim > 750) {
+        deviceType = 'pc';
+    } else if (minDim > 500 && maxDim < 1300) {
+        deviceType = 'tablet'; // F.eks Galaxy Fold utfoldet
+    } else {
+        deviceType = 'phone';
+    }
+
+    applyDeviceUIRules();
+}
+
+let phoneMenuState = 0; // 0 = skjult, 1 = Meny 1 (ui-panel), 2 = Meny 2 (host-actions)
+function applyDeviceUIRules() {
+    let uiPanel = document.getElementById('ui-panel');
+    let hostActions = document.getElementById('host-actions');
+    let hamBtn = document.getElementById('btn-hamburger');
+
+    if (deviceType === 'phone') {
+        hamBtn.style.display = 'block';
+        if (phoneMenuState === 0) {
+            uiPanel.style.display = 'none';
+            if(hostActions) hostActions.style.display = 'none';
+        } else if (phoneMenuState === 1) {
+            uiPanel.style.display = 'grid';
+            if(hostActions) hostActions.style.display = 'none';
+        } else if (phoneMenuState === 2) {
+            uiPanel.style.display = 'none';
+            if(hostActions && isHost) hostActions.style.display = 'flex';
+        }
+    } else {
+        // PC & Tablet (Galaxy Fold) har faste menyer synlige
+        hamBtn.style.display = 'none';
+        uiPanel.style.display = 'grid';
+        if (isHost && hostActions) hostActions.style.display = 'flex';
+    }
+}
+
+let hamBtn = document.getElementById('btn-hamburger');
+if(hamBtn) {
+    hamBtn.addEventListener('click', () => {
+        phoneMenuState = (phoneMenuState + 1) % 3;
+        applyDeviceUIRules();
+    });
+}
+
 function getTrack() { return tracks[activeTrackId] || tracks['standard']; }
 
 function generateEnvironment() {
@@ -128,7 +185,7 @@ function createPlayerRecord(id, presetId, name, colorCode) {
 function assignGridPositions() {
     let ids = Object.keys(players); let t = getTrack();
     ids.forEach((pid, index) => {
-        let row = Math.floor(index / 2); // 2 biler per rad
+        let row = Math.floor(index / 2); 
         let col = index % 2 === 0 ? 1 : -1; 
         let spacing = 120, lateral = 40;
         
@@ -151,8 +208,9 @@ function enterGame() {
     gameActive = true; 
     let lobby = document.getElementById('lobby'); if(lobby) lobby.style.display = 'none'; 
     let cCont = document.getElementById('canvas-container'); if(cCont) cCont.style.display = 'flex';
+    
+    detectDevice();
     if(isHost) { 
-        let hAct = document.getElementById('host-actions'); if(hAct) hAct.style.display = 'flex'; 
         let sbCtrl = document.getElementById('sandbox-controls'); if(sbCtrl) sbCtrl.style.display = 'block'; 
         assignGridPositions(); 
     }
@@ -211,13 +269,6 @@ function initAudio() {
 function resumeAudio() { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
 document.body.addEventListener('pointerdown', () => { initAudio(); resumeAudio(); }, { once: true });
 document.body.addEventListener('keydown', () => { initAudio(); resumeAudio(); }, { once: true });
-
-function playBeep(freq, duration = 0.3) {
-    if (!audioReady || audioCtx.state !== 'running' || !isFinite(freq)) return;
-    let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
-    osc.frequency.value = freq; osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.start(); gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration); osc.stop(audioCtx.currentTime + duration);
-}
 
 ['grip', 'power', 'mass', 'steering', 'caster'].forEach(id => {
     let el = document.getElementById(`sb-${id}`);
@@ -334,7 +385,7 @@ if (btnAddAi) {
         if(isHost) {
             let t = getTrack();
             aiManager.spawnAI(players, t.startX, t.startY, t.startAngle);
-            assignGridPositions(); // Plasserer bilene riktig på grid-en
+            assignGridPositions(); 
         }
     });
 }
@@ -477,9 +528,44 @@ const hbBtn = document.getElementById('btn-handbrake');
 const hb = s => e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; e.preventDefault(); localInputs.handbrake = s; resumeAudio(); };
 if (hbBtn) { hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hbBtn.addEventListener('touchend', hb(false), {passive:false}); }
 
+// --- TOUCH GESTURE PINCH-TO-ZOOM ---
+let initialPinchDist = null;
+const canvasContainer = document.getElementById('canvas-container');
+if(canvasContainer) {
+    canvasContainer.addEventListener('touchstart', e => {
+        if(e.touches.length === 2) {
+            initialPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        }
+    }, {passive: true});
+
+    canvasContainer.addEventListener('touchmove', e => {
+        if(e.touches.length === 2 && initialPinchDist !== null) {
+            let currentDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            let diff = currentDist - initialPinchDist;
+            if(Math.abs(diff) > 30) {
+                if(diff > 0) adjustZoom(-0.1); // Zoom ut
+                else adjustZoom(0.1);        // Zoom inn
+                initialPinchDist = currentDist;
+            }
+        }
+    }, {passive: true});
+
+    canvasContainer.addEventListener('touchend', e => {
+        if(e.touches.length < 2) initialPinchDist = null;
+    });
+}
+
+function adjustZoom(delta) {
+    cameraZoom = Math.max(0.4, Math.min(2.5, cameraZoom + delta));
+}
+
 window.addEventListener('keydown', e => { 
     if(e.key.toLowerCase() === 't') toggleAssist();
     
+    // Zoom med tastatur (+ / -)
+    if(e.key === '+' || e.key === '=') adjustZoom(0.15);
+    if(e.key === '-' || e.key === '_') adjustZoom(-0.15);
+
     // EVAN-MODUS (Av/På med 'H')
     if(e.key.toLowerCase() === 'h') {
         localInputs.smartAssist = !localInputs.smartAssist;
@@ -488,7 +574,7 @@ window.addEventListener('keydown', e => {
     
     // FJERN SISTE BOT (Tast K)
     if(e.key.toLowerCase() === 'k' && isHost) {
-        let botIds = Object.keys(players).filter(id => players[id].isBot);
+        let botIds = Object.keys(players).filter(id => players[id].isAI);
         if (botIds.length > 0) {
             let botToRemove = botIds[botIds.length - 1];
             delete players[botToRemove];
@@ -534,6 +620,7 @@ function resize() {
     canvas.width = cw > 0 ? cw : 800;
     canvas.height = ch > 0 ? ch : 600;
     ctx.setTransform(1,0,0,1,0,0); 
+    detectDevice();
 }
 window.addEventListener('resize', resize); 
 let btnFull = document.getElementById('btn-fullscreen');
@@ -557,8 +644,11 @@ function update() {
             localInputs.throttle = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0); 
             localInputs.handbrake = gp.buttons[0]?.pressed||false; 
 
-            // Oppretter et register for å hindre at knapper avfyres 60 ganger i sekundet (når de holdes inne)
             if (!window.prevGamepadState) window.prevGamepadState = {};
+
+            // Zoom med Xbox LB (Index 4) og RB (Index 5) - Trinnvis med forsinkelsessjekk
+            if (gp.buttons[4]?.pressed && !window.prevGamepadState[4]) adjustZoom(-0.15);
+            if (gp.buttons[5]?.pressed && !window.prevGamepadState[5]) adjustZoom(0.15);
 
             // B-knapp (Index 1) - Bytt Evan-modus
             if (gp.buttons[1]?.pressed && !window.prevGamepadState[1]) {
@@ -574,7 +664,7 @@ function update() {
             // Y-knapp (Index 3) - Start Race
             if (gp.buttons[3]?.pressed && !window.prevGamepadState[3]) {
                 let btnStart = document.getElementById('btn-start-race');
-                if(isHost && raceState <= 0 && btnStart) btnStart.click(); // Gjenbruker eksisterende start-logikk
+                if(isHost && raceState <= 0 && btnStart) btnStart.click();
             }
 
             // Menu-knapp / Hamburger (Index 9) - Åpne/lukke meny
@@ -585,7 +675,6 @@ function update() {
                 }
             }
 
-            // Lagre tilstanden på alle knapper til neste bildeoppdatering (frame)
             for(let i = 0; i < gp.buttons.length; i++) {
                 window.prevGamepadState[i] = gp.buttons[i].pressed;
             }
@@ -598,11 +687,9 @@ function update() {
         let p = players[myId];
         let finalInputs = { ...localInputs };
 
-        // --- SMART ASSIST (Skjult hjelpesystem) ---
         if (finalInputs.smartAssist && !p.finished && aiManager.waypoints[activeTrackId] && aiManager.waypoints[activeTrackId].length > 0) {
             let waypoints = aiManager.waypoints[activeTrackId][0]; 
             
-            // 1. AUTO-BREMS
             let closestDist = Infinity; let closestIdx = 0;
             for (let i = 0; i < waypoints.length; i++) {
                 let dist = Math.hypot(p.x - waypoints[i].x, p.y - waypoints[i].y);
@@ -614,12 +701,11 @@ function update() {
             let maxSafeSpeed = upcomingTarget.targetSpeed;
             
             if (p.speedKmh > maxSafeSpeed + 5) {
-                finalInputs.throttle = -0.5; // Tvinger bremsing
+                finalInputs.throttle = -0.5;
             } else if (p.speedKmh > maxSafeSpeed && finalInputs.throttle > 0) {
-                finalInputs.throttle = 0; // Kutter gass
+                finalInputs.throttle = 0;
             }
 
-            // 2. VEGG-UNNVIKELSE
             if (track && ctx && track.path) {
                 let rayAngles = [-0.5, 0, 0.5];
                 let rayDistance = 60 + (p.speedKmh * 0.3); 
@@ -740,34 +826,29 @@ function update() {
                 if (nLen === 0) { nx = -Math.sign(p.vx); ny = -Math.sign(p.vy); nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = 1; ny = 0; nLen = 1; } }
                 nx /= nLen; ny /= nLen; 
 
-                // Beholder farten langs veggen (tangenten), eliminerer bare dult-reaksjonen som klistrer dem
                 let tx = -ny; 
                 let ty = nx; 
-                let vt = p.vx * tx + p.vy * ty; // Fart langsgående av veggen
+                let vt = p.vx * tx + p.vy * ty; 
                 
-                // Sett farten utelukkende i veggens retning (glir friksjonsfritt)
                 p.vx = tx * vt * 0.98;
                 p.vy = ty * vt * 0.98;
 
-                // Skyv bilen umiddelbart ut av gresset/kanten
                 p.x += nx * 4.0; 
                 p.y += ny * 4.0;
             }
 
-            // OPPTAKSVERKTØY: Lagre koordinater og hastighet
             if (isRecording && pid === myId) {
                 if (recordedWaypoints.length === 0) {
                     recordedWaypoints.push({ x: Math.round(p.x), y: Math.round(p.y), targetSpeed: Math.max(15, Math.round(p.speedKmh)) });
                 } else {
                     let lastPt = recordedWaypoints[recordedWaypoints.length - 1];
                     let dist = Math.hypot(p.x - lastPt.x, p.y - lastPt.y);
-                    if (dist > 30) { // Lagrer et punkt hver 30. piksel (ca 1-2 meter i spillverdenen)
+                    if (dist > 30) {
                         recordedWaypoints.push({ x: Math.round(p.x), y: Math.round(p.y), targetSpeed: Math.max(15, Math.round(p.speedKmh)) });
                     }
                 }
             }
             
-            // Integrasjon av Drift Assist System:
             let lVx = p.vx * Math.cos(-p.angle) - p.vy * Math.sin(-p.angle); 
             let lVy = p.vx * Math.sin(-p.angle) + p.vy * Math.cos(-p.angle);
             
@@ -786,12 +867,12 @@ function update() {
                 let isSpinningOut = Math.abs(slipAngleDeg) > 45.0 || (Math.sign(slipAngleDeg) !== Math.sign(ins.steering) && Math.abs(ins.steering) > 0.2);
 
                 if (isSpinningOut) {
-                    torqueMultiplier = 0.5; // Kutt moment for å hente grep
-                    steerInputTarget += -Math.sign(ins.steering) * 0.15; // Autokorreksjon / counter-steer
+                    torqueMultiplier = 0.5;
+                    steerInputTarget += -Math.sign(ins.steering) * 0.15;
                 } else {
-                    torqueMultiplier = 1.0 + (Math.abs(ins.steering) * 0.2); // Kontrollert flyt
+                    torqueMultiplier = 1.0 + (Math.abs(ins.steering) * 0.2);
                     if (isSuddenThrottle && p.speedKmh > 30.0) {
-                        torqueMultiplier *= 1.25; // Clutch-kick moment-boost
+                        torqueMultiplier *= 1.25;
                     }
                 }
             }
@@ -800,7 +881,7 @@ function update() {
             p.steer += (steerInputTarget - p.steer) * 12.0 * dt; 
             
             let mThrottle = Math.pow(Math.abs(ins.throttle), 2.5) * Math.sign(ins.throttle);
-            mThrottle *= torqueMultiplier; // Påfører regulert drift assist (eller 1.0 hvis inaktiv)
+            mThrottle *= torqueMultiplier;
 
             p.speedKmh = Math.abs(lVx * 3.6) || 0; p.appliesBrake = mThrottle < 0 && lVx >= 1.0;
 
@@ -879,7 +960,6 @@ function update() {
                     
                     let mA = preA.mass * serverSettings.mass, mB = preB.mass * serverSettings.mass;
                     
-                    // ANTI-KLYNGE: Hvis bilene står og stanger med lav fart, dytk dem brutalt fra hverandre
                     if (pA.speedKmh < 10 && pB.speedKmh < 10) {
                         let pushAway = 2.0;
                         pA.x -= nx * pushAway; pA.y -= ny * pushAway;
@@ -899,11 +979,7 @@ function update() {
             }
         }
 
-        // raceState 0 betyr at løpet pågår. raceState -1 betyr at spillet er i sandbox/frikjøring.
-        // Under nedtelling (raceState > 0) vil flagget være false, og stuck-deteksjon ignoreres.
         let raceIsRunning = (raceState === 0 || raceState === -1);
-        
-        // Sender inn track og ctx direkte for Canvas Raycasting ("øyne" som ser kanter automatisk)
         aiManager.updateAll(players, activeTrackId, track, ctx, raceIsRunning);
         
         if (now - lastNetUpdate > 40) {
@@ -982,10 +1058,13 @@ function update() {
 
     ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = '#2d4c1e'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.save(); 
     
+    // --- SKALERING OG KAMERA-ZOOM ---
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.scale(cameraZoom, cameraZoom);
     if(players[myId] && isFinite(players[myId].x) && isFinite(players[myId].y)) {
-        ctx.translate(canvas.width/2 - players[myId].x, canvas.height/2 - players[myId].y); 
+        ctx.translate(-players[myId].x, -players[myId].y); 
     } else { 
-        ctx.translate(canvas.width/2 - track.startX, canvas.height/2 - track.startY); 
+        ctx.translate(-track.startX, -track.startY); 
     }
 
     let pt = track.pit;
@@ -1075,7 +1154,7 @@ function update() {
         else if (pre.type === 'r34') { ctx.fillStyle = p.color || '#2980b9'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 5); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.05, -hw + 2, pre.l*0.4, pre.w - 4, 3); ctx.fill(); ctx.fillStyle = '#2980b9'; ctx.fillRect(-hl - 3, -hw, 4, pre.w); } 
         else if (pre.type === 's15') { ctx.fillStyle = p.color || '#8e44ad'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 6); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 2, pre.l*0.45, pre.w - 4, 4); ctx.fill(); ctx.fillStyle = '#f39c12'; ctx.fillRect(-hl - 4, -hw - 2, 5, pre.w + 4); } 
         else if (pre.type === 'jaguar') { ctx.fillStyle = p.color || '#1abc9c'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.15, -hw + 3, pre.l*0.5, pre.w - 6, 6); ctx.fill(); }
-        else { ctx.fillStyle = p.color || '#e67e22'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 3, pre.l*0.4, pre.w - 6, 4); ctx.fill(); } // Standardvisning for de resterende
+        else { ctx.fillStyle = p.color || '#e67e22'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 3, pre.l*0.4, pre.w - 6, 4); ctx.fill(); }
 
         ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.roundRect(hl - 3, -hw + 3, 4, 5, 2); ctx.roundRect(hl - 3, hw - 8, 4, 5, 2); ctx.fill();
         ctx.fillStyle = p.appliesBrake ? '#ff3333' : '#8b0000'; ctx.shadowColor = p.appliesBrake ? '#ff0000' : 'transparent'; ctx.shadowBlur = p.appliesBrake ? 10 : 0;
@@ -1086,7 +1165,6 @@ function update() {
     }
     ctx.restore(); 
 
-    // Tegn opptakslinjen grafisk på skjermen
     if (recordedWaypoints.length > 0) {
         ctx.save();
         ctx.strokeStyle = 'rgba(241, 196, 15, 0.8)';
