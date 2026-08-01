@@ -610,10 +610,13 @@ function update() {
                 let nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = -Math.sign(p.vx); ny = -Math.sign(p.vy); nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = 1; ny = 0; nLen = 1; } }
                 nx /= nLen; ny /= nLen; let vn = p.vx * nx + p.vy * ny;
                 if (vn < 0) {
-                    let j = -(1 + 0.15) * vn; p.vx += j * nx; p.vy += j * ny; let tx = -ny; let ty = nx; let vt = p.vx * tx + p.vy * ty;
-                    let j_friction = -Math.sign(vt) * Math.min(Math.abs(vt), Math.abs(j) * 0.3); p.vx += j_friction * tx; p.vy += j_friction * ty;
+                    let j = -(1 + 0.1) * vn; 
+                    p.vx += j * nx; p.vy += j * ny;
+                    let tx = -ny; let ty = nx; let vt = p.vx * tx + p.vy * ty;
+                    let j_friction = -Math.sign(vt) * Math.min(Math.abs(vt), Math.abs(j) * 0.02); // Glatt is-vegg
+                    p.vx += j_friction * tx; p.vy += j_friction * ty;
                 }
-                p.x += nx * 4.0; p.y += ny * 4.0;
+                p.x += nx * 2.0; p.y += ny * 2.0; // Mykere korrigering ut av veggen
             }
 
             // OPPTAKSVERKTØY: Lagre koordinater og hastighet
@@ -728,13 +731,23 @@ function update() {
         for(let i=0; i<pkeys.length; i++) {
             for(let j=i+1; j<pkeys.length; j++) {
                 let pA = players[pkeys[i]], pB = players[pkeys[j]]; if(!pA || !pB || !isFinite(pA.x) || !isFinite(pB.x)) continue;
-                let dx = pB.x - pA.x, dy = pB.y - pA.y, dist = Math.hypot(dx, dy); let rA = (vehiclePresets[pA.presetId]||vehiclePresets['jaguar']).l/2, rB = (vehiclePresets[pB.presetId]||vehiclePresets['jaguar']).l/2;
+                let dx = pB.x - pA.x, dy = pB.y - pA.y, dist = Math.hypot(dx, dy); 
+                
+                let preA = vehiclePresets[pA.presetId]||vehiclePresets['jaguar'];
+                let preB = vehiclePresets[pB.presetId]||vehiclePresets['jaguar'];
+                // Bruker snittet av lengde og bredde for å tillate biler å ligge tett inntil hverandre
+                let rA = (preA.l + preA.w) / 4; 
+                let rB = (preB.l + preB.w) / 4;
+                
                 if(dist < rA + rB && dist > 0) {
                     let nx = dx/dist, ny = dy/dist; let velN = (pB.vx - pA.vx)*nx + (pB.vy - pA.vy)*ny; if(velN > 0) continue; 
-                    let mA = (vehiclePresets[pA.presetId]||vehiclePresets['jaguar']).mass * serverSettings.mass, mB = (vehiclePresets[pB.presetId]||vehiclePresets['jaguar']).mass * serverSettings.mass;
-                    let jImp = -(1 + 0.5) * velN / (1/mA + 1/mB);
+                    let mA = preA.mass * serverSettings.mass, mB = preB.mass * serverSettings.mass;
+                    
+                    let jImp = -(1 + 0.2) * velN / (1/mA + 1/mB); // Lavere sprett / restitution
                     pA.vx -= (jImp * nx)/mA; pA.vy -= (jImp * ny)/mA; pB.vx += (jImp * nx)/mB; pB.vy += (jImp * ny)/mB;
-                    let corr = Math.max(0, (rA+rB - dist) - 1.0) / (1/mA + 1/mB) * 0.8; pA.x -= (nx*corr)/mA; pA.y -= (ny*corr)/mA; pB.x += (nx*corr)/mB; pB.y += (ny*corr)/mB;
+                    
+                    let corr = Math.max(0, (rA+rB - dist)) / (1/mA + 1/mB) * 0.5; // Mykere separering
+                    pA.x -= (nx*corr)/mA; pA.y -= (ny*corr)/mA; pB.x += (nx*corr)/mB; pB.y += (ny*corr)/mB;
                 }
             }
         }
