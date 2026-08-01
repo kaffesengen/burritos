@@ -741,19 +741,31 @@ function update() {
                 
                 let preA = vehiclePresets[pA.presetId]||vehiclePresets['jaguar'];
                 let preB = vehiclePresets[pB.presetId]||vehiclePresets['jaguar'];
-                // Bruker snittet av lengde og bredde for å tillate biler å ligge tett inntil hverandre
                 let rA = (preA.l + preA.w) / 4; 
                 let rB = (preB.l + preB.w) / 4;
                 
                 if(dist < rA + rB && dist > 0) {
-                    let nx = dx/dist, ny = dy/dist; let velN = (pB.vx - pA.vx)*nx + (pB.vy - pA.vy)*ny; if(velN > 0) continue; 
+                    let nx = dx/dist, ny = dy/dist; 
+                    let velN = (pB.vx - pA.vx)*nx + (pB.vy - pA.vy)*ny; 
+                    
                     let mA = preA.mass * serverSettings.mass, mB = preB.mass * serverSettings.mass;
                     
-                    let jImp = -(1 + 0.2) * velN / (1/mA + 1/mB); // Lavere sprett / restitution
-                    pA.vx -= (jImp * nx)/mA; pA.vy -= (jImp * ny)/mA; pB.vx += (jImp * nx)/mB; pB.vy += (jImp * ny)/mB;
+                    // ANTI-KLYNGE: Hvis bilene står og stanger med lav fart, dytk dem brutalt fra hverandre
+                    if (pA.speedKmh < 10 && pB.speedKmh < 10) {
+                        let pushAway = 2.0;
+                        pA.x -= nx * pushAway; pA.y -= ny * pushAway;
+                        pB.x += nx * pushAway; pB.y += ny * pushAway;
+                    }
+
+                    if(velN <= 0) {
+                        let jImp = -(1 + 0.1) * velN / (1/mA + 1/mB); 
+                        pA.vx -= (jImp * nx)/mA; pA.vy -= (jImp * ny)/mA; 
+                        pB.vx += (jImp * nx)/mB; pB.vy += (jImp * ny)/mB;
+                    }
                     
-                    let corr = Math.max(0, (rA+rB - dist)) / (1/mA + 1/mB) * 0.5; // Mykere separering
-                    pA.x -= (nx*corr)/mA; pA.y -= (ny*corr)/mA; pB.x += (nx*corr)/mB; pB.y += (ny*corr)/mB;
+                    let corr = Math.max(0, (rA+rB - dist)) / (1/mA + 1/mB) * 0.8; 
+                    pA.x -= (nx*corr)/mA; pA.y -= (ny*corr)/mA; 
+                    pB.x += (nx*corr)/mB; pB.y += (ny*corr)/mB;
                 }
             }
         }
