@@ -179,7 +179,7 @@ class AIManager {
     constructor() {
         this.aiList = {};
         this.maxAI = 20;
-        this.waypoints = typeof aiManagerWaypoints !== 'undefined' ? aiManagerWaypoints : {}; 
+        this.waypoints = {}; // Settes til et tomt objekt her, fylles deretter av waypoints.js
     }
 
     spawnAI(playersObject, trackStartX, trackStartY, trackStartAngle) {
