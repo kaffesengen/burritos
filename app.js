@@ -962,6 +962,8 @@ function update() {
                 let rB = (preB.l + preB.w) / 4;
                 
                 if(dist < rA + rB && dist > 0) {
+                    // SPØKELSESMODUS: Hvis én av bilene er spøkelse, passerer de tvers gjennom hverandre
+                    if (pA.isGhost || pB.isGhost) continue;
                     let nx = dx/dist, ny = dy/dist; 
                     let velN = (pB.vx - pA.vx)*nx + (pB.vy - pA.vy)*ny; 
                     
@@ -1097,7 +1099,7 @@ function update() {
     for(let r=-8; r<8; r++) { for(let c=0; c<4; c++) { if((r+c)%2===0) ctx.fillRect(-c*cbW, r*cbW, cbW, cbW); } }
     
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
-    for(let i=0; i<8; i++) {
+    for(let i=0; i<Object.keys(players).length; i++) {
         let row = Math.floor(i / 2); let col = i % 2 === 0 ? 1 : -1; let spacing = 120, lateral = 40; let gx = -(row * spacing + 60); let gy = (col * lateral);
         ctx.beginPath(); ctx.moveTo(gx + 20, gy - 12); ctx.lineTo(gx - 20, gy - 12); ctx.lineTo(gx - 20, gy + 12); ctx.lineTo(gx + 20, gy + 12); ctx.stroke();
     }
@@ -1132,6 +1134,7 @@ function update() {
         if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.angle)) continue;
         
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+        if (p.isGhost) ctx.globalAlpha = 0.45; // Gjør bilen halvt transparent når den er i spøkelsesmodus
         let hl = pre.l/2, hw = pre.w/2; const wheelW = 14, wheelThick = 6, wheelOffset = hw - 1; let maxRadian = (pre.turn * 10 * serverSettings.steering) * (Math.PI / 180); let delta = Math.max(-maxRadian, Math.min(maxRadian, (p.steer||0) * maxRadian));
 
         if (pre.type !== 'f1' && pre.type !== 'gokart') {
