@@ -427,7 +427,7 @@ const urlParams = new URLSearchParams(window.location.search);
 let joinInp = document.getElementById('join-code-input');
 if (joinInp && urlParams.get('join')) { joinInp.value = urlParams.get('join'); }
 
-const localInputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: false }; 
+const localInputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: false };
 const activeTouchState = { left: null, right: null };
 
 function toggleAssist() { 
@@ -458,6 +458,13 @@ if (hbBtn) { hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hb
 
 window.addEventListener('keydown', e => { 
     if(e.key.toLowerCase() === 't') toggleAssist();
+    
+    // SKJULT ASSISTENT (Av/På med 'H')
+    if(e.key.toLowerCase() === 'h') {
+        localInputs.smartAssist = !localInputs.smartAssist;
+        showMsg(localInputs.smartAssist ? 'Smart Assist: PÅ' : 'Smart Assist: AV');
+        setTimeout(() => showMsg(''), 2000);
+    }
     
     // OPPTAKSVERKTØY: Start/Stopp og Slett
     if(e.key.toLowerCase() === 'r') {
@@ -520,26 +527,80 @@ function update() {
     }
 
     if (players[myId]) {
-        players[myId].inputs = localInputs;
+        let p = players[myId];
+        let finalInputs = { ...localInputs };
+
+        // --- SMART ASSIST (Skjult hjelpesystem) ---
+        if (finalInputs.smartAssist && !p.finished && aiManager.waypoints[activeTrackId] && aiManager.waypoints[activeTrackId].length > 0) {
+            let waypoints = aiManager.waypoints[activeTrackId][0]; 
+            
+            // 1. AUTO-BREMS
+            let closestDist = Infinity; let closestIdx = 0;
+            for (let i = 0; i < waypoints.length; i++) {
+                let dist = Math.hypot(p.x - waypoints[i].x, p.y - waypoints[i].y);
+                if (dist < closestDist) { closestDist = dist; closestIdx = i; }
+            }
+            
+            let brakeCheckOffset = Math.floor(p.speedKmh / 5);
+            let upcomingTarget = waypoints[(closestIdx + brakeCheckOffset) % waypoints.length];
+            let maxSafeSpeed = upcomingTarget.targetSpeed;
+            
+            if (p.speedKmh > maxSafeSpeed + 5) {
+                finalInputs.throttle = -0.5; // Tvinger bremsing
+            } else if (p.speedKmh > maxSafeSpeed && finalInputs.throttle > 0) {
+                finalInputs.throttle = 0; // Kutter gass
+            }
+
+            // 2. VEGG-UNNVIKELSE
+            if (track && ctx && track.path) {
+                let rayAngles = [-0.5, 0, 0.5];
+                let rayDistance = 60 + (p.speedKmh * 0.3); 
+                let wallAvoidance = 0;
+                
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.lineWidth = 175;
+
+                rayAngles.forEach(offsetAngle => {
+                    let checkAngle = p.angle + offsetAngle;
+                    let hitWall = false;
+                    for (let i = 1; i <= 3; i++) {
+                        let d = (rayDistance / 3) * i;
+                        let rayX = p.x + Math.cos(checkAngle) * d;
+                        let rayY = p.y + Math.sin(checkAngle) * d;
+                        if (!ctx.isPointInStroke(track.path, rayX, rayY)) { hitWall = true; break; }
+                    }
+                    if (hitWall) wallAvoidance += (offsetAngle <= 0) ? 0.6 : -0.6;
+                });
+                ctx.restore();
+
+                if (wallAvoidance !== 0) {
+                    finalInputs.steering = Math.max(-1.0, Math.min(1.0, finalInputs.steering + wallAvoidance));
+                }
+            }
+        }
+
+        p.inputs = finalInputs;
         
         let pSel = document.getElementById('ingame-preset-selector') || document.getElementById('preset-selector');
-        if (pSel && pSel.value && players[myId].presetId !== pSel.value) {
-            players[myId].presetId = pSel.value;
-            players[myId].maxFuel = vehiclePresets[pSel.value]?.fuelCap || 100;
+        if (pSel && pSel.value && p.presetId !== pSel.value) {
+            p.presetId = pSel.value;
+            p.maxFuel = vehiclePresets[pSel.value]?.fuelCap || 100;
             if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeCar', preset: pSel.value }); } catch(e){} }
         }
         
         let cSel = document.getElementById('ingame-car-color') || document.getElementById('car-color');
-        if (cSel && cSel.value && players[myId].color !== cSel.value) {
-            players[myId].color = cSel.value;
+        if (cSel && cSel.value && p.color !== cSel.value) {
+            p.color = cSel.value;
             if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeColor', color: cSel.value }); } catch(e){} }
         }
     }
     
-    if (!isHost && hostConnection && hostConnection.open) {
-        let currentInputString = localInputs.steering + "," + localInputs.throttle + "," + localInputs.handbrake + "," + localInputs.driftAssist;
+    if (!isHost && hostConnection && hostConnection.open && players[myId]) {
+        let fin = players[myId].inputs;
+        let currentInputString = fin.steering + "," + fin.throttle + "," + fin.handbrake + "," + fin.driftAssist + "," + fin.smartAssist;
         if (currentInputString !== lastInputString || now - lastInputSend > 250) {
-            try { hostConnection.send({ type: 'inputs', inputs: localInputs }); } catch(e){}
+            try { hostConnection.send({ type: 'inputs', inputs: fin }); } catch(e){}
             lastInputString = currentInputString; lastInputSend = now;
         }
     }
