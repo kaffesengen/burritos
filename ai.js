@@ -23,16 +23,14 @@ class AIDriver {
         this.color = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
         this.lineIndex = null;
         
-        // Variabler for "Stuck"-logikk
         this.stuckTime = 0;
         this.reverseTime = 0;
         this.recoveryTime = 0;
         this.recoverySteer = 0;
         this.lastUpdate = performance.now();
 
-        // Hevn- og aggresjonssystem: lagrer { enemyId: angerLevel }
         this.grudgeMap = {};
-        this.aggressionFactor = 0.5 + Math.random() * 0.5; // Hvor iltre de er av natur (0.5 til 1.0)
+        this.aggressionFactor = 0.5 + Math.random() * 0.5; 
     }
 
     calculateInputs(vehicle, trackWaypoints, allPlayers, track, ctx, raceStarted) {
@@ -43,17 +41,17 @@ class AIDriver {
 
         if (!trackWaypoints || trackWaypoints.length === 0) return inputs;
 
-        // --- 1. SJEKK OM BILER SKUBBER OG OPPBYGG HEVN ---
+        // --- 1. SJEKK OM BILER SPERRER OG OPPBYGG HEVN ---
         for (let otherId in allPlayers) {
             if (otherId === this.id) continue;
             let other = allPlayers[otherId];
             let dist = Math.hypot(other.x - vehicle.x, other.y - vehicle.y);
             
-            // Hvis en bil er nærmere enn 35px (fysisk berøring/kontakt)
-            if (dist < 35) {
+            // Økt rekkevidde til 65px for å fange opp "bremsing rett foran"
+            if (dist < 65) {
                 if (!this.grudgeMap[otherId]) this.grudgeMap[otherId] = 0;
-                // Øk hevn-måleren mot denne bilen
-                this.grudgeMap[otherId] = Math.min(1.0, this.grudgeMap[otherId] + 0.4 * dt);
+                // Bygger sinne aggressivt (rask oppbygging)
+                this.grudgeMap[otherId] = Math.min(1.0, this.grudgeMap[otherId] + 0.8 * dt);
             }
         }
 
@@ -79,14 +77,10 @@ class AIDriver {
         }
 
         // --- 3. VEIPUNKT-NAVIGASJON ---
-        let closestDist = Infinity;
-        let closestIdx = 0;
+        let closestDist = Infinity; let closestIdx = 0;
         for (let i = 0; i < trackWaypoints.length; i++) {
             let dist = Math.hypot(vehicle.x - trackWaypoints[i].x, vehicle.y - trackWaypoints[i].y);
-            if (dist < closestDist) {
-                closestDist = dist;
-                closestIdx = i;
-            }
+            if (dist < closestDist) { closestDist = dist; closestIdx = i; }
         }
 
         let lookAheadOffset = 3 + Math.floor(vehicle.speedKmh / 15); 
@@ -105,7 +99,7 @@ class AIDriver {
 
         inputs.steering = Math.max(-1.0, Math.min(1.0, angleDiff * 3.0));
 
-        // --- 4. FARTSKONTROLL ---
+        // --- 4. STANDARD FARTSKONTROLL ---
         let brakeCheckOffset = Math.floor(vehicle.speedKmh / 5);
         let upcomingTarget = trackWaypoints[(closestIdx + brakeCheckOffset) % trackWaypoints.length];
         let maxSafeSpeed = upcomingTarget.targetSpeed;
@@ -117,9 +111,10 @@ class AIDriver {
             if (Math.abs(inputs.steering) > 0.6) inputs.throttle = 0.4;
         }
 
-        // --- 5. RADAR & HEVN-PRESSELOGIKK ---
+        // --- 5. AGGRESSIV RADAR & KNIVING ---
         let avoidSteer = 0;
         let forceBrake = false;
+        let angryOverride = false;
 
         for (let otherId in allPlayers) {
             if (otherId === this.id) continue;
@@ -136,22 +131,27 @@ class AIDriver {
 
                 let grudge = this.grudgeMap[otherId] || 0;
 
-                // Er bilen foran eller på siden?
+                // Bil i front eller på siden (synsfelt på ca 70 grader)
                 if (Math.abs(angleDiffOther) < 1.2) {
                     
-                    // Sjekk om vi skal PRESSE (Hevn/Aggresjon) eller UNNVIKE
-                    if (grudge > 0.3 && distToOther < 90) {
-                        // Sving MOT motstanderen for å presse dem ut!
-                        let pressDirection = (angleDiffOther > 0) ? 0.8 : -0.8;
-                        avoidSteer += pressDirection * (grudge * this.aggressionFactor);
+                    if (grudge > 0.4 && distToOther < 120) {
+                        // HEVN: Svinger inn i motstanderen (Ramming/PIT-manøver)
+                        let pressDirection = (angleDiffOther > 0) ? 1.0 : -1.0;
+                        avoidSteer += pressDirection * grudge * 1.5; 
+                        angryOverride = true; // Forbyr bremsing, tvinger gass
                     } else {
-                        // Standard unnvikelse hvis vi ikke er sinte på dem
-                        let steerPush = (angleDiffOther < 0) ? 0.6 : -0.6;
-                        if (Math.abs(angleDiffOther) < 0.1) steerPush = (inputs.steering > 0) ? 0.6 : -0.6;
+                        // KNIVING: Kast bilen ut til siden for å stikke forbi
+                        let steerPush = (angleDiffOther < 0) ? 1.2 : -1.2;
+                        // Hvis bilen foran er rett frem, velg en side brutalt
+                        if (Math.abs(angleDiffOther) < 0.2) {
+                            steerPush = (inputs.steering > 0) ? 1.5 : -1.5;
+                        }
+                        
                         let pushFactor = 1.0 - (distToOther / 180);
-                        avoidSteer += steerPush * pushFactor;
+                        avoidSteer += steerPush * pushFactor * (1.0 + this.aggressionFactor);
 
-                        if (distToOther < 80 && vehicle.speedKmh > otherCar.speedKmh && raceStarted) {
+                        // KUN brems hvis vi er millimeter unna å treffe rett i ræva på dem
+                        if (distToOther < 40 && vehicle.speedKmh > otherCar.speedKmh && raceStarted && Math.abs(angleDiffOther) < 0.3) {
                             forceBrake = true;
                         }
                     }
@@ -159,58 +159,59 @@ class AIDriver {
             }
         }
 
+        // Påfør radardata på rattet
         if (avoidSteer !== 0) inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + avoidSteer));
-        if (forceBrake) inputs.throttle = -1.0;
-
-        // --- 6. "ØYNE": CANVAS RAYCASTING MOT KANTER ---
+        
+        // --- 6. "ØYNE": KANTSENSORER ---
         if (track && ctx && track.path) {
-            let rayAngles = [-0.6, 0, 0.6]; // Venstre, Senter, Høyre stråle
+            let rayAngles = [-0.6, 0, 0.6];
             let rayDistance = 70 + (vehicle.speedKmh * 0.4); 
             let wallAvoidance = 0;
-            let checkSteps = 4; // Deler strålen opp i punkter
+            let checkSteps = 4;
 
             ctx.save();
             ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.lineWidth = 175; // Settes litt smalere enn curben (190) for sikkerhetsmargin
+            ctx.lineWidth = 175;
 
             rayAngles.forEach(offsetAngle => {
                 let checkAngle = vehicle.angle + offsetAngle;
                 let hitWall = false;
 
-                // Stepper fremover langs strålen og kjenner etter "gress"
                 for (let i = 1; i <= checkSteps; i++) {
                     let d = (rayDistance / checkSteps) * i;
                     let rayX = vehicle.x + Math.cos(checkAngle) * d;
                     let rayY = vehicle.y + Math.sin(checkAngle) * d;
 
-                    // Hvis punktet IKKE er inni sporet, har øyet truffet en kant
                     if (!ctx.isPointInStroke(track.path, rayX, rayY)) {
                         hitWall = true;
                         break; 
                     }
                 }
-
-                if (hitWall) {
-                    wallAvoidance += (offsetAngle <= 0) ? 1.0 : -1.0;
-                }
+                if (hitWall) wallAvoidance += (offsetAngle <= 0) ? 1.0 : -1.0;
             });
-
             ctx.restore();
 
             if (wallAvoidance !== 0) {
                 inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + wallAvoidance));
-                // Tving nedbremsing hvis vi er på vei i grøfta med høy fart
-                if (vehicle.speedKmh > 50) inputs.throttle = Math.min(inputs.throttle, 0.3);
+                if (vehicle.speedKmh > 50 && !angryOverride) inputs.throttle = Math.min(inputs.throttle, 0.3);
             }
         }
 
-        // --- 7. STUCK-DETEKSJON (KUN NÅR LØPET ER IGANG OG HASTIGHET ER LAV) ---
+        // --- OVERSTYRING VED AGGRESJON ELLER NØDBREMS ---
+        if (angryOverride) {
+            inputs.throttle = 1.0; // Pinned throttle for hevn
+            inputs.handbrake = false;
+        } else if (forceBrake) {
+            inputs.throttle = -1.0;
+        }
+
+        // --- 7. STUCK-DETEKSJON ---
         if (raceStarted && inputs.throttle > 0.1 && vehicle.speedKmh < 3.0) {
             this.stuckTime += dt;
-            if (this.stuckTime > 2.5) { // Må stå stille i 2.5 sekunder MIDT i løpet
+            if (this.stuckTime > 2.5) {
                 this.reverseTime = 1.5;
                 this.stuckTime = 0;
-                this.recoverySteer = (Math.random() > 0.5 ? 0.9 : -0.9);
+                this.recoverySteer = (Math.random() > 0.5 ? 1.0 : -1.0);
             }
         } else {
             this.stuckTime = 0;
