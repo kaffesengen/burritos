@@ -430,6 +430,27 @@ if (joinInp && urlParams.get('join')) { joinInp.value = urlParams.get('join'); }
 const localInputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: false };
 const activeTouchState = { left: null, right: null };
 
+function showEvanModeFlash(isOn) {
+    let el = document.getElementById('evan-flash-msg');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'evan-flash-msg';
+        Object.assign(el.style, {
+            position: 'absolute', top: '25%', left: '50%', transform: 'translate(-50%, -50%)',
+            fontSize: '5vw', fontWeight: '900', textShadow: '4px 4px 10px rgba(0,0,0,1)',
+            zIndex: '9999', pointerEvents: 'none', transition: 'opacity 0.2s ease-out',
+            fontFamily: 'Arial, sans-serif', textTransform: 'uppercase'
+        });
+        document.body.appendChild(el);
+    }
+    el.style.color = isOn ? '#2ecc71' : '#e74c3c';
+    el.innerText = isOn ? 'Evan-modus PÅ' : 'Evan-modus AV';
+    el.style.opacity = '1';
+    
+    clearTimeout(window.evanFlashTimeout);
+    window.evanFlashTimeout = setTimeout(() => el.style.opacity = '0', 2500);
+}
+
 function toggleAssist() { 
     localInputs.driftAssist = !localInputs.driftAssist; 
     let lA = document.getElementById('lobby-assist-selector'), gA = document.getElementById('ingame-assist-selector');
@@ -462,8 +483,7 @@ window.addEventListener('keydown', e => {
     // EVAN-MODUS (Av/På med 'H')
     if(e.key.toLowerCase() === 'h') {
         localInputs.smartAssist = !localInputs.smartAssist;
-        showMsg(localInputs.smartAssist ? 'EVAN-MODUS PÅ' : 'EVAN-MODUS AV');
-        setTimeout(() => showMsg(''), 2000);
+        showEvanModeFlash(localInputs.smartAssist);
     }
     
     // OPPTAKSVERKTØY: Start/Stopp og Slett
@@ -534,10 +554,19 @@ function update() {
             // B-knapp (Index 1) - Bytt Evan-modus
             if (gp.buttons[1]?.pressed && !window.prevGamepadState[1]) {
                 localInputs.smartAssist = !localInputs.smartAssist;
-                showMsg(localInputs.smartAssist ? 'EVAN-MODUS PÅ' : 'EVAN-MODUS AV');
-                setTimeout(() => showMsg(''), 2000);
+                showEvanModeFlash(localInputs.smartAssist);
             }
 
+            // FJERN SISTE BOT (Tast K)
+            if(e.key.toLowerCase() === 'k' && isHost) {
+                let botIds = Object.keys(players).filter(id => players[id].isBot);
+            if (botIds.length > 0) {
+                let botToRemove = botIds[botIds.length - 1];
+                delete players[botToRemove];
+            // Eventuell kode for å oppdatere klientene, f.eks: broadcastState();
+                }
+            }
+            
             // X-knapp (Index 2) - Reset Grid
             if (gp.buttons[2]?.pressed && !window.prevGamepadState[2]) {
                 if(isHost) { assignGridPositions(); raceState = -1; }
