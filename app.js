@@ -486,6 +486,15 @@ window.addEventListener('keydown', e => {
         showEvanModeFlash(localInputs.smartAssist);
     }
     
+    // FJERN SISTE BOT (Tast K)
+    if(e.key.toLowerCase() === 'k' && isHost) {
+        let botIds = Object.keys(players).filter(id => players[id].isBot);
+        if (botIds.length > 0) {
+            let botToRemove = botIds[botIds.length - 1];
+            delete players[botToRemove];
+        }
+    }
+    
     // OPPTAKSVERKTØY: Start/Stopp og Slett
     if(e.key.toLowerCase() === 'r') {
         isRecording = !isRecording;
@@ -555,16 +564,6 @@ function update() {
             if (gp.buttons[1]?.pressed && !window.prevGamepadState[1]) {
                 localInputs.smartAssist = !localInputs.smartAssist;
                 showEvanModeFlash(localInputs.smartAssist);
-            }
-
-            // FJERN SISTE BOT (Tast K)
-            if(e.key.toLowerCase() === 'k' && isHost) {
-                let botIds = Object.keys(players).filter(id => players[id].isBot);
-            if (botIds.length > 0) {
-                let botToRemove = botIds[botIds.length - 1];
-                delete players[botToRemove];
-            // Eventuell kode for å oppdatere klientene, f.eks: broadcastState();
-                }
             }
             
             // X-knapp (Index 2) - Reset Grid
