@@ -205,16 +205,17 @@ class AIDriver {
             inputs.throttle = -1.0;
         }
 
-        // --- 7. STUCK-DETEKSJON ---
-        if (raceStarted && inputs.throttle > 0.1 && vehicle.speedKmh < 3.0) {
+        // --- 7. AGGRESSIV STUCK-DETEKSJON (VEGG-UTBRYTING) ---
+        if (raceStarted && vehicle.speedKmh < 4.0) {
             this.stuckTime += dt;
-            if (this.stuckTime > 2.5) {
-                this.reverseTime = 1.5;
+            // Hvis bilen står fast i mer enn 0.8 sekunder, tving umiddelbart en unnamanøver i revers
+            if (this.stuckTime > 0.8) {
+                this.reverseTime = 1.2; // Rygg i 1.2 sekunder
                 this.stuckTime = 0;
-                this.recoverySteer = (Math.random() > 0.5 ? 1.0 : -1.0);
+                this.recoverySteer = (Math.random() > 0.5 ? 1.5 : -1.5); // Sving hardt ut fra veggen
             }
-        } else {
-            this.stuckTime = 0;
+        } else if (vehicle.speedKmh > 15.0) {
+            this.stuckTime = 0; // Nullstill stående-tid med en gang farten er tilbake
         }
 
         return inputs;
