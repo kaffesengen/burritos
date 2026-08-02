@@ -473,17 +473,28 @@ setupJoystick('joystick-left-zone', 'stick-left', 'left', (x, y) => localInputs.
 const hbBtn = document.getElementById('btn-handbrake'); const hb = s => e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; e.preventDefault(); localInputs.handbrake = s; resumeAudio(); };
 if (hbBtn) { hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hbBtn.addEventListener('touchend', hb(false), {passive:false}); }
 
-let initialPinchDist = null; const canvasContainer = document.getElementById('canvas-container');
+let initialThreeFingerY = null; const canvasContainer = document.getElementById('canvas-container');
 if(canvasContainer) {
-    canvasContainer.addEventListener('touchstart', e => { if(e.touches.length === 2) initialPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); }, {passive: true});
-    canvasContainer.addEventListener('touchmove', e => {
-        if(e.touches.length === 2 && initialPinchDist !== null) {
-            let currentDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            let diff = currentDist - initialPinchDist;
-            if(Math.abs(diff) > 30) { adjustZoom(diff > 0 ? -0.1 : 0.1); initialPinchDist = currentDist; }
+    canvasContainer.addEventListener('touchstart', e => {
+        if(e.touches.length === 3) {
+            initialThreeFingerY = (e.touches[0].clientY + e.touches[1].clientY + e.touches[2].clientY) / 3;
         }
     }, {passive: true});
-    canvasContainer.addEventListener('touchend', e => { if(e.touches.length < 2) initialPinchDist = null; });
+
+    canvasContainer.addEventListener('touchmove', e => {
+        if(e.touches.length === 3 && initialThreeFingerY !== null) {
+            let currentAvgY = (e.touches[0].clientY + e.touches[1].clientY + e.touches[2].clientY) / 3;
+            let diff = currentAvgY - initialThreeFingerY;
+            if(Math.abs(diff) > 20) {
+                adjustZoom(diff > 0 ? -0.05 : 0.05);
+                initialThreeFingerY = currentAvgY;
+            }
+        }
+    }, {passive: true});
+
+    canvasContainer.addEventListener('touchend', e => {
+        if(e.touches.length < 3) initialThreeFingerY = null;
+    });
 }
 
 function adjustZoom(delta) { cameraZoom = Math.max(0.4, Math.min(2.5, cameraZoom + delta)); }
