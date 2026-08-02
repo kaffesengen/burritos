@@ -22,11 +22,9 @@ class AudioManager {
     }
 
     resume() {
-        if (!this.ready) {
-            this.init();
-        }
+        if (!this.ready) this.init();
         if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume();
+            this.ctx.resume().catch(e => console.log("AudioContext blokkert inntil interaksjon", e));
         }
     }
 
@@ -68,11 +66,11 @@ class AudioManager {
 
     buildEngine(type) {
         if (this.engineNodes) {
-            if(this.engineNodes.osc) this.engineNodes.osc.stop();
-            if(this.engineNodes.subOsc) this.engineNodes.subOsc.stop();
-            if(this.engineNodes.turboOsc) this.engineNodes.turboOsc.stop();
-            if(this.engineNodes.lfo) this.engineNodes.lfo.stop();
-            this.engineNodes.masterGain.disconnect();
+            try { if(this.engineNodes.osc) this.engineNodes.osc.stop(); } catch(e){}
+            try { if(this.engineNodes.subOsc) this.engineNodes.subOsc.stop(); } catch(e){}
+            try { if(this.engineNodes.turboOsc) this.engineNodes.turboOsc.stop(); } catch(e){}
+            try { if(this.engineNodes.lfo) this.engineNodes.lfo.stop(); } catch(e){}
+            try { this.engineNodes.masterGain.disconnect(); } catch(e){}
         }
 
         this.currentType = type;
@@ -250,20 +248,19 @@ class AudioManager {
     }
 
     update(vehicleType, rpm, speedKmh, throttle, spinSeverity) {
-        this.resume();
         if (!this.ready || !this.ctx) return;
         if (this.currentType !== vehicleType) this.buildEngine(vehicleType);
 
         let sRpm = isFinite(rpm) && rpm > 0 ? rpm : 0;
         let sSpd = isFinite(speedKmh) && speedKmh > 0 ? speedKmh : 0;
         let sThr = isFinite(throttle) ? Math.abs(throttle) : 0;
-        let t = this.ctx.currentTime;
 
+        // Bytter fra setTargetAtTime til direkte .value tildeling for sanntids stabilitet
         if (vehicleType === 'gokart') {
-            let freq = sRpm / 60;
-            this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
+            this.engineNodes.osc.frequency.value = sRpm / 60;
             let lpFreq = 400 + (sRpm * 0.5) + (sThr * 2000); 
             if (sRpm > 7000 && sThr > 0.5) lpFreq += 3000;
+            
             let volTarget = 0.05 + (sThr * 0.15);
             let qTarget = 2;
 
@@ -272,105 +269,83 @@ class AudioManager {
                     qTarget = 10;
                     if (Math.random() > 0.5) {
                         volTarget = (Math.random() * 0.1); 
-                        this.engineNodes.lpf.frequency.setValueAtTime(lpFreq + (Math.random() * 800), t);
+                        lpFreq += Math.random() * 800;
                     } else volTarget = 0;
                 } else {
                     qTarget = 6;
                     lpFreq = 2000 + (sRpm * 0.4);
                     if (Math.random() > 0.3) {
                         volTarget = (Math.random() * 0.3) + 0.15;
-                        this.engineNodes.lpf.frequency.setValueAtTime(lpFreq + (Math.random() * 1500), t);
+                        lpFreq += Math.random() * 1500;
                     } else volTarget = 0;
                 }
             }
 
-            this.engineNodes.lpf.frequency.setTargetAtTime(lpFreq, t, 0.05);
-            this.engineNodes.lpf.Q.setTargetAtTime(qTarget, t, 0.1);
-            this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.01);
+            this.engineNodes.lpf.frequency.value = lpFreq;
+            this.engineNodes.lpf.Q.value = qTarget;
+            this.engineNodes.masterGain.gain.value = volTarget;
         } 
         else if (vehicleType === 'v8') {
-            let freq = sRpm / 60 * 1.5;
-            this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            this.engineNodes.subOsc.frequency.setTargetAtTime(freq / 2, t, 0.05);
-            let lfoFreq = (sRpm / 120); 
-            this.engineNodes.lfo.frequency.setTargetAtTime(lfoFreq, t, 0.05);
-            let lfoDepth = sRpm < 3000 ? 0.7 : 0.1;
-            this.engineNodes.lfoGain.gain.setTargetAtTime(lfoDepth, t, 0.1);
-            let lpFreq = 800 + (sRpm * 0.6) + (sThr * 3000);
-            this.engineNodes.lpf.frequency.setTargetAtTime(lpFreq, t, 0.05);
-            let volTarget = 0.08 + (sThr * 0.2);
-            this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
+            this.engineNodes.osc.frequency.value = sRpm / 60 * 1.5;
+            this.engineNodes.subOsc.frequency.value = sRpm / 120 * 1.5;
+            this.engineNodes.lfo.frequency.value = sRpm / 120;
+            this.engineNodes.lfoGain.gain.value = sRpm < 3000 ? 0.7 : 0.1;
+            this.engineNodes.lpf.frequency.value = 800 + (sRpm * 0.6) + (sThr * 3000);
+            this.engineNodes.masterGain.gain.value = 0.08 + (sThr * 0.2);
         }
         else if (vehicleType === 'v10') {
-            let freq = (sRpm / 60) * 3.5;
-            this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            let lpFreq = 1500 + (sRpm * 1.5) + (sThr * 4000);
-            this.engineNodes.lpf.frequency.setTargetAtTime(lpFreq, t, 0.05);
-            let volTarget = 0.05 + (sThr * 0.25);
-            this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
+            this.engineNodes.osc.frequency.value = (sRpm / 60) * 3.5;
+            this.engineNodes.lpf.frequency.value = 1500 + (sRpm * 1.5) + (sThr * 4000);
+            this.engineNodes.masterGain.gain.value = 0.05 + (sThr * 0.25);
         }
         else if (vehicleType === 'rotary') {
-            let freq = (sRpm / 60) * 2;
-            this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            let lfoFreq = sRpm / 80;
-            this.engineNodes.lfo.frequency.setTargetAtTime(lfoFreq, t, 0.05);
-            let lfoDepth = sRpm < 4000 ? 0.9 : 0.0;
-            this.engineNodes.lfoGain.gain.setTargetAtTime(lfoDepth, t, 0.1);
-            let bpFreq = 1200 + (sRpm * 0.8) + (sThr * 2500);
-            this.engineNodes.lpf.frequency.setTargetAtTime(bpFreq, t, 0.05);
-            this.engineNodes.lpf.Q.setTargetAtTime(1.5 + sThr * 2, t, 0.1);
-            let volTarget = 0.06 + (sThr * 0.2);
-            this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
+            this.engineNodes.osc.frequency.value = (sRpm / 60) * 2;
+            this.engineNodes.lfo.frequency.value = sRpm / 80;
+            this.engineNodes.lfoGain.gain.value = sRpm < 4000 ? 0.9 : 0.0;
+            this.engineNodes.lpf.frequency.value = 1200 + (sRpm * 0.8) + (sThr * 2500);
+            this.engineNodes.lpf.Q.value = 1.5 + sThr * 2;
+            this.engineNodes.masterGain.gain.value = 0.06 + (sThr * 0.2);
         }
         else if (vehicleType === 'turbo') {
-            let freq = (sRpm / 60) * 2;
-            this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            let lpFreq = 600 + (sRpm * 0.7) + (sThr * 3000);
-            this.engineNodes.lpf.frequency.setTargetAtTime(lpFreq, t, 0.05);
-            let turboFreq = 2000 + (sRpm * 0.5) + (sThr * 4000);
-            this.engineNodes.turboOsc.frequency.setTargetAtTime(turboFreq, t, 0.2);
+            this.engineNodes.osc.frequency.value = (sRpm / 60) * 2;
+            this.engineNodes.lpf.frequency.value = 600 + (sRpm * 0.7) + (sThr * 3000);
+            this.engineNodes.turboOsc.frequency.value = 2000 + (sRpm * 0.5) + (sThr * 4000);
+            
             let turboVol = (sRpm > 3500 && sThr > 0.4) ? (sThr * 0.08) : 0;
-            this.engineNodes.turboGain.gain.setTargetAtTime(turboVol, t, 0.5);
+            this.engineNodes.turboGain.gain.value = turboVol;
 
+            let t = this.ctx.currentTime;
             if (this.prevThrottle > 0.7 && sThr < 0.1 && sRpm > 4500 && (t - this.bovTimer > 0.5)) {
                 this.playBlowoffValve();
                 this.bovTimer = t;
-                this.engineNodes.turboGain.gain.setTargetAtTime(0, t, 0.05);
+                this.engineNodes.turboGain.gain.value = 0;
             }
 
-            let volTarget = 0.06 + (sThr * 0.15);
-            this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
+            this.engineNodes.masterGain.gain.value = 0.06 + (sThr * 0.15);
         }
         else if (vehicleType === 'v6') {
             let freq = (sRpm / 60) * 2.5;
-            this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            this.engineNodes.subOsc.frequency.setTargetAtTime(freq / 1.5, t, 0.05);
-            let lpFreq = 1000 + (sRpm * 0.8) + (sThr * 2500);
-            this.engineNodes.lpf.frequency.setTargetAtTime(lpFreq, t, 0.05);
-            let volTarget = 0.06 + (sThr * 0.18);
-            this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
+            this.engineNodes.osc.frequency.value = freq;
+            this.engineNodes.subOsc.frequency.value = freq / 1.5;
+            this.engineNodes.lpf.frequency.value = 1000 + (sRpm * 0.8) + (sThr * 2500);
+            this.engineNodes.masterGain.gain.value = 0.06 + (sThr * 0.18);
         }
         else if (vehicleType === 'ev') {
-            let freq = 100 + (sSpd * 12);
-            this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            let volTarget = sSpd > 1 ? 0.05 + (sThr * 0.1) : 0;
-            this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.1);
+            this.engineNodes.osc.frequency.value = 100 + (sSpd * 12);
+            this.engineNodes.masterGain.gain.value = sSpd > 1 ? 0.05 + (sThr * 0.1) : 0;
         }
         else {
-            let freq = (sRpm / 60) * 2;
-            this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            let lpFreq = 800 + (sRpm * 0.6) + (sThr * 2000);
-            this.engineNodes.lpf.frequency.setTargetAtTime(lpFreq, t, 0.05);
-            let volTarget = 0.05 + (sThr * 0.15);
-            this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
+            this.engineNodes.osc.frequency.value = (sRpm / 60) * 2;
+            this.engineNodes.lpf.frequency.value = 800 + (sRpm * 0.6) + (sThr * 2000);
+            this.engineNodes.masterGain.gain.value = 0.05 + (sThr * 0.15);
         }
 
         if (this.squealNodes) {
             if(spinSeverity > 0.1 && sSpd > 5) { 
-                this.squealNodes.gain.gain.setTargetAtTime(isFinite(spinSeverity) ? spinSeverity * 0.15 : 0, t, 0.05); 
-                this.squealNodes.osc.frequency.setTargetAtTime(800 + Math.random()*200, t, 0.05); 
+                this.squealNodes.gain.gain.value = isFinite(spinSeverity) ? spinSeverity * 0.15 : 0; 
+                this.squealNodes.osc.frequency.value = 800 + Math.random()*200; 
             } else { 
-                this.squealNodes.gain.gain.setTargetAtTime(0, t, 0.1); 
+                this.squealNodes.gain.gain.value = 0; 
             }
         }
 
