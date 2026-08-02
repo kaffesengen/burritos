@@ -24,18 +24,25 @@ class AudioManager {
     resume() {
         if (!this.ready) this.init();
         if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume().catch(e => console.log("AudioContext blokkert inntil interaksjon", e));
+            this.ctx.resume().catch(() => {});
         }
     }
 
+    // Fikset matematikk: Normaliserer utsignalet tilbake til -1.0 til 1.0
     makeDistortionCurve(amount) {
         const k = typeof amount === 'number' ? amount : 50;
         const n_samples = 44100;
         const curve = new Float32Array(n_samples);
         const deg = Math.PI / 180;
+        
+        // Finner maksverdien for å unngå signal-kvelning
+        const max_x = 1;
+        const max_val = (3 + k) * max_x * 20 * deg / (Math.PI + k * Math.abs(max_x));
+
         for (let i = 0; i < n_samples; ++i) {
             let x = i * 2 / n_samples - 1;
-            curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+            let val = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+            curve[i] = val / max_val; 
         }
         return curve;
     }
@@ -85,12 +92,11 @@ class AudioManager {
             this.engineNodes.osc.type = 'sawtooth';
             this.engineNodes.hpf = this.ctx.createBiquadFilter();
             this.engineNodes.hpf.type = 'highpass';
-            this.engineNodes.hpf.frequency.value = 150; 
+            this.engineNodes.hpf.frequency.value = 80; // Senket fra 150 for å la bassen komme frem
             this.engineNodes.lpf = this.ctx.createBiquadFilter();
             this.engineNodes.lpf.type = 'lowpass';
             this.engineNodes.dist = this.ctx.createWaveShaper();
             this.engineNodes.dist.curve = this.makeDistortionCurve(80); 
-            this.engineNodes.dist.oversample = '4x';
 
             this.engineNodes.osc.connect(this.engineNodes.hpf);
             this.engineNodes.hpf.connect(this.engineNodes.dist);
@@ -109,7 +115,7 @@ class AudioManager {
             this.engineNodes.lpf = this.ctx.createBiquadFilter();
             this.engineNodes.lpf.type = 'lowpass';
             this.engineNodes.dist = this.ctx.createWaveShaper();
-            this.engineNodes.dist.curve = this.makeDistortionCurve(50);
+            this.engineNodes.dist.curve = this.makeDistortionCurve(60);
 
             this.engineNodes.osc.connect(this.engineNodes.dist);
             this.engineNodes.subOsc.connect(this.engineNodes.dist);
@@ -118,7 +124,6 @@ class AudioManager {
             this.engineNodes.amGain.connect(this.engineNodes.masterGain);
             
             this.engineNodes.lfoGain = this.ctx.createGain();
-            this.engineNodes.lfoGain.gain.value = 0.6;
             this.engineNodes.lfo.connect(this.engineNodes.lfoGain);
             this.engineNodes.lfoGain.connect(this.engineNodes.amGain.gain);
 
@@ -131,7 +136,7 @@ class AudioManager {
             this.engineNodes.osc.type = 'sawtooth';
             this.engineNodes.lpf = this.ctx.createBiquadFilter();
             this.engineNodes.lpf.type = 'lowpass';
-            this.engineNodes.lpf.Q.value = 8;
+            this.engineNodes.lpf.Q.value = 6;
             this.engineNodes.dist = this.ctx.createWaveShaper();
             this.engineNodes.dist.curve = this.makeDistortionCurve(40);
 
@@ -209,7 +214,7 @@ class AudioManager {
             this.engineNodes.osc.type = 'triangle';
             this.engineNodes.hpf = this.ctx.createBiquadFilter();
             this.engineNodes.hpf.type = 'highpass';
-            this.engineNodes.hpf.frequency.value = 1000;
+            this.engineNodes.hpf.frequency.value = 800;
             
             this.engineNodes.osc.connect(this.engineNodes.hpf);
             this.engineNodes.hpf.connect(this.engineNodes.masterGain);
@@ -233,11 +238,11 @@ class AudioManager {
         source.buffer = this.noiseBuffer;
         let bpFilter = this.ctx.createBiquadFilter();
         bpFilter.type = 'bandpass';
-        bpFilter.frequency.value = 4500 + Math.random() * 1000;
-        bpFilter.Q.value = 1.5;
+        bpFilter.frequency.value = 4000 + Math.random() * 1500;
+        bpFilter.Q.value = 2.0;
 
         let gainNode = this.ctx.createGain();
-        gainNode.gain.setValueAtTime(0.8, this.ctx.currentTime);
+        gainNode.gain.setValueAtTime(1.5, this.ctx.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
 
         source.connect(bpFilter);
@@ -249,69 +254,74 @@ class AudioManager {
 
     update(vehicleType, rpm, speedKmh, throttle, spinSeverity) {
         if (!this.ready || !this.ctx) return;
+        
+        // Tvinger resume under oppdateringsloopen hvis context har sovnet
+        if (this.ctx.state !== 'running') this.resume();
+
         if (this.currentType !== vehicleType) this.buildEngine(vehicleType);
 
         let sRpm = isFinite(rpm) && rpm > 0 ? rpm : 0;
         let sSpd = isFinite(speedKmh) && speedKmh > 0 ? speedKmh : 0;
         let sThr = isFinite(throttle) ? Math.abs(throttle) : 0;
 
-        // Bytter fra setTargetAtTime til direkte .value tildeling for sanntids stabilitet
+        // Fysikk-korrekte frekvens-multiplikatorer
+        let baseFreq = sRpm / 60; 
+
         if (vehicleType === 'gokart') {
-            this.engineNodes.osc.frequency.value = sRpm / 60;
-            let lpFreq = 400 + (sRpm * 0.5) + (sThr * 2000); 
+            this.engineNodes.osc.frequency.value = baseFreq; // 1 cyl, 1 puls per rotasjon
+            let lpFreq = 400 + (sRpm * 0.5) + (sThr * 2500); 
             if (sRpm > 7000 && sThr > 0.5) lpFreq += 3000;
             
-            let volTarget = 0.05 + (sThr * 0.15);
+            let volTarget = 0.2 + (sThr * 0.5);
             let qTarget = 2;
 
             if (sThr < 0.1) {
                 if (sRpm < 3000) {
                     qTarget = 10;
                     if (Math.random() > 0.5) {
-                        volTarget = (Math.random() * 0.1); 
+                        volTarget = 0.1;
                         lpFreq += Math.random() * 800;
                     } else volTarget = 0;
                 } else {
                     qTarget = 6;
                     lpFreq = 2000 + (sRpm * 0.4);
                     if (Math.random() > 0.3) {
-                        volTarget = (Math.random() * 0.3) + 0.15;
+                        volTarget = 0.3 + (Math.random() * 0.2);
                         lpFreq += Math.random() * 1500;
                     } else volTarget = 0;
                 }
             }
-
             this.engineNodes.lpf.frequency.value = lpFreq;
             this.engineNodes.lpf.Q.value = qTarget;
             this.engineNodes.masterGain.gain.value = volTarget;
         } 
         else if (vehicleType === 'v8') {
-            this.engineNodes.osc.frequency.value = sRpm / 60 * 1.5;
-            this.engineNodes.subOsc.frequency.value = sRpm / 120 * 1.5;
-            this.engineNodes.lfo.frequency.value = sRpm / 120;
-            this.engineNodes.lfoGain.gain.value = sRpm < 3000 ? 0.7 : 0.1;
+            this.engineNodes.osc.frequency.value = baseFreq * 4; // V8 = 4 pulser
+            this.engineNodes.subOsc.frequency.value = baseFreq * 2;
+            this.engineNodes.lfo.frequency.value = baseFreq / 2; // Krysplan pulsering
+            this.engineNodes.lfoGain.gain.value = sRpm < 3500 ? 0.7 : 0.1;
             this.engineNodes.lpf.frequency.value = 800 + (sRpm * 0.6) + (sThr * 3000);
-            this.engineNodes.masterGain.gain.value = 0.08 + (sThr * 0.2);
+            this.engineNodes.masterGain.gain.value = 0.25 + (sThr * 0.5);
         }
         else if (vehicleType === 'v10') {
-            this.engineNodes.osc.frequency.value = (sRpm / 60) * 3.5;
-            this.engineNodes.lpf.frequency.value = 1500 + (sRpm * 1.5) + (sThr * 4000);
-            this.engineNodes.masterGain.gain.value = 0.05 + (sThr * 0.25);
+            this.engineNodes.osc.frequency.value = baseFreq * 5; // V10 = 5 pulser
+            this.engineNodes.lpf.frequency.value = 1500 + (sRpm * 1.5) + (sThr * 4500);
+            this.engineNodes.masterGain.gain.value = 0.2 + (sThr * 0.6);
         }
         else if (vehicleType === 'rotary') {
-            this.engineNodes.osc.frequency.value = (sRpm / 60) * 2;
-            this.engineNodes.lfo.frequency.value = sRpm / 80;
-            this.engineNodes.lfoGain.gain.value = sRpm < 4000 ? 0.9 : 0.0;
+            this.engineNodes.osc.frequency.value = baseFreq * 3; // Wankel = 3 pulser per hovedrotasjon
+            this.engineNodes.lfo.frequency.value = baseFreq / 1.5;
+            this.engineNodes.lfoGain.gain.value = sRpm < 4000 ? 0.8 : 0.0;
             this.engineNodes.lpf.frequency.value = 1200 + (sRpm * 0.8) + (sThr * 2500);
             this.engineNodes.lpf.Q.value = 1.5 + sThr * 2;
-            this.engineNodes.masterGain.gain.value = 0.06 + (sThr * 0.2);
+            this.engineNodes.masterGain.gain.value = 0.2 + (sThr * 0.5);
         }
         else if (vehicleType === 'turbo') {
-            this.engineNodes.osc.frequency.value = (sRpm / 60) * 2;
+            this.engineNodes.osc.frequency.value = baseFreq * 2; // I4 = 2 pulser
             this.engineNodes.lpf.frequency.value = 600 + (sRpm * 0.7) + (sThr * 3000);
             this.engineNodes.turboOsc.frequency.value = 2000 + (sRpm * 0.5) + (sThr * 4000);
             
-            let turboVol = (sRpm > 3500 && sThr > 0.4) ? (sThr * 0.08) : 0;
+            let turboVol = (sRpm > 3500 && sThr > 0.4) ? (sThr * 0.2) : 0;
             this.engineNodes.turboGain.gain.value = turboVol;
 
             let t = this.ctx.currentTime;
@@ -320,29 +330,27 @@ class AudioManager {
                 this.bovTimer = t;
                 this.engineNodes.turboGain.gain.value = 0;
             }
-
-            this.engineNodes.masterGain.gain.value = 0.06 + (sThr * 0.15);
+            this.engineNodes.masterGain.gain.value = 0.25 + (sThr * 0.5);
         }
         else if (vehicleType === 'v6') {
-            let freq = (sRpm / 60) * 2.5;
-            this.engineNodes.osc.frequency.value = freq;
-            this.engineNodes.subOsc.frequency.value = freq / 1.5;
+            this.engineNodes.osc.frequency.value = baseFreq * 3; // V6 = 3 pulser
+            this.engineNodes.subOsc.frequency.value = baseFreq * 1.5;
             this.engineNodes.lpf.frequency.value = 1000 + (sRpm * 0.8) + (sThr * 2500);
-            this.engineNodes.masterGain.gain.value = 0.06 + (sThr * 0.18);
+            this.engineNodes.masterGain.gain.value = 0.25 + (sThr * 0.5);
         }
         else if (vehicleType === 'ev') {
             this.engineNodes.osc.frequency.value = 100 + (sSpd * 12);
-            this.engineNodes.masterGain.gain.value = sSpd > 1 ? 0.05 + (sThr * 0.1) : 0;
+            this.engineNodes.masterGain.gain.value = sSpd > 1 ? 0.1 + (sThr * 0.3) : 0;
         }
         else {
-            this.engineNodes.osc.frequency.value = (sRpm / 60) * 2;
+            this.engineNodes.osc.frequency.value = baseFreq * 2;
             this.engineNodes.lpf.frequency.value = 800 + (sRpm * 0.6) + (sThr * 2000);
-            this.engineNodes.masterGain.gain.value = 0.05 + (sThr * 0.15);
+            this.engineNodes.masterGain.gain.value = 0.25 + (sThr * 0.5);
         }
 
         if (this.squealNodes) {
             if(spinSeverity > 0.1 && sSpd > 5) { 
-                this.squealNodes.gain.gain.value = isFinite(spinSeverity) ? spinSeverity * 0.15 : 0; 
+                this.squealNodes.gain.gain.value = isFinite(spinSeverity) ? spinSeverity * 0.3 : 0; 
                 this.squealNodes.osc.frequency.value = 800 + Math.random()*200; 
             } else { 
                 this.squealNodes.gain.gain.value = 0; 
