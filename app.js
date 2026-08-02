@@ -720,22 +720,28 @@ function update() {
     } else if (raceState === 0 && now - raceStartTime > 2000) { let lUI = document.getElementById('f1-lights'); if(lUI) lUI.style.display = 'none'; }
 
     // --- LEADERBOARD & RANGERINGS-LOGIKK ---
+    let trackLines = (typeof aiManagerWaypoints !== 'undefined' && aiManagerWaypoints[activeTrackId] && aiManagerWaypoints[activeTrackId][0]) ? aiManagerWaypoints[activeTrackId][0] : [];
+    let totalWp = Math.max(1, trackLines.length);
+
     let lbArr = Object.values(players).map(p => {
-        let distToNext = 0;
-        if (!p.finished && isFinite(p.x)) {
-            let target = p.cp ? track.finish : track.checkpoint;
-            distToNext = Math.hypot(p.x - target.x, p.y - target.y);
+        let closestDist = Infinity; let closestIdx = 0;
+        if (trackLines.length > 0 && isFinite(p.x) && isFinite(p.y)) {
+            for (let w = 0; w < trackLines.length; w++) {
+                let d = Math.hypot(p.x - trackLines[w].x, p.y - trackLines[w].y);
+                if (d < closestDist) { closestDist = d; closestIdx = w; }
+            }
         }
+        
+        let trackProgress = (p.lap * totalWp) + closestIdx;
+
         return {
             id: p.id, n: p.name, b: p.bestLap, l: p.lap, fin: p.finished,
-            cp: p.cp, dist: distToNext, last: p.lastLap || 0, isMe: p.id === myId
+            progress: trackProgress, last: p.lastLap || 0, isMe: p.id === myId
         };
     }).sort((a,b) => {
         if(a.fin && !b.fin) return -1;
         if(!a.fin && b.fin) return 1;
-        if(a.l !== b.l) return b.l - a.l;
-        if(a.cp !== b.cp) return a.cp ? -1 : 1;
-        return a.dist - b.dist; 
+        return b.progress - a.progress; 
     });
 
     let displayArr = lbArr;
