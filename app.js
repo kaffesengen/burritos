@@ -416,7 +416,7 @@ function initJoiner(hostId) {
                         
                         p.steer = pData.s || 0; p.frontSpinSeverity = pData.fS || 0; p.rearSpinSeverity = pData.rS || 0; 
                         p.gear = pData.g || 1; p.rpm = pData.rpm || 1000; p.speedKmh = pData.v || 0; p.fuel = pData.f || 100;
-                        p.appliesBrake = !!pData.b; p.lap = pData.l || 0; p.bestLap = pData.bl || Infinity; p.lastLap = pData.lL || 0; p.finished = !!pData.fin; p.currentLapTime = pData.cLT || 0; p.lastSeen = performance.now();
+                        p.appliesBrake = !!pData.b; p.lap = pData.l || 0; p.bestLap = pData.bl || Infinity; p.lastLap = pData.lL || 0; p.finished = !!pData.fin; p.currentLapTime = pData.cLT || 0; p.totalTime = pData.tT || 0; p.lastSeen = performance.now();
                         
                         if (pid !== myId) {
                             p.presetId = pData.presetId || 'jaguar'; p.maxFuel = vehiclePresets[p.presetId]?.fuelCap || 100;
@@ -693,7 +693,7 @@ function update() {
 
             p.frontSpinSeverity = Math.abs(-vSlipF * MeffF) > gripF * dt ? Math.min(1.0, (Math.abs(-vSlipF * MeffF)-gripF * dt)/(gripF * dt)) : 0; p.rearSpinSeverity = Math.abs(-vSlipR * MeffR) > gripR * dt ? Math.min(1.0, (Math.abs(-vSlipR * MeffR)-gripR * dt)/(gripR * dt)) : 0; if (Math.abs(fLongR)/maxGrip > 0.95) p.rearSpinSeverity = 1.0; if (Math.abs(fLongF)/maxGrip > 0.95) p.frontSpinSeverity = 1.0; 
 
-            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, c: p.color, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake, n: p.name, l: p.lap, bl: p.bestLap === Infinity ? null : p.bestLap, lL: p.lastLap, fin: p.finished, cLT: p.currentLapTime };
+            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, c: p.color, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake, n: p.name, l: p.lap, bl: p.bestLap === Infinity ? null : p.bestLap, lL: p.lastLap, fin: p.finished, cLT: p.currentLapTime, tT: p.totalTime };
         }
 
         for(let i=0; i<pkeys.length; i++) {
@@ -757,9 +757,10 @@ function update() {
 
         return {
             id: p.id, n: p.name, b: p.bestLap, l: p.lap, fin: p.finished,
-            progress: trackProgress, last: p.lastLap || 0, isMe: p.id === myId
+            progress: trackProgress, last: p.lastLap || 0, isMe: p.id === myId, totalTime: p.totalTime || 0
         };
     }).sort((a,b) => {
+        if(a.fin && b.fin) return a.totalTime - b.totalTime;
         if(a.fin && !b.fin) return -1;
         if(!a.fin && b.fin) return 1;
         return b.progress - a.progress; 
