@@ -1029,9 +1029,8 @@ function update() {
         let me = players[localPlayers[0].id];
         let pInputs = me.inputs || { throttle: 0 };
         let sq = Math.max(me.frontSpinSeverity || 0, me.rearSpinSeverity || 0); 
-        let preType = vehiclePresets[me.presetId] ? vehiclePresets[me.presetId].type : 'r34';
-        
-        window.audioManager.update(preType, me.rpm, me.speedKmh, pInputs.throttle, sq);
+        let audioProfile = vehiclePresets[me.presetId] ? vehiclePresets[me.presetId].audio : 'i4';
+        window.audioManager.update(audioProfile, me.rpm, me.speedKmh, pInputs.throttle, sq);;
     }
 
     // --- RENDERING / VIEWPORTS ---
