@@ -139,10 +139,11 @@ function createPlayerRecord(id, presetId, name, colorCode) {
         x: t.startX, y: t.startY, prevX: t.startX, prevY: t.startY,
         vx: 0, vy: 0, angle: t.startAngle, yawRate: 0,
         gear: 1, rpm: 1000, steer: 0, targetX: t.startX, targetY: t.startY, targetAngle: t.startAngle,
-        inputs: { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: false },
+        inputs: { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: false, shiftUp: false, shiftDown: false },
         frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0, fuel: cap, maxFuel: cap,
         lastSeen: performance.now(), clutchDump: 0, prevThrottle: 0,
-        lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, lastLap: 0, totalTime: 0, finished: false
+        lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, lastLap: 0, totalTime: 0, finished: false,
+        manualGear: false, shiftTimer: 0
     };
 }
 
@@ -162,7 +163,7 @@ function assignGridPositions() {
         players[pid].lapStartTime = performance.now(); players[pid].currentLapTime = 0; players[pid].bestLap = Infinity; players[pid].lastLap = 0;
         players[pid].targetX = players[pid].x; players[pid].targetY = players[pid].y; players[pid].targetAngle = players[pid].angle;
         players[pid].fuel = vehiclePresets[players[pid].presetId]?.fuelCap || 100;
-        players[pid].gear = 1; players[pid].rpm = 1000; players[pid].clutchDump = 0; players[pid].prevThrottle = 0;
+        players[pid].gear = 1; players[pid].rpm = 1000; players[pid].clutchDump = 0; players[pid].prevThrottle = 0; players[pid].shiftTimer = 0;
     });
 }
 
@@ -322,28 +323,8 @@ function exitToMenu() {
     showMsg('');
 }
 
-let audioCtx, engineOsc, engineGain, squealOsc, squealGain, audioReady = false;
-function initAudio() {
-    if (audioReady) return;
-    try {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        engineOsc = audioCtx.createOscillator(); engineOsc.type = 'sawtooth'; engineGain = audioCtx.createGain(); engineGain.gain.value = 0;
-        engineOsc.connect(engineGain); engineGain.connect(audioCtx.destination); engineOsc.start();
-        squealOsc = audioCtx.createOscillator(); squealOsc.type = 'triangle'; squealGain = audioCtx.createGain(); squealGain.gain.value = 0;
-        squealOsc.connect(squealGain); squealGain.connect(audioCtx.destination); squealOsc.start();
-        audioReady = true;
-    } catch(e) {}
-}
-function resumeAudio() { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
-document.body.addEventListener('pointerdown', () => { initAudio(); resumeAudio(); }, { once: true });
-document.body.addEventListener('keydown', () => { initAudio(); resumeAudio(); }, { once: true });
-
-function playBeep(freq, duration = 0.3) {
-    if (!audioReady || audioCtx.state !== 'running' || !isFinite(freq)) return;
-    let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
-    osc.frequency.value = freq; osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.start(); gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration); osc.stop(audioCtx.currentTime + duration);
-}
+document.body.addEventListener('pointerdown', () => { if(window.audioManager) window.audioManager.init(); if(window.audioManager) window.audioManager.resume(); }, { once: true });
+document.body.addEventListener('keydown', () => { if(window.audioManager) window.audioManager.init(); if(window.audioManager) window.audioManager.resume(); }, { once: true });
 
 ['grip', 'power', 'mass', 'steering', 'caster'].forEach(id => {
     let el = document.getElementById(`sb-${id}`);
@@ -534,7 +515,7 @@ if (btnJoin) { btnJoin.addEventListener('click', () => { const code = document.g
 
 const urlParams = new URLSearchParams(window.location.search); let joinInp = document.getElementById('join-code-input'); if (joinInp && urlParams.get('join')) { joinInp.value = urlParams.get('join'); }
 
-const localInputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: false };
+const localInputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: false, shiftUp: false, shiftDown: false };
 const activeTouchState = { left: null, right: null };
 
 function showEvanModeFlash(isOn, pName = "") {
@@ -566,13 +547,13 @@ if (lA && gA) {
 function setupJoystick(zId, sId, key, onC) {
     const z = document.getElementById(zId), s = document.getElementById(sId); if (!z || !s) return;
     function move(cX, cY) { const r = z.getBoundingClientRect(); const dx = Math.max(-45, Math.min(cX-(r.left+r.width/2), 45)), dy = Math.max(-45, Math.min(cY-(r.top+r.height/2), 45)); s.style.transform = `translate(${dx}px, ${dy}px)`; onC(dx/45, dy/45); }
-    z.addEventListener('touchstart', e => { if(activeTouchState[key]===null){ activeTouchState[key]=e.changedTouches[0].identifier; move(e.changedTouches[0].clientX, e.changedTouches[0].clientY); resumeAudio(); } });
+    z.addEventListener('touchstart', e => { if(activeTouchState[key]===null){ activeTouchState[key]=e.changedTouches[0].identifier; move(e.changedTouches[0].clientX, e.changedTouches[0].clientY); if(window.audioManager) window.audioManager.resume(); } });
     window.addEventListener('touchmove', e => { for(let t of e.changedTouches) if(t.identifier===activeTouchState[key]) move(t.clientX, t.clientY); });
     window.addEventListener('touchend', e => { for(let t of e.changedTouches) if(t.identifier===activeTouchState[key]){ activeTouchState[key]=null; s.style.transform=`translate(0px, 0px)`; onC(0,0); } });
 }
 setupJoystick('joystick-left-zone', 'stick-left', 'left', (x, y) => localInputs.steering = x); setupJoystick('joystick-right-zone', 'stick-right', 'right', (x, y) => localInputs.throttle = -y);
 
-const hbBtn = document.getElementById('btn-handbrake'); const hb = s => e => { e.preventDefault(); localInputs.handbrake = s; resumeAudio(); };
+const hbBtn = document.getElementById('btn-handbrake'); const hb = s => e => { e.preventDefault(); localInputs.handbrake = s; if(window.audioManager) window.audioManager.resume(); };
 if (hbBtn) { hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hbBtn.addEventListener('touchend', hb(false), {passive:false}); }
 
 let initialThreeFingerY = null; const canvasContainer = document.getElementById('canvas-container');
@@ -604,7 +585,6 @@ function adjustZoom(delta) { cameraZoom = Math.max(0.4, Math.min(2.5, cameraZoom
 window.addEventListener('keydown', e => { 
     if(e.key.toLowerCase() === 't') toggleAssist();
     if(e.key === '+' || e.key === '=') adjustZoom(0.15); if(e.key === '-' || e.key === '_') adjustZoom(-0.15);
-    
     if(e.key.toLowerCase() === 'h') { window.pendingSmartAssistToggle = true; }
     
     if(e.key.toLowerCase() === 'k' && isHost) { let botIds = Object.keys(players).filter(id => players[id].isAI); if (botIds.length > 0) { let botToRemove = botIds[botIds.length - 1]; delete players[botToRemove]; } }
@@ -618,9 +598,14 @@ window.addEventListener('keydown', e => {
     }
     if(e.key.toLowerCase() === 'c' && !isRecording) { recordedWaypoints = []; console.log("Lagret opptak slettet fra minnet."); }
 
-    if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; if(e.key===' ') localInputs.handbrake=true; resumeAudio(); 
+    if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; if(e.key===' ') localInputs.handbrake=true; 
+    if(e.key.toLowerCase() === 'e') localInputs.shiftUp = true; if(e.key.toLowerCase() === 'q') localInputs.shiftDown = true;
+    if(window.audioManager) window.audioManager.resume(); 
 });
-window.addEventListener('keyup', e => { if(e.key==='w'||e.key==='s'||e.key==='ArrowUp'||e.key==='ArrowDown') localInputs.throttle=0; if(e.key==='a'||e.key==='d'||e.key==='ArrowLeft'||e.key==='ArrowRight') localInputs.steering=0; if(e.key===' ') localInputs.handbrake=false; });
+window.addEventListener('keyup', e => { 
+    if(e.key==='w'||e.key==='s'||e.key==='ArrowUp'||e.key==='ArrowDown') localInputs.throttle=0; if(e.key==='a'||e.key==='d'||e.key==='ArrowLeft'||e.key==='ArrowRight') localInputs.steering=0; if(e.key===' ') localInputs.handbrake=false; 
+    if(e.key.toLowerCase() === 'e') localInputs.shiftUp = false; if(e.key.toLowerCase() === 'q') localInputs.shiftDown = false;
+});
 
 const canvas = document.getElementById('gameCanvas'); const ctx = canvas ? canvas.getContext('2d', { alpha: false }) : null; 
 function resize() { 
@@ -675,49 +660,23 @@ function update() {
     const now = performance.now(); const dt = Math.max(0.001, Math.min((now - lastTime) / 1000, 0.1)); lastTime = now;
     let track = getTrack();
 
-    // --- GAMEPAD HOTKEYS ---
     let gps = navigator.getGamepads ? navigator.getGamepads() : [];
     if (!window.prevGamepadState) window.prevGamepadState = {};
-
-    for (let j = 0; j < 4; j++) {
-        let gp = gps[j];
-        if (gp) {
-            if (gp.buttons[3]?.pressed && !window.prevGamepadState[j+'_3']) { 
-                let btnStart = document.getElementById('btn-start-race'); if(isHost && raceState <= 0 && btnStart) btnStart.click(); 
-            }
-            if (gp.buttons[2]?.pressed && !window.prevGamepadState[j+'_2']) { 
-                if(isHost) { assignGridPositions(); raceState = -1; } 
-            }
-            if (gp.buttons[4]?.pressed && !window.prevGamepadState[j+'_4']) adjustZoom(-0.15);
-            if (gp.buttons[5]?.pressed && !window.prevGamepadState[j+'_5']) adjustZoom(0.15);
-            
-            // D-Pad Up / Down (AI spawn and remove)
-            if (gp.buttons[12]?.pressed && !window.prevGamepadState[j+'_12']) {
-                if(isHost) { let t = getTrack(); aiManager.spawnAI(players, t.startX, t.startY, t.startAngle); assignGridPositions(); }
-            }
-            if (gp.buttons[13]?.pressed && !window.prevGamepadState[j+'_13']) {
-                if(isHost) {
-                    let botIds = Object.keys(players).filter(id => players[id].isAI);
-                    if (botIds.length > 0) { let botToRemove = botIds[botIds.length - 1]; delete players[botToRemove]; }
-                }
-            }
-            
-            resumeAudio(); 
-        }
-    }
 
     // --- LOCAL PLAYERS INPUTS ---
     localPlayers.forEach(lp => {
         let p = players[lp.id];
         if (!p) return;
 
-        let fin = { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: p.inputs.smartAssist };
+        let fin = { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: p.inputs.smartAssist, shiftUp: false, shiftDown: false };
 
         if (lp.isKeyboard || !isSplitScreen) {
             fin.steering = localInputs.steering;
             fin.throttle = localInputs.throttle;
             fin.handbrake = localInputs.handbrake;
             fin.driftAssist = localInputs.driftAssist;
+            fin.shiftUp = localInputs.shiftUp;
+            fin.shiftDown = localInputs.shiftDown;
         }
         
         let gpIdx = isSplitScreen ? lp.gamepad : 0;
@@ -736,11 +695,33 @@ function update() {
                     if (gpHb) fin.handbrake = true;
                 }
 
-                // Gamepad B Button - Smart Assist (Evan Modus) Toggle
+                // Giring (LB og RB)
+                if (gp.buttons[4]?.pressed && !window.prevGamepadState[gpIdx+'_4']) fin.shiftDown = true;
+                if (gp.buttons[5]?.pressed && !window.prevGamepadState[gpIdx+'_5']) fin.shiftUp = true;
+
+                // Gamepad B Button (Knapp 1) - Smart Assist (Evan Modus) Toggle
                 if (gp.buttons[1]?.pressed && !window.prevGamepadState[gpIdx+'_1']) {
                     fin.smartAssist = !fin.smartAssist;
                     showEvanModeFlash(fin.smartAssist, p.name);
                 }
+                
+                // Hotkeys mapping på Gamepad (Zoom, Restart, AI)
+                if (gp.buttons[3]?.pressed && !window.prevGamepadState[gpIdx+'_3']) { let btnStart = document.getElementById('btn-start-race'); if(isHost && raceState <= 0 && btnStart) btnStart.click(); }
+                if (gp.buttons[2]?.pressed && !window.prevGamepadState[gpIdx+'_2']) { if(isHost) { assignGridPositions(); raceState = -1; } }
+                if (gp.buttons[14]?.pressed && !window.prevGamepadState[gpIdx+'_14']) adjustZoom(-0.15); // D-Pad Left
+                if (gp.buttons[15]?.pressed && !window.prevGamepadState[gpIdx+'_15']) adjustZoom(0.15);  // D-Pad Right
+                
+                // D-Pad Opp / Ned (Legg til / Fjern AI)
+                if (gp.buttons[12]?.pressed && !window.prevGamepadState[gpIdx+'_12']) {
+                    if(isHost) { let t = getTrack(); aiManager.spawnAI(players, t.startX, t.startY, t.startAngle); assignGridPositions(); }
+                }
+                if (gp.buttons[13]?.pressed && !window.prevGamepadState[gpIdx+'_13']) {
+                    if(isHost) {
+                        let botIds = Object.keys(players).filter(id => players[id].isAI);
+                        if (botIds.length > 0) { let botToRemove = botIds[botIds.length - 1]; delete players[botToRemove]; }
+                    }
+                }
+                if(window.audioManager) window.audioManager.resume(); 
             }
         }
 
@@ -785,11 +766,17 @@ function update() {
         }
         
         if (!isHost && hostConnection && hostConnection.open) {
-            let currentInputString = fin.steering + "," + fin.throttle + "," + fin.handbrake + "," + fin.driftAssist + "," + fin.smartAssist;
+            let currentInputString = fin.steering + "," + fin.throttle + "," + fin.handbrake + "," + fin.driftAssist + "," + fin.smartAssist + "," + fin.shiftUp + "," + fin.shiftDown;
             if (currentInputString !== lastInputString || now - lastInputSend > 250) { 
                 try { hostConnection.send({ type: 'inputs_local', id: lp.id, inputs: fin }); } catch(e){} 
                 lastInputString = currentInputString; lastInputSend = now; 
             }
+        }
+        
+        // Reset local shift triggers to avoid sticking
+        if (lp.isKeyboard || !isSplitScreen) {
+            localInputs.shiftUp = false;
+            localInputs.shiftDown = false;
         }
     });
 
@@ -859,18 +846,40 @@ function update() {
             p.speedKmh = Math.abs(lVx * 3.6) || 0; p.appliesBrake = mThrottle < 0 && lVx >= 1.0;
             let dForce = 0; let bForce = p.appliesBrake ? aMass * 15.0 * Math.abs(mThrottle) : 0; const isRev = mThrottle < 0 && lVx < 1.0; 
 
-            if (raceState > 0) { p.gear = 0; ins.handbrake = true; p.rpm += ((1000 + Math.max(0, mThrottle) * 7000) - p.rpm) * 5 * dt; } else {
+            // Gearbox & Clutch Logic
+            if (raceState > 0) { 
+                p.gear = 0; ins.handbrake = true; p.rpm += ((1000 + Math.max(0, mThrottle) * 7000) - p.rpm) * 5 * dt; 
+            } else {
                 if (preset.ev) {
                     p.gear = lVx >= -0.5 ? 'D' : 'R'; p.rpm += (p.speedKmh * 80 - p.rpm) * 12 * dt;
                     if (mThrottle > 0 || isRev) dForce = (aPower * 735.5 * 0.85 * (isRev ? 0.45 : 1.0) / Math.max(Math.abs(lVx), 5.0)) * mThrottle;
                 } else {
                     if (p.speedKmh < 1.0 && mThrottle <= 0) p.gear = 1; else if (p.gear === 0 && raceState === 0) { p.gear = 1; p.clutchDump = p.rpm / 7500; }
-                    let wheelSpeedRpm = (p.speedKmh / 3.6) / wheelRadius * 9.55; let targetRpm = 1000 + wheelSpeedRpm * gearRatios[p.gear] * finalDrive;
+                    
+                    if (p.shiftTimer > 0) p.shiftTimer -= dt;
+
+                    if (ins.shiftUp && p.gear < 5 && p.shiftTimer <= 0) { p.gear++; p.shiftTimer = 0.15; p.manualGear = true; }
+                    if (ins.shiftDown && p.gear > 1 && p.shiftTimer <= 0) { p.gear--; p.shiftTimer = 0.15; p.manualGear = true; }
+
+                    let wheelSpeedRpm = (p.speedKmh / 3.6) / wheelRadius * 9.55; 
+                    let targetRpm = 1000 + wheelSpeedRpm * gearRatios[p.gear] * finalDrive;
                     if (p.speedKmh < 10 && mThrottle > 0) { targetRpm += Math.abs(mThrottle) * 4500 * (1 - p.speedKmh/10); }
-                    if (targetRpm > 7500 && p.gear < 5) p.gear++; else if (targetRpm < 3500 && p.gear > 1 && p.speedKmh > 10) p.gear--;
+                    
+                    if (!p.manualGear) {
+                        if (targetRpm > 7500 && p.gear < 5 && p.shiftTimer <= 0) { p.gear++; p.shiftTimer = 0.15; } 
+                        else if (targetRpm < 3500 && p.gear > 1 && p.speedKmh > 10 && p.shiftTimer <= 0) { p.gear--; p.shiftTimer = 0.15; }
+                    }
+
+                    if (p.shiftTimer > 0) {
+                        p.rpm += mThrottle * 6000 * dt; 
+                        targetRpm = p.rpm; 
+                    }
+
                     p.rpm += (targetRpm - p.rpm) * 10 * dt;
-                    if ((mThrottle > 0 || isRev) && p.gear > 0) {
-                        let torque = aPower * 2.0 * Math.max(0.1, 1.0 - Math.pow((p.rpm - 5500)/4500, 2)); dForce = (torque * gearRatios[p.gear] * finalDrive / wheelRadius) * mThrottle;
+
+                    if ((mThrottle > 0 || isRev) && p.gear > 0 && p.shiftTimer <= 0) {
+                        let torque = aPower * 2.0 * Math.max(0.1, 1.0 - Math.pow((p.rpm - 5500)/4500, 2)); 
+                        dForce = (torque * gearRatios[p.gear] * finalDrive / wheelRadius) * mThrottle;
                         if (p.clutchDump > 0) { dForce *= (1.0 + p.clutchDump * 3.5); p.clutchDump -= dt * 2.5; } if (p.clutchDump < 0) p.clutchDump = 0;
                     }
                 }
@@ -937,7 +946,7 @@ function update() {
         let lightUI = document.getElementById('f1-lights');
         if (lightUI) {
             if(raceState === -1 || (raceState === 0 && now - raceStartTime > 2000)) lightUI.style.display = 'none';
-            else { lightUI.style.display = 'flex'; let lights = lightUI.getElementsByClassName('light'); for(let i=0; i<5; i++) { if(lights[i]){ lights[i].className = 'light'; if(raceState === 0) lights[i].classList.add('green'); else if(5 - raceState > i) lights[i].classList.add('red'); } } if(raceState > 0) playBeep(440, 0.2); if(raceState === 0) playBeep(880, 0.8); }
+            else { lightUI.style.display = 'flex'; let lights = lightUI.getElementsByClassName('light'); for(let i=0; i<5; i++) { if(lights[i]){ lights[i].className = 'light'; if(raceState === 0) lights[i].classList.add('green'); else if(5 - raceState > i) lights[i].classList.add('red'); } } if(raceState > 0) if(window.audioManager) window.audioManager.playBeep(440, 0.2); if(raceState === 0) if(window.audioManager) window.audioManager.playBeep(880, 0.8); }
         }
         lastLightState = raceState;
     } else if (raceState === 0 && now - raceStartTime > 2000) { let lUI = document.getElementById('f1-lights'); if(lUI) lUI.style.display = 'none'; }
@@ -1004,7 +1013,7 @@ function update() {
                 document.getElementById('podium-1').innerText = "🥇 " + (lbArr[0] ? lbArr[0].n : '-');
                 document.getElementById('podium-2').innerText = "🥈 " + (lbArr[1] ? lbArr[1].n : '-');
                 document.getElementById('podium-3').innerText = "🥉 " + (lbArr[2] ? lbArr[2].n : '-');
-                playBeep(600, 0.2); setTimeout(()=>playBeep(800, 0.4), 200);
+                if(window.audioManager) { window.audioManager.playBeep(600, 0.2); setTimeout(()=>window.audioManager.playBeep(800, 0.4), 200); }
             }
         }
     } else {
@@ -1015,22 +1024,14 @@ function update() {
         }
     }
 
-    // --- AUDIO (Bruk kun Spiller 1) ---
-    if (localPlayers.length > 0 && players[localPlayers[0].id]) {
+    // --- AUDIO ---
+    if (localPlayers.length > 0 && players[localPlayers[0].id] && window.audioManager) {
         let me = players[localPlayers[0].id];
         let pInputs = me.inputs || { throttle: 0 };
-        if (audioReady && engineOsc && engineGain) {
-            let sRpm = isFinite(me.rpm) && me.rpm > 0 ? me.rpm : 0; 
-            let sSpd = isFinite(me.speedKmh) && me.speedKmh > 0 ? me.speedKmh : 0; 
-            let sThr = isFinite(pInputs.throttle) ? pInputs.throttle : 0;
-            engineOsc.frequency.value = Math.max(10, 40 + (sRpm / 22)); 
-            engineGain.gain.value = sRpm < 100 ? 0 : 0.08 + (Math.abs(sThr) * 0.2);
-            let sq = Math.max(me.frontSpinSeverity || 0, me.rearSpinSeverity || 0); 
-            if (squealGain && squealOsc) { 
-                if(sq > 0.1 && sSpd > 5) { squealGain.gain.value = isFinite(sq) ? sq * 0.15 : 0; squealOsc.frequency.value = 800 + Math.random()*200; } 
-                else { squealGain.gain.value = 0; } 
-            }
-        }
+        let sq = Math.max(me.frontSpinSeverity || 0, me.rearSpinSeverity || 0); 
+        let preType = vehiclePresets[me.presetId] ? vehiclePresets[me.presetId].type : 'r34';
+        
+        window.audioManager.update(preType, me.rpm, me.speedKmh, pInputs.throttle, sq);
     }
 
     // --- RENDERING / VIEWPORTS ---
@@ -1175,7 +1176,7 @@ function update() {
         ctx.stroke();
     }
     
-    // Oppdater forrige gamepad state HELT til slutt for at trykk ikke skal forsvinne
+    // Oppdaterer lagret gamepad-state på slutten av loopen
     for (let j = 0; j < 4; j++) {
         let gp = gps[j];
         if (gp) {
