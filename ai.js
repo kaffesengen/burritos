@@ -4,10 +4,6 @@ const aiNames = [
     "Kristoffer", "Esther", "Egon", "Skjeggefant", "Eggemann"
 ];
 
-const aiVehiclePreset = { 
-    power: 350, mass: 1400, drivetrain: 'AWD', grip: 2.10, turn: 4.8, roll: 0.04, w: 20, l: 45, ev: false, type: 'r34', fuelCap: 100 
-};
-
 class AIDriver {
     constructor(id) {
         this.id = id;
@@ -21,6 +17,13 @@ class AIDriver {
         this.recoveryTime = 0;
         this.recoverySteer = 0;
         this.lastUpdate = performance.now();
+
+        // Forbikjøring og posisjonering
+        this.lateralOffset = 0; 
+        this.targetOffset = 0;
+        this.overtakeTimer = 0;
+        this.draftBoost = 0;
+        this.aggression = 0.5 + Math.random() * 0.5;
     }
 
     calculateInputs(vehicle, trackWaypoints, allPlayers, track, ctx, raceStarted) {
@@ -38,6 +41,7 @@ class AIDriver {
 
         if (!trackWaypoints || trackWaypoints.length === 0) return inputs;
 
+        // --- HARD RESET FAILSAFE ---
         if (raceStarted && vehicle.speedKmh < 4.0) {
             this.failsafeTimer += dt;
             if (this.failsafeTimer > 4.0) {
@@ -69,6 +73,7 @@ class AIDriver {
             this.failsafeTimer = 0;
         }
 
+        // --- AKTIV RECOVERY ---
         if (this.reverseTime > 0) {
             this.reverseTime -= dt;
             inputs.throttle = -1.0;
@@ -89,6 +94,67 @@ class AIDriver {
             return inputs;
         }
 
+        // --- FORBIKJØRINGSLOGIKK & DRAFTING ---
+        let carsAhead = false;
+        let sideClearance = { left: true, right: true };
+        this.draftBoost = 0;
+
+        if (this.overtakeTimer > 0) {
+            this.overtakeTimer -= dt;
+        } else {
+            this.targetOffset = 0; // Returner til idealspor
+        }
+
+        for (let otherId in allPlayers) {
+            if (otherId === this.id) continue;
+            let otherCar = allPlayers[otherId];
+            if (otherCar.finished || otherCar.isGhost) continue;
+
+            let dist = Math.hypot(otherCar.x - vehicle.x, otherCar.y - vehicle.y);
+            if (dist > 250) continue;
+
+            let angleToOther = Math.atan2(otherCar.y - vehicle.y, otherCar.x - vehicle.x);
+            let angleDiff = angleToOther - vehicle.angle;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+            // Blindsone-sjekk (biler rett ved siden av)
+            if (dist < 80 && Math.abs(angleDiff) > 1.0) {
+                if (angleDiff > 0) sideClearance.right = false;
+                else sideClearance.left = false;
+            }
+
+            // Radar i front (slipstream og forbikjøring)
+            if (Math.abs(angleDiff) < 0.4 && dist < 150) {
+                carsAhead = true;
+                
+                // Drafting (bygg fart)
+                if (dist > 60) {
+                    this.draftBoost = 15;
+                }
+
+                // Evaluer forbikjøring hvis bilen foran er tregere og vi er nærme
+                if (dist < 90 && vehicle.speedKmh > otherCar.speedKmh - 5 && this.overtakeTimer <= 0) {
+                    this.overtakeTimer = 3.0; // Hold filen i 3 sekunder
+                    // Velg retning basert på klaring, prioriter innside hvis aggressiv
+                    if (sideClearance.left && !sideClearance.right) this.targetOffset = -55;
+                    else if (sideClearance.right && !sideClearance.left) this.targetOffset = 55;
+                    else {
+                        // Tilfeldig utbryterfil
+                        this.targetOffset = (Math.random() > 0.5) ? 55 : -55;
+                    }
+                }
+            }
+        }
+
+        // Hindre AI-en i å svinge inn i en bil under forbikjøring (fasthold offset)
+        if (this.targetOffset < 0 && !sideClearance.right) this.overtakeTimer = 1.0;
+        if (this.targetOffset > 0 && !sideClearance.left) this.overtakeTimer = 1.0;
+
+        // Glatt overgang mellom spor
+        this.lateralOffset += (this.targetOffset - this.lateralOffset) * 2.0 * dt;
+
+        // --- VEIPUNKT-NAVIGASJON MED OFFSET ---
         let closestDist = Infinity; let closestIdx = 0;
         for (let i = 0; i < trackWaypoints.length; i++) {
             let dist = Math.hypot(vehicle.x - trackWaypoints[i].x, vehicle.y - trackWaypoints[i].y);
@@ -97,32 +163,52 @@ class AIDriver {
 
         let lookAheadOffset = 3 + Math.floor(vehicle.speedKmh / 15); 
         let targetIdx = (closestIdx + lookAheadOffset) % trackWaypoints.length;
+        let nextTargetIdx = (targetIdx + 1) % trackWaypoints.length;
+        
         let targetPt = trackWaypoints[targetIdx];
+        let nextPt = trackWaypoints[nextTargetIdx];
 
-        let targetAngle = Math.atan2(targetPt.y - vehicle.y, targetPt.x - vehicle.x);
-        let angleDiff = targetAngle - vehicle.angle;
-        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        // Beregn normalvektor for å forskyve siktepunktet sideveis
+        let dirX = nextPt.x - targetPt.x;
+        let dirY = nextPt.y - targetPt.y;
+        let dirLen = Math.hypot(dirX, dirY) || 1;
+        let normX = -dirY / dirLen;
+        let normY = dirX / dirLen;
+
+        let aimX = targetPt.x + (normX * this.lateralOffset);
+        let aimY = targetPt.y + (normY * this.lateralOffset);
+
+        let targetAngle = Math.atan2(aimY - vehicle.y, aimX - vehicle.x);
+        let angleDiffSteer = targetAngle - vehicle.angle;
+        while (angleDiffSteer > Math.PI) angleDiffSteer -= Math.PI * 2;
+        while (angleDiffSteer < -Math.PI) angleDiffSteer += Math.PI * 2;
 
         if (this.recoveryTime > 0) {
             this.recoveryTime -= dt;
-            angleDiff += this.recoverySteer;
+            angleDiffSteer += this.recoverySteer;
         }
 
-        inputs.steering = Math.max(-1.0, Math.min(1.0, angleDiff * 3.0));
+        // Økt styrefølsomhet for raskere filbytter
+        inputs.steering = Math.max(-1.0, Math.min(1.0, angleDiffSteer * 4.0));
 
+        // --- FARTSKONTROLL ---
         let brakeCheckOffset = Math.floor(vehicle.speedKmh / 5);
         let upcomingTarget = trackWaypoints[(closestIdx + brakeCheckOffset) % trackWaypoints.length];
-        let maxSafeSpeed = upcomingTarget.targetSpeed;
+        let maxSafeSpeed = upcomingTarget.targetSpeed + this.draftBoost + (this.aggression * 5);
 
-        if (vehicle.speedKmh > maxSafeSpeed + 10) inputs.throttle = -1.0; 
-        else if (vehicle.speedKmh > maxSafeSpeed) inputs.throttle = -0.5;
-        else {
+        if (vehicle.speedKmh > maxSafeSpeed + 10) {
+            inputs.throttle = -1.0; 
+        } else if (vehicle.speedKmh > maxSafeSpeed) {
+            inputs.throttle = -0.5;
+        } else {
             inputs.throttle = 1.0;
-            if (Math.abs(inputs.steering) > 0.6) inputs.throttle = 0.4;
+            // Brems mindre aggressivt under forbikjøring hvis bilen kniver
+            let corneringBrakeTolerance = (this.targetOffset !== 0) ? 0.8 : 0.6;
+            if (Math.abs(inputs.steering) > corneringBrakeTolerance) inputs.throttle = 0.4;
         }
 
-        if (track && ctx && track.path) {
+        // --- PREVENTIV UNNVIKELSE (Whiskers) ---
+        if (track && ctx && track.path && !vehicle.isGhost) {
             let rayAngles = [-0.6, 0, 0.6];
             let rayDistance = 70 + (vehicle.speedKmh * 0.4); 
             let wallAvoidance = 0;
@@ -152,15 +238,18 @@ class AIDriver {
 
             if (wallAvoidance !== 0) {
                 inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + wallAvoidance));
+                if (vehicle.speedKmh > 40) inputs.throttle = -0.5; // Brems for vegg
             }
         }
 
+        // --- STUCK-DETEKSJON VED LAV HASTIGHET ---
         if (raceStarted && vehicle.speedKmh < 4.0 && inputs.throttle > 0) {
             this.stuckTime += dt;
             if (this.stuckTime > 0.8) {
-                this.reverseTime = 1.2;
+                this.reverseTime = 1.5;
                 this.stuckTime = 0;
-                this.recoverySteer = (Math.random() > 0.5 ? 1.5 : -1.5);
+                // Sving motsatt av veipunktet for å trekke fronten fri (3-punkts vending)
+                this.recoverySteer = (inputs.steering > 0 ? -1.5 : 1.5);
             }
         } else if (vehicle.speedKmh > 15.0) {
             this.stuckTime = 0;
