@@ -81,30 +81,18 @@ for (let tId in tracks) {
 let activeTrackId = 'standard'; let envObjects = [];
 let serverSettings = { grip: 1.0, power: 1.0, mass: 1.0, steering: 1.0, caster: 1.0 };
 
-// --- ENHET OG ZOOM SYSTEM ---
-let deviceType = 'pc'; // 'pc', 'tablet', 'phone'
-let cameraZoom = 1.0;  // Trinnvis zoom-faktor
+let deviceType = 'pc'; 
+let cameraZoom = 1.0;
 
 function detectDevice() {
-    let w = window.innerWidth;
-    let h = window.innerHeight;
-    let minDim = Math.min(w, h);
-    let maxDim = Math.max(w, h);
-
-    // Galaxy Fold 5 i åpen/tablet-modus har stor oppløsning eller ca kvadratisk aspekt.
-    // Standard telefoner har typisk smal bredde iportrett eller høy iandre.
-    if (minDim > 750) {
-        deviceType = 'pc';
-    } else if (minDim > 500 && maxDim < 1300) {
-        deviceType = 'tablet'; // F.eks Galaxy Fold utfoldet
-    } else {
-        deviceType = 'phone';
-    }
-
+    let w = window.innerWidth; let h = window.innerHeight; let minDim = Math.min(w, h); let maxDim = Math.max(w, h);
+    if (minDim > 750) deviceType = 'pc';
+    else if (minDim > 500 && maxDim < 1300) deviceType = 'tablet';
+    else deviceType = 'phone';
     applyDeviceUIRules();
 }
 
-let phoneMenuState = 0; // 0 = skjult, 1 = Meny 1 (ui-panel), 2 = Meny 2 (host-actions)
+let phoneMenuState = 0; 
 function applyDeviceUIRules() {
     let uiPanel = document.getElementById('ui-panel');
     let hostActions = document.getElementById('host-actions');
@@ -112,30 +100,17 @@ function applyDeviceUIRules() {
 
     if (deviceType === 'phone') {
         hamBtn.style.display = 'block';
-        if (phoneMenuState === 0) {
-            uiPanel.style.display = 'none';
-            if(hostActions) hostActions.style.display = 'none';
-        } else if (phoneMenuState === 1) {
-            uiPanel.style.display = 'grid';
-            if(hostActions) hostActions.style.display = 'none';
-        } else if (phoneMenuState === 2) {
-            uiPanel.style.display = 'none';
-            if(hostActions && isHost) hostActions.style.display = 'flex';
-        }
+        if (phoneMenuState === 0) { uiPanel.style.display = 'none'; if(hostActions) hostActions.style.display = 'none'; } 
+        else if (phoneMenuState === 1) { uiPanel.style.display = 'grid'; if(hostActions) hostActions.style.display = 'none'; } 
+        else if (phoneMenuState === 2) { uiPanel.style.display = 'none'; if(hostActions && isHost) hostActions.style.display = 'flex'; }
     } else {
-        // PC & Tablet (Galaxy Fold) har faste menyer synlige
-        hamBtn.style.display = 'none';
-        uiPanel.style.display = 'grid';
-        if (isHost && hostActions) hostActions.style.display = 'flex';
+        hamBtn.style.display = 'none'; uiPanel.style.display = 'grid'; if (isHost && hostActions) hostActions.style.display = 'flex';
     }
 }
 
 let hamBtn = document.getElementById('btn-hamburger');
 if(hamBtn) {
-    hamBtn.addEventListener('click', () => {
-        phoneMenuState = (phoneMenuState + 1) % 3;
-        applyDeviceUIRules();
-    });
+    hamBtn.addEventListener('click', () => { phoneMenuState = (phoneMenuState + 1) % 3; applyDeviceUIRules(); });
 }
 
 function getTrack() { return tracks[activeTrackId] || tracks['standard']; }
@@ -178,22 +153,19 @@ function createPlayerRecord(id, presetId, name, colorCode) {
         inputs: { steering: 0, throttle: 0, handbrake: false, driftAssist: false },
         frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0, fuel: cap, maxFuel: cap,
         lastSeen: performance.now(), clutchDump: 0, prevThrottle: 0,
-        lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, totalTime: 0, finished: false
+        lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, lastLap: 0, totalTime: 0, finished: false
     };
 }
 
 function assignGridPositions() {
     let ids = Object.keys(players); let t = getTrack();
     ids.forEach((pid, index) => {
-        let row = Math.floor(index / 2); 
-        let col = index % 2 === 0 ? 1 : -1; 
-        let spacing = 120, lateral = 40;
-        
+        let row = Math.floor(index / 2); let col = index % 2 === 0 ? 1 : -1; let spacing = 120, lateral = 40;
         players[pid].x = t.startX - Math.cos(t.startAngle) * (row * spacing + 60) + Math.sin(t.startAngle) * (col * lateral);
         players[pid].y = t.startY - Math.sin(t.startAngle) * (row * spacing + 60) - Math.cos(t.startAngle) * (col * lateral);
         players[pid].angle = t.startAngle; players[pid].vx = 0; players[pid].vy = 0; players[pid].yawRate = 0;
         players[pid].lap = 0; players[pid].cp = false; players[pid].finished = false; players[pid].totalTime = 0; 
-        players[pid].lapStartTime = performance.now(); players[pid].currentLapTime = 0; players[pid].bestLap = Infinity;
+        players[pid].lapStartTime = performance.now(); players[pid].currentLapTime = 0; players[pid].bestLap = Infinity; players[pid].lastLap = 0;
         players[pid].targetX = players[pid].x; players[pid].targetY = players[pid].y; players[pid].targetAngle = players[pid].angle;
         players[pid].fuel = vehiclePresets[players[pid].presetId]?.fuelCap || 100;
         players[pid].gear = 1; players[pid].rpm = 1000; players[pid].clutchDump = 0; players[pid].prevThrottle = 0;
@@ -210,10 +182,7 @@ function enterGame() {
     let cCont = document.getElementById('canvas-container'); if(cCont) cCont.style.display = 'flex';
     
     detectDevice();
-    if(isHost) { 
-        let sbCtrl = document.getElementById('sandbox-controls'); if(sbCtrl) sbCtrl.style.display = 'block'; 
-        assignGridPositions(); 
-    }
+    if(isHost) { let sbCtrl = document.getElementById('sandbox-controls'); if(sbCtrl) sbCtrl.style.display = 'block'; assignGridPositions(); }
     resize(); 
     if (gameLoopId) cancelAnimationFrame(gameLoopId);
     gameLoopId = requestAnimationFrame(update);
@@ -227,6 +196,13 @@ let exitBtn = document.getElementById('btn-exit');
 if (menuBtn && modal) menuBtn.addEventListener('click', () => modal.style.display = 'flex');
 if (resumeBtn && modal) resumeBtn.addEventListener('click', () => modal.style.display = 'none');
 if (exitBtn) exitBtn.addEventListener('click', exitToMenu);
+
+let btnClosePodium = document.getElementById('btn-close-podium');
+if (btnClosePodium) {
+    btnClosePodium.addEventListener('click', () => {
+        document.getElementById('podium-overlay').style.display = 'none';
+    });
+}
 
 let lP = document.getElementById('preset-selector'), gP = document.getElementById('ingame-preset-selector');
 if (lP && gP) { lP.addEventListener('change', e => gP.value = e.target.value); gP.addEventListener('change', e => lP.value = e.target.value); }
@@ -244,6 +220,7 @@ function exitToMenu() {
     
     document.getElementById('canvas-container').style.display = 'none';
     document.getElementById('ingame-modal').style.display = 'none';
+    document.getElementById('podium-overlay').style.display = 'none';
     document.getElementById('lobby').style.display = 'flex';
     document.getElementById('mode-selection').style.display = 'block';
     document.getElementById('host-ui').style.display = 'none';
@@ -264,7 +241,7 @@ function initAudio() {
         squealOsc = audioCtx.createOscillator(); squealOsc.type = 'triangle'; squealGain = audioCtx.createGain(); squealGain.gain.value = 0;
         squealOsc.connect(squealGain); squealGain.connect(audioCtx.destination); squealOsc.start();
         audioReady = true;
-    } catch(e) { console.error("Audio init feilet", e); }
+    } catch(e) {}
 }
 function resumeAudio() { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
 document.body.addEventListener('pointerdown', () => { initAudio(); resumeAudio(); }, { once: true });
@@ -279,13 +256,7 @@ function playBeep(freq, duration = 0.3) {
 
 ['grip', 'power', 'mass', 'steering', 'caster'].forEach(id => {
     let el = document.getElementById(`sb-${id}`);
-    if (el) {
-        el.addEventListener('input', (e) => {
-            serverSettings[id] = parseFloat(e.target.value); 
-            let valEl = document.getElementById(`val-${id}`);
-            if (valEl) valEl.innerText = serverSettings[id].toFixed(1);
-        });
-    }
+    if (el) { el.addEventListener('input', (e) => { serverSettings[id] = parseFloat(e.target.value); let valEl = document.getElementById(`val-${id}`); if (valEl) valEl.innerText = serverSettings[id].toFixed(1); }); }
 });
 
 let btnSb = document.getElementById('btn-sandbox-mode');
@@ -323,8 +294,7 @@ if (btnHost) {
                         players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name, data.color);
                         let t = getTrack();
                         if (gameActive) {
-                            if (raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; } 
-                            else { assignGridPositions(); }
+                            if (raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; } else { assignGridPositions(); }
                             conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
                             conn.send({ type: 'start', laps: totalLaps, rs: raceState }); 
                         } else {
@@ -336,22 +306,15 @@ if (btnHost) {
                     if (!players[conn.peer]) {
                         players[conn.peer] = createPlayerRecord(conn.peer, 'jaguar', "Gjest");
                         let t = getTrack();
-                        if (gameActive && raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; } 
-                        else if (gameActive) { assignGridPositions(); }
+                        if (gameActive && raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; } else if (gameActive) { assignGridPositions(); }
                         conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
                         if (gameActive) conn.send({ type: 'start', laps: totalLaps, rs: raceState });
                     }
                     players[conn.peer].inputs = data.inputs; players[conn.peer].lastSeen = performance.now();
-                } else if (data.type === 'changeCar') {
-                    if (players[conn.peer]) { players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100; }
-                } else if (data.type === 'changeColor') {
-                    if (players[conn.peer]) { players[conn.peer].color = data.color; }
-                }
+                } else if (data.type === 'changeCar') { if (players[conn.peer]) { players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100; } } 
+                else if (data.type === 'changeColor') { if (players[conn.peer]) { players[conn.peer].color = data.color; } }
             });
-            conn.on('close', () => { 
-                delete connections[conn.peer]; delete players[conn.peer]; 
-                let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: ${Object.keys(connections).length + 1}`; 
-            });
+            conn.on('close', () => { delete connections[conn.peer]; delete players[conn.peer]; let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: ${Object.keys(connections).length + 1}`; });
         });
     });
 }
@@ -365,13 +328,7 @@ if (btnShare) {
 }
 
 let btnEnter = document.getElementById('btn-enter-game');
-if (btnEnter) {
-    btnEnter.addEventListener('click', () => { 
-        let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3;
-        Object.values(connections).forEach(c => { try { c.send({ type: 'start', laps: totalLaps, rs: raceState }); } catch(e){} }); 
-        enterGame(); 
-    });
-}
+if (btnEnter) { btnEnter.addEventListener('click', () => { let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3; Object.values(connections).forEach(c => { try { c.send({ type: 'start', laps: totalLaps, rs: raceState }); } catch(e){} }); enterGame(); }); }
 
 let trackSel = document.getElementById('track-selector');
 if (trackSel) {
@@ -387,15 +344,7 @@ let btnReset = document.getElementById('btn-reset');
 if (btnReset) { btnReset.addEventListener('click', () => { if(isHost) { assignGridPositions(); raceState = -1; } }); }
 
 let btnAddAi = document.getElementById('btn-add-ai');
-if (btnAddAi) {
-    btnAddAi.addEventListener('click', () => {
-        if(isHost) {
-            let t = getTrack();
-            aiManager.spawnAI(players, t.startX, t.startY, t.startAngle);
-            assignGridPositions(); 
-        }
-    });
-}
+if (btnAddAi) { btnAddAi.addEventListener('click', () => { if(isHost) { let t = getTrack(); aiManager.spawnAI(players, t.startX, t.startY, t.startAngle); assignGridPositions(); } }); }
 
 let btnStart = document.getElementById('btn-start-race');
 if (btnStart) {
@@ -408,7 +357,7 @@ if (btnStart) {
             count--; raceState = count;
             if(count === 0) { 
                 let now = performance.now(); raceStartTime = now;
-                for(let pid in players) { players[pid].lapStartTime = now; players[pid].lap = 0; players[pid].cp = false; players[pid].finished = false; players[pid].bestLap = Infinity; }
+                for(let pid in players) { players[pid].lapStartTime = now; players[pid].lap = 0; players[pid].cp = false; players[pid].finished = false; players[pid].bestLap = Infinity; players[pid].lastLap = 0; }
                 clearInterval(int); 
             }
         }, 1000);
@@ -429,10 +378,7 @@ function initJoiner(hostId) {
             players[myId] = createPlayerRecord(myId, selPreset, pName, selColor);
             
             let joined = false;
-            let handshakeLoop = setInterval(() => {
-                if (joined || !hostConnection.open) { clearInterval(handshakeLoop); return; }
-                hostConnection.send({ type: 'join', preset: selPreset, name: pName, color: selColor });
-            }, 500);
+            let handshakeLoop = setInterval(() => { if (joined || !hostConnection.open) { clearInterval(handshakeLoop); return; } hostConnection.send({ type: 'join', preset: selPreset, name: pName, color: selColor }); }, 500);
 
             hostConnection.on('data', data => {
                 if (data.type === 'init') { 
@@ -458,17 +404,13 @@ function initJoiner(hostId) {
                         if (pData.y !== null && isFinite(pData.y)) p.targetY = pData.y; 
                         if (pData.a !== null && isFinite(pData.a)) p.targetAngle = pData.a; 
                         
-                        p.steer = pData.s || 0; 
-                        p.frontSpinSeverity = pData.fS || 0; p.rearSpinSeverity = pData.rS || 0; 
-                        p.gear = pData.g || 1; p.rpm = pData.rpm || 1000; 
-                        p.speedKmh = pData.v || 0; p.fuel = pData.f || 100;
-                        p.appliesBrake = !!pData.b; p.lap = pData.l || 0; p.bestLap = pData.bl || Infinity; p.finished = !!pData.fin; p.currentLapTime = pData.cLT || 0; p.lastSeen = performance.now();
+                        p.steer = pData.s || 0; p.frontSpinSeverity = pData.fS || 0; p.rearSpinSeverity = pData.rS || 0; 
+                        p.gear = pData.g || 1; p.rpm = pData.rpm || 1000; p.speedKmh = pData.v || 0; p.fuel = pData.f || 100;
+                        p.appliesBrake = !!pData.b; p.lap = pData.l || 0; p.bestLap = pData.bl || Infinity; p.lastLap = pData.lL || 0; p.finished = !!pData.fin; p.currentLapTime = pData.cLT || 0; p.lastSeen = performance.now();
                         
                         if (pid !== myId) {
-                            p.presetId = pData.presetId || 'jaguar'; 
-                            p.maxFuel = vehiclePresets[p.presetId]?.fuelCap || 100;
-                            p.color = pData.c || '#3498db';
-                            p.name = pData.n || "Gjest";
+                            p.presetId = pData.presetId || 'jaguar'; p.maxFuel = vehiclePresets[p.presetId]?.fuelCap || 100;
+                            p.color = pData.c || '#3498db'; p.name = pData.n || "Gjest";
                         }
                     }
                     for (let pid in players) { if(pid !== myId && !data.players[pid]) delete players[pid]; }
@@ -481,9 +423,7 @@ function initJoiner(hostId) {
 let btnJoin = document.getElementById('btn-join-mode');
 if (btnJoin) { btnJoin.addEventListener('click', () => { const code = document.getElementById('join-code-input')?.value.trim(); if (code) initJoiner(code); }); }
 
-const urlParams = new URLSearchParams(window.location.search); 
-let joinInp = document.getElementById('join-code-input');
-if (joinInp && urlParams.get('join')) { joinInp.value = urlParams.get('join'); }
+const urlParams = new URLSearchParams(window.location.search); let joinInp = document.getElementById('join-code-input'); if (joinInp && urlParams.get('join')) { joinInp.value = urlParams.get('join'); }
 
 const localInputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: false };
 const activeTouchState = { left: null, right: null };
@@ -491,22 +431,12 @@ const activeTouchState = { left: null, right: null };
 function showEvanModeFlash(isOn) {
     let el = document.getElementById('evan-flash-msg');
     if (!el) {
-        el = document.createElement('div');
-        el.id = 'evan-flash-msg';
-        Object.assign(el.style, {
-            position: 'absolute', top: '25%', left: '50%', transform: 'translate(-50%, -50%)',
-            fontSize: '5vw', fontWeight: '900', textShadow: '4px 4px 10px rgba(0,0,0,1)',
-            zIndex: '9999', pointerEvents: 'none', transition: 'opacity 0.2s ease-out',
-            fontFamily: 'Arial, sans-serif', textTransform: 'uppercase'
-        });
+        el = document.createElement('div'); el.id = 'evan-flash-msg';
+        Object.assign(el.style, { position: 'absolute', top: '25%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '5vw', fontWeight: '900', textShadow: '4px 4px 10px rgba(0,0,0,1)', zIndex: '9999', pointerEvents: 'none', transition: 'opacity 0.2s ease-out', fontFamily: 'Arial, sans-serif', textTransform: 'uppercase' });
         document.body.appendChild(el);
     }
-    el.style.color = isOn ? '#2ecc71' : '#e74c3c';
-    el.innerText = isOn ? 'Evan-modus PÅ' : 'Evan-modus AV';
-    el.style.opacity = '1';
-    
-    clearTimeout(window.evanFlashTimeout);
-    window.evanFlashTimeout = setTimeout(() => el.style.opacity = '0', 2500);
+    el.style.color = isOn ? '#2ecc71' : '#e74c3c'; el.innerText = isOn ? 'Evan-modus PÅ' : 'Evan-modus AV'; el.style.opacity = '1';
+    clearTimeout(window.evanFlashTimeout); window.evanFlashTimeout = setTimeout(() => el.style.opacity = '0', 2500);
 }
 
 function toggleAssist() { 
@@ -522,8 +452,7 @@ if (lA && gA) {
 }
 
 function setupJoystick(zId, sId, key, onC) {
-    const z = document.getElementById(zId), s = document.getElementById(sId);
-    if (!z || !s) return;
+    const z = document.getElementById(zId), s = document.getElementById(sId); if (!z || !s) return;
     function move(cX, cY) { if(document.getElementById('input-selector')?.value === 'gamepad') return; const r = z.getBoundingClientRect(); const dx = Math.max(-45, Math.min(cX-(r.left+r.width/2), 45)), dy = Math.max(-45, Math.min(cY-(r.top+r.height/2), 45)); s.style.transform = `translate(${dx}px, ${dy}px)`; onC(dx/45, dy/45); }
     z.addEventListener('touchstart', e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; if(activeTouchState[key]===null){ activeTouchState[key]=e.changedTouches[0].identifier; move(e.changedTouches[0].clientX, e.changedTouches[0].clientY); resumeAudio(); } });
     window.addEventListener('touchmove', e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; for(let t of e.changedTouches) if(t.identifier===activeTouchState[key]) move(t.clientX, t.clientY); });
@@ -531,107 +460,52 @@ function setupJoystick(zId, sId, key, onC) {
 }
 setupJoystick('joystick-left-zone', 'stick-left', 'left', (x, y) => localInputs.steering = x); setupJoystick('joystick-right-zone', 'stick-right', 'right', (x, y) => localInputs.throttle = -y);
 
-const hbBtn = document.getElementById('btn-handbrake'); 
-const hb = s => e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; e.preventDefault(); localInputs.handbrake = s; resumeAudio(); };
+const hbBtn = document.getElementById('btn-handbrake'); const hb = s => e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; e.preventDefault(); localInputs.handbrake = s; resumeAudio(); };
 if (hbBtn) { hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hbBtn.addEventListener('touchend', hb(false), {passive:false}); }
 
-// --- TOUCH GESTURE PINCH-TO-ZOOM ---
-let initialPinchDist = null;
-const canvasContainer = document.getElementById('canvas-container');
+let initialPinchDist = null; const canvasContainer = document.getElementById('canvas-container');
 if(canvasContainer) {
-    canvasContainer.addEventListener('touchstart', e => {
-        if(e.touches.length === 2) {
-            initialPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-        }
-    }, {passive: true});
-
+    canvasContainer.addEventListener('touchstart', e => { if(e.touches.length === 2) initialPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); }, {passive: true});
     canvasContainer.addEventListener('touchmove', e => {
         if(e.touches.length === 2 && initialPinchDist !== null) {
             let currentDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
             let diff = currentDist - initialPinchDist;
-            if(Math.abs(diff) > 30) {
-                if(diff > 0) adjustZoom(-0.1); // Zoom ut
-                else adjustZoom(0.1);        // Zoom inn
-                initialPinchDist = currentDist;
-            }
+            if(Math.abs(diff) > 30) { adjustZoom(diff > 0 ? -0.1 : 0.1); initialPinchDist = currentDist; }
         }
     }, {passive: true});
-
-    canvasContainer.addEventListener('touchend', e => {
-        if(e.touches.length < 2) initialPinchDist = null;
-    });
+    canvasContainer.addEventListener('touchend', e => { if(e.touches.length < 2) initialPinchDist = null; });
 }
 
-function adjustZoom(delta) {
-    cameraZoom = Math.max(0.4, Math.min(2.5, cameraZoom + delta));
-}
+function adjustZoom(delta) { cameraZoom = Math.max(0.4, Math.min(2.5, cameraZoom + delta)); }
 
 window.addEventListener('keydown', e => { 
     if(e.key.toLowerCase() === 't') toggleAssist();
-    
-    // Zoom med tastatur (+ / -)
-    if(e.key === '+' || e.key === '=') adjustZoom(0.15);
-    if(e.key === '-' || e.key === '_') adjustZoom(-0.15);
-
-    // EVAN-MODUS (Av/På med 'H')
-    if(e.key.toLowerCase() === 'h') {
-        localInputs.smartAssist = !localInputs.smartAssist;
-        showEvanModeFlash(localInputs.smartAssist);
-    }
-    
-    // FJERN SISTE BOT (Tast K)
-    if(e.key.toLowerCase() === 'k' && isHost) {
-        let botIds = Object.keys(players).filter(id => players[id].isAI);
-        if (botIds.length > 0) {
-            let botToRemove = botIds[botIds.length - 1];
-            delete players[botToRemove];
-        }
-    }
-    
-    // OPPTAKSVERKTØY: Start/Stopp og Slett
+    if(e.key === '+' || e.key === '=') adjustZoom(0.15); if(e.key === '-' || e.key === '_') adjustZoom(-0.15);
+    if(e.key.toLowerCase() === 'h') { localInputs.smartAssist = !localInputs.smartAssist; showEvanModeFlash(localInputs.smartAssist); }
+    if(e.key.toLowerCase() === 'k' && isHost) { let botIds = Object.keys(players).filter(id => players[id].isAI); if (botIds.length > 0) { let botToRemove = botIds[botIds.length - 1]; delete players[botToRemove]; } }
     if(e.key.toLowerCase() === 'r') {
-        isRecording = !isRecording;
-        let recInd = document.getElementById('recording-indicator');
-        if (recInd) recInd.style.display = isRecording ? 'block' : 'none';
-        
+        isRecording = !isRecording; let recInd = document.getElementById('recording-indicator'); if (recInd) recInd.style.display = isRecording ? 'block' : 'none';
         if (!isRecording) {
             console.log(`%c--- OPPTAK FULLFØRT FOR BANEN: ${activeTrackId.toUpperCase()} ---`, "color: #2ecc71; font-weight: bold;");
             console.log(`if(!aiManager.waypoints['${activeTrackId}']) aiManager.waypoints['${activeTrackId}'] = [];`);
             console.log(`aiManager.waypoints['${activeTrackId}'].push(${JSON.stringify(recordedWaypoints)});`);
-            console.log("%cKopier BEGGE kodelinjene over og legg dem i bunnen av ai.js", "color: #f1c40f;");
+            console.log("%cKopier BEGGE kodelinjene over og legg dem i bunnen av waypoints.js", "color: #f1c40f;");
         }
     }
-    if(e.key.toLowerCase() === 'c' && !isRecording) {
-        recordedWaypoints = [];
-        console.log("Lagret opptak slettet fra minnet.");
-    }
+    if(e.key.toLowerCase() === 'c' && !isRecording) { recordedWaypoints = []; console.log("Lagret opptak slettet fra minnet."); }
 
     if(document.getElementById('input-selector')?.value === 'gamepad') return; 
-    if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; 
-    if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; 
-    if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; 
-    if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; 
-    if(e.key===' ') localInputs.handbrake=true; 
-    resumeAudio(); 
+    if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; if(e.key===' ') localInputs.handbrake=true; resumeAudio(); 
 });
-window.addEventListener('keyup', e => { 
-    if(document.getElementById('input-selector')?.value === 'gamepad') return; 
-    if(e.key==='w'||e.key==='s'||e.key==='ArrowUp'||e.key==='ArrowDown') localInputs.throttle=0; if(e.key==='a'||e.key==='d'||e.key==='ArrowLeft'||e.key==='ArrowRight') localInputs.steering=0; if(e.key===' ') localInputs.handbrake=false; 
-});
+window.addEventListener('keyup', e => { if(document.getElementById('input-selector')?.value === 'gamepad') return; if(e.key==='w'||e.key==='s'||e.key==='ArrowUp'||e.key==='ArrowDown') localInputs.throttle=0; if(e.key==='a'||e.key==='d'||e.key==='ArrowLeft'||e.key==='ArrowRight') localInputs.steering=0; if(e.key===' ') localInputs.handbrake=false; });
 
 const canvas = document.getElementById('gameCanvas'); const ctx = canvas ? canvas.getContext('2d', { alpha: false }) : null; 
 function resize() { 
-    if(!canvas) return;
-    let cw = canvas.parentElement.clientWidth || window.innerWidth || 800;
-    let ch = canvas.parentElement.clientHeight || window.innerHeight || 600;
-    canvas.width = cw > 0 ? cw : 800;
-    canvas.height = ch > 0 ? ch : 600;
-    ctx.setTransform(1,0,0,1,0,0); 
-    detectDevice();
+    if(!canvas) return; let cw = canvas.parentElement.clientWidth || window.innerWidth || 800; let ch = canvas.parentElement.clientHeight || window.innerHeight || 600;
+    canvas.width = cw > 0 ? cw : 800; canvas.height = ch > 0 ? ch : 600; ctx.setTransform(1,0,0,1,0,0); detectDevice();
 }
 window.addEventListener('resize', resize); 
-let btnFull = document.getElementById('btn-fullscreen');
-if (btnFull) { btnFull.addEventListener('click', () => { const e = document.documentElement; if(!document.fullscreenElement) e.requestFullscreen(); else document.exitFullscreen(); setTimeout(resize,200); }); }
+let btnFull = document.getElementById('btn-fullscreen'); if (btnFull) { btnFull.addEventListener('click', () => { const e = document.documentElement; if(!document.fullscreenElement) e.requestFullscreen(); else document.exitFullscreen(); setTimeout(resize,200); }); }
 
 let lastTime = performance.now(); let lastLightState = -1; const skidmarks = [];
 let lastNetUpdate = 0; let lastInputSend = 0; let lastInputString = "";
@@ -644,346 +518,175 @@ function update() {
     let track = getTrack();
 
     if (document.getElementById('input-selector')?.value === 'gamepad') {
-        let gps = navigator.getGamepads ? navigator.getGamepads() : [];
-        let gp = gps[0];
+        let gps = navigator.getGamepads ? navigator.getGamepads() : []; let gp = gps[0];
         if (gp) { 
-            localInputs.steering = gp.axes[0]||0; 
-            localInputs.throttle = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0); 
-            localInputs.handbrake = gp.buttons[0]?.pressed||false; 
-
+            localInputs.steering = gp.axes[0]||0; localInputs.throttle = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0); localInputs.handbrake = gp.buttons[0]?.pressed||false; 
             if (!window.prevGamepadState) window.prevGamepadState = {};
-
-            // Zoom med Xbox LB (Index 4) og RB (Index 5) - Trinnvis med forsinkelsessjekk
             if (gp.buttons[4]?.pressed && !window.prevGamepadState[4]) adjustZoom(-0.15);
             if (gp.buttons[5]?.pressed && !window.prevGamepadState[5]) adjustZoom(0.15);
-
-            // B-knapp (Index 1) - Bytt Evan-modus
-            if (gp.buttons[1]?.pressed && !window.prevGamepadState[1]) {
-                localInputs.smartAssist = !localInputs.smartAssist;
-                showEvanModeFlash(localInputs.smartAssist);
-            }
-            
-            // X-knapp (Index 2) - Reset Grid
-            if (gp.buttons[2]?.pressed && !window.prevGamepadState[2]) {
-                if(isHost) { assignGridPositions(); raceState = -1; }
-            }
-
-            // Y-knapp (Index 3) - Start Race
-            if (gp.buttons[3]?.pressed && !window.prevGamepadState[3]) {
-                let btnStart = document.getElementById('btn-start-race');
-                if(isHost && raceState <= 0 && btnStart) btnStart.click();
-            }
-
-            // Menu-knapp / Hamburger (Index 9) - Åpne/lukke meny
-            if (gp.buttons[9]?.pressed && !window.prevGamepadState[9]) {
-                let modal = document.getElementById('ingame-modal');
-                if (modal) {
-                    modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
-                }
-            }
-
-            for(let i = 0; i < gp.buttons.length; i++) {
-                window.prevGamepadState[i] = gp.buttons[i].pressed;
-            }
-
+            if (gp.buttons[1]?.pressed && !window.prevGamepadState[1]) { localInputs.smartAssist = !localInputs.smartAssist; showEvanModeFlash(localInputs.smartAssist); }
+            if (gp.buttons[2]?.pressed && !window.prevGamepadState[2]) { if(isHost) { assignGridPositions(); raceState = -1; } }
+            if (gp.buttons[3]?.pressed && !window.prevGamepadState[3]) { let btnStart = document.getElementById('btn-start-race'); if(isHost && raceState <= 0 && btnStart) btnStart.click(); }
+            if (gp.buttons[9]?.pressed && !window.prevGamepadState[9]) { let modal = document.getElementById('ingame-modal'); if (modal) { modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex'; } }
+            for(let i = 0; i < gp.buttons.length; i++) { window.prevGamepadState[i] = gp.buttons[i].pressed; }
             resumeAudio(); 
         }
     }
 
     if (players[myId]) {
-        let p = players[myId];
-        let finalInputs = { ...localInputs };
-
+        let p = players[myId]; let finalInputs = { ...localInputs };
         if (finalInputs.smartAssist && !p.finished && aiManager.waypoints[activeTrackId] && aiManager.waypoints[activeTrackId].length > 0) {
             let waypoints = aiManager.waypoints[activeTrackId][0]; 
-            
             let closestDist = Infinity; let closestIdx = 0;
             for (let i = 0; i < waypoints.length; i++) {
                 let dist = Math.hypot(p.x - waypoints[i].x, p.y - waypoints[i].y);
                 if (dist < closestDist) { closestDist = dist; closestIdx = i; }
             }
-            
-            let brakeCheckOffset = Math.floor(p.speedKmh / 5);
-            let upcomingTarget = waypoints[(closestIdx + brakeCheckOffset) % waypoints.length];
-            let maxSafeSpeed = upcomingTarget.targetSpeed;
-            
-            if (p.speedKmh > maxSafeSpeed + 5) {
-                finalInputs.throttle = -0.5;
-            } else if (p.speedKmh > maxSafeSpeed && finalInputs.throttle > 0) {
-                finalInputs.throttle = 0;
-            }
-
+            let brakeCheckOffset = Math.floor(p.speedKmh / 5); let upcomingTarget = waypoints[(closestIdx + brakeCheckOffset) % waypoints.length]; let maxSafeSpeed = upcomingTarget.targetSpeed;
+            if (p.speedKmh > maxSafeSpeed + 5) { finalInputs.throttle = -0.5; } else if (p.speedKmh > maxSafeSpeed && finalInputs.throttle > 0) { finalInputs.throttle = 0; }
             if (track && ctx && track.path) {
-                let rayAngles = [-0.5, 0, 0.5];
-                let rayDistance = 60 + (p.speedKmh * 0.3); 
-                let wallAvoidance = 0;
-                
-                ctx.save();
-                ctx.setTransform(1, 0, 0, 1, 0, 0);
-                ctx.lineWidth = 175;
-
+                let rayAngles = [-0.5, 0, 0.5]; let rayDistance = 60 + (p.speedKmh * 0.3); let wallAvoidance = 0;
+                ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.lineWidth = 175;
                 rayAngles.forEach(offsetAngle => {
-                    let checkAngle = p.angle + offsetAngle;
-                    let hitWall = false;
+                    let checkAngle = p.angle + offsetAngle; let hitWall = false;
                     for (let i = 1; i <= 3; i++) {
-                        let d = (rayDistance / 3) * i;
-                        let rayX = p.x + Math.cos(checkAngle) * d;
-                        let rayY = p.y + Math.sin(checkAngle) * d;
+                        let d = (rayDistance / 3) * i; let rayX = p.x + Math.cos(checkAngle) * d; let rayY = p.y + Math.sin(checkAngle) * d;
                         if (!ctx.isPointInStroke(track.path, rayX, rayY)) { hitWall = true; break; }
                     }
                     if (hitWall) wallAvoidance += (offsetAngle <= 0) ? 0.6 : -0.6;
                 });
                 ctx.restore();
-
-                if (wallAvoidance !== 0) {
-                    finalInputs.steering = Math.max(-1.0, Math.min(1.0, finalInputs.steering + wallAvoidance));
-                }
+                if (wallAvoidance !== 0) { finalInputs.steering = Math.max(-1.0, Math.min(1.0, finalInputs.steering + wallAvoidance)); }
             }
         }
-
         p.inputs = finalInputs;
         
         let pSel = document.getElementById('ingame-preset-selector') || document.getElementById('preset-selector');
-        if (pSel && pSel.value && p.presetId !== pSel.value) {
-            p.presetId = pSel.value;
-            p.maxFuel = vehiclePresets[pSel.value]?.fuelCap || 100;
-            if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeCar', preset: pSel.value }); } catch(e){} }
-        }
-        
+        if (pSel && pSel.value && p.presetId !== pSel.value) { p.presetId = pSel.value; p.maxFuel = vehiclePresets[pSel.value]?.fuelCap || 100; if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeCar', preset: pSel.value }); } catch(e){} } }
         let cSel = document.getElementById('ingame-car-color') || document.getElementById('car-color');
-        if (cSel && cSel.value && p.color !== cSel.value) {
-            p.color = cSel.value;
-            if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeColor', color: cSel.value }); } catch(e){} }
-        }
+        if (cSel && cSel.value && p.color !== cSel.value) { p.color = cSel.value; if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeColor', color: cSel.value }); } catch(e){} } }
     }
     
     if (!isHost && hostConnection && hostConnection.open && players[myId]) {
-        let fin = players[myId].inputs;
-        let currentInputString = fin.steering + "," + fin.throttle + "," + fin.handbrake + "," + fin.driftAssist + "," + fin.smartAssist;
-        if (currentInputString !== lastInputString || now - lastInputSend > 250) {
-            try { hostConnection.send({ type: 'inputs', inputs: fin }); } catch(e){}
-            lastInputString = currentInputString; lastInputSend = now;
-        }
+        let fin = players[myId].inputs; let currentInputString = fin.steering + "," + fin.throttle + "," + fin.handbrake + "," + fin.driftAssist + "," + fin.smartAssist;
+        if (currentInputString !== lastInputString || now - lastInputSend > 250) { try { hostConnection.send({ type: 'inputs', inputs: fin }); } catch(e){} lastInputString = currentInputString; lastInputSend = now; }
     }
 
     if (isHost) {
-        let outState = { players: {} };
-        let pkeys = Object.keys(players);
+        let outState = { players: {} }; let pkeys = Object.keys(players);
         
         for (let pid of pkeys) {
             let p = players[pid]; 
-            if (pid !== myId && now - p.lastSeen > 3000) { 
-                delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } 
-                let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: ${Object.keys(connections).length + 1}`; 
-                continue; 
-            }
-
-            if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.vx) || !isFinite(p.angle) || !isFinite(p.rpm)) { 
-                p.x = track.startX; p.y = track.startY; p.vx=0; p.vy=0; p.angle=track.startAngle; p.yawRate=0; p.rpm=1000; p.speedKmh=0; p.prevThrottle = 0;
-            }
+            if (pid !== myId && now - p.lastSeen > 3000) { delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: ${Object.keys(connections).length + 1}`; continue; }
+            if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.vx) || !isFinite(p.angle) || !isFinite(p.rpm)) { p.x = track.startX; p.y = track.startY; p.vx=0; p.vy=0; p.angle=track.startAngle; p.yawRate=0; p.rpm=1000; p.speedKmh=0; p.prevThrottle = 0; }
 
             let preset = vehiclePresets[p.presetId] || vehiclePresets['jaguar']; let ins = p.inputs || { steering: 0, throttle: 0, handbrake: false, driftAssist: false };
             if (p.finished) { ins.throttle = 0; ins.handbrake = true; }
 
             if (raceState === 0 && !p.finished) {
                 p.currentLapTime = now - p.lapStartTime;
-                let distCP = Math.hypot(p.x - track.checkpoint.x, p.y - track.checkpoint.y);
-                if (distCP < track.checkpoint.radius) p.cp = true;
-                
+                let distCP = Math.hypot(p.x - track.checkpoint.x, p.y - track.checkpoint.y); if (distCP < track.checkpoint.radius) p.cp = true;
                 let distFin = Math.hypot(p.x - track.finish.x, p.y - track.finish.y);
                 if (p.cp && distFin < track.finish.radius) {
-                    p.lap++; p.cp = false; let lapTime = now - p.lapStartTime; if (lapTime < p.bestLap) p.bestLap = lapTime; p.lapStartTime = now;
+                    p.lap++; p.cp = false; let lapTime = now - p.lapStartTime; p.lastLap = lapTime; if (lapTime < p.bestLap) p.bestLap = lapTime; p.lapStartTime = now;
                     if (p.lap >= totalLaps) { p.finished = true; p.totalTime = now; }
                 }
             } else if (raceState > 0) { p.currentLapTime = 0; }
 
-            let pt = track.pit;
-            let dx = p.x - pt.x; let dy = p.y - pt.y;
-            let pCos = Math.cos(-pt.angle); let pSin = Math.sin(-pt.angle);
-            let lx = dx * pCos - dy * pSin; let ly = dx * pSin + dy * pCos;
-            let inPitBox = Math.abs(lx) <= pt.l/2 && Math.abs(ly) <= pt.w/2;
-
+            let pt = track.pit; let dx = p.x - pt.x; let dy = p.y - pt.y; let pCos = Math.cos(-pt.angle); let pSin = Math.sin(-pt.angle); let lx = dx * pCos - dy * pSin; let ly = dx * pSin + dy * pCos; let inPitBox = Math.abs(lx) <= pt.l/2 && Math.abs(ly) <= pt.w/2;
             let aPower = preset.power * serverSettings.power; let aMass = preset.mass * serverSettings.mass;
             
-            if (inPitBox && p.speedKmh < 10) p.fuel = Math.min(preset.fuelCap, p.fuel + 20 * dt); 
-            else p.fuel -= Math.abs(ins.throttle) * aPower * 0.00015 * dt;
+            if (inPitBox && p.speedKmh < 10) p.fuel = Math.min(preset.fuelCap, p.fuel + 20 * dt); else p.fuel -= Math.abs(ins.throttle) * aPower * 0.00015 * dt;
             if (p.fuel <= 0) { p.fuel = 0; ins.throttle = 0; }
 
-            ctx.save();
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.lineWidth = 160; const onAsphalt = ctx.isPointInStroke(track.path, p.x, p.y) || inPitBox;
-            ctx.lineWidth = 190; const onCurbs = ctx.isPointInStroke(track.path, p.x, p.y) && !onAsphalt;
-            ctx.lineWidth = 240; const onSand = ctx.isPointInStroke(track.path, p.x, p.y) && !onAsphalt && !onCurbs;
-            const inBounds = ctx.isPointInStroke(track.path, p.x, p.y) || inPitBox;
-            ctx.restore();
+            ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.lineWidth = 160; const onAsphalt = ctx.isPointInStroke(track.path, p.x, p.y) || inPitBox; ctx.lineWidth = 190; const onCurbs = ctx.isPointInStroke(track.path, p.x, p.y) && !onAsphalt; ctx.lineWidth = 240; const onSand = ctx.isPointInStroke(track.path, p.x, p.y) && !onAsphalt && !onCurbs; const inBounds = ctx.isPointInStroke(track.path, p.x, p.y) || inPitBox; ctx.restore();
 
             let surfaceMu = preset.grip * serverSettings.grip; let rollingResistance = preset.roll;
             if (onCurbs) surfaceMu *= 0.85; else if (onSand) { surfaceMu *= 0.4; rollingResistance = 0.35; } else if (!onAsphalt) { surfaceMu *= 0.55; rollingResistance = 0.15; }
 
             if (!inBounds && dt > 0) {
                 p.x = p.prevX; p.y = p.prevY; let nx = 0, ny = 0;
-                for (let r = 20; r <= 80; r += 20) {
-                    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-                    if (ctx.isPointInStroke(track.path, p.x + r, p.y)) nx += 1; if (ctx.isPointInStroke(track.path, p.x - r, p.y)) nx -= 1;
-                    if (ctx.isPointInStroke(track.path, p.x, p.y + r)) ny += 1; if (ctx.isPointInStroke(track.path, p.x, p.y - r)) ny -= 1;
-                    ctx.restore();
-                    if (nx !== 0 || ny !== 0) break;
-                }
-                let nLen = Math.hypot(nx, ny); 
-                if (nLen === 0) { nx = -Math.sign(p.vx); ny = -Math.sign(p.vy); nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = 1; ny = 0; nLen = 1; } }
-                nx /= nLen; ny /= nLen; 
-
-                let tx = -ny; 
-                let ty = nx; 
-                let vt = p.vx * tx + p.vy * ty; 
-                
-                p.vx = tx * vt * 0.98;
-                p.vy = ty * vt * 0.98;
-
-                p.x += nx * 4.0; 
-                p.y += ny * 4.0;
+                for (let r = 20; r <= 80; r += 20) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); if (ctx.isPointInStroke(track.path, p.x + r, p.y)) nx += 1; if (ctx.isPointInStroke(track.path, p.x - r, p.y)) nx -= 1; if (ctx.isPointInStroke(track.path, p.x, p.y + r)) ny += 1; if (ctx.isPointInStroke(track.path, p.x, p.y - r)) ny -= 1; ctx.restore(); if (nx !== 0 || ny !== 0) break; }
+                let nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = -Math.sign(p.vx); ny = -Math.sign(p.vy); nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = 1; ny = 0; nLen = 1; } }
+                nx /= nLen; ny /= nLen; let tx = -ny; let ty = nx; let vt = p.vx * tx + p.vy * ty; 
+                p.vx = tx * vt * 0.98; p.vy = ty * vt * 0.98; p.x += nx * 4.0; p.y += ny * 4.0;
             }
 
             if (isRecording && pid === myId) {
-                if (recordedWaypoints.length === 0) {
-                    recordedWaypoints.push({ x: Math.round(p.x), y: Math.round(p.y), targetSpeed: Math.max(15, Math.round(p.speedKmh)) });
-                } else {
-                    let lastPt = recordedWaypoints[recordedWaypoints.length - 1];
-                    let dist = Math.hypot(p.x - lastPt.x, p.y - lastPt.y);
-                    if (dist > 30) {
-                        recordedWaypoints.push({ x: Math.round(p.x), y: Math.round(p.y), targetSpeed: Math.max(15, Math.round(p.speedKmh)) });
-                    }
+                if (recordedWaypoints.length === 0) { recordedWaypoints.push({ x: Math.round(p.x), y: Math.round(p.y), targetSpeed: Math.max(15, Math.round(p.speedKmh)) }); } else {
+                    let lastPt = recordedWaypoints[recordedWaypoints.length - 1]; let dist = Math.hypot(p.x - lastPt.x, p.y - lastPt.y);
+                    if (dist > 30) { recordedWaypoints.push({ x: Math.round(p.x), y: Math.round(p.y), targetSpeed: Math.max(15, Math.round(p.speedKmh)) }); }
                 }
             }
             
-            let lVx = p.vx * Math.cos(-p.angle) - p.vy * Math.sin(-p.angle); 
-            let lVy = p.vx * Math.sin(-p.angle) + p.vy * Math.cos(-p.angle);
-            
-            let slipAngleDeg = 0;
-            if (Math.abs(lVx) > 1.0) {
-                slipAngleDeg = Math.atan2(lVy, Math.abs(lVx)) * (180 / Math.PI);
-            }
+            let lVx = p.vx * Math.cos(-p.angle) - p.vy * Math.sin(-p.angle); let lVy = p.vx * Math.sin(-p.angle) + p.vy * Math.cos(-p.angle);
+            let slipAngleDeg = 0; if (Math.abs(lVx) > 1.0) { slipAngleDeg = Math.atan2(lVy, Math.abs(lVx)) * (180 / Math.PI); }
 
-            let isSuddenThrottle = (ins.throttle - (p.prevThrottle || 0)) > 0.5;
-            p.prevThrottle = ins.throttle;
-
-            let steerInputTarget = Math.abs(ins.steering) > 0.08 ? Math.sign(ins.steering) * ((Math.abs(ins.steering) - 0.08) / 0.92) : 0;
-            let torqueMultiplier = 1.0;
+            let isSuddenThrottle = (ins.throttle - (p.prevThrottle || 0)) > 0.5; p.prevThrottle = ins.throttle;
+            let steerInputTarget = Math.abs(ins.steering) > 0.08 ? Math.sign(ins.steering) * ((Math.abs(ins.steering) - 0.08) / 0.92) : 0; let torqueMultiplier = 1.0;
 
             if (ins.driftAssist) {
                 let isSpinningOut = Math.abs(slipAngleDeg) > 45.0 || (Math.sign(slipAngleDeg) !== Math.sign(ins.steering) && Math.abs(ins.steering) > 0.2);
-
-                if (isSpinningOut) {
-                    torqueMultiplier = 0.5;
-                    steerInputTarget += -Math.sign(ins.steering) * 0.15;
-                } else {
-                    torqueMultiplier = 1.0 + (Math.abs(ins.steering) * 0.2);
-                    if (isSuddenThrottle && p.speedKmh > 30.0) {
-                        torqueMultiplier *= 1.25;
-                    }
-                }
+                if (isSpinningOut) { torqueMultiplier = 0.5; steerInputTarget += -Math.sign(ins.steering) * 0.15; } else { torqueMultiplier = 1.0 + (Math.abs(ins.steering) * 0.2); if (isSuddenThrottle && p.speedKmh > 30.0) { torqueMultiplier *= 1.25; } }
             }
             
-            steerInputTarget = Math.max(-1.0, Math.min(1.0, steerInputTarget));
-            p.steer += (steerInputTarget - p.steer) * 12.0 * dt; 
-            
-            let mThrottle = Math.pow(Math.abs(ins.throttle), 2.5) * Math.sign(ins.throttle);
-            mThrottle *= torqueMultiplier;
+            steerInputTarget = Math.max(-1.0, Math.min(1.0, steerInputTarget)); p.steer += (steerInputTarget - p.steer) * 12.0 * dt; 
+            let mThrottle = Math.pow(Math.abs(ins.throttle), 2.5) * Math.sign(ins.throttle); mThrottle *= torqueMultiplier;
 
             p.speedKmh = Math.abs(lVx * 3.6) || 0; p.appliesBrake = mThrottle < 0 && lVx >= 1.0;
-
             let dForce = 0; let bForce = p.appliesBrake ? aMass * 15.0 * Math.abs(mThrottle) : 0; const isRev = mThrottle < 0 && lVx < 1.0; 
 
-            if (raceState > 0) {
-                p.gear = 0; ins.handbrake = true; p.rpm += ((1000 + Math.max(0, mThrottle) * 7000) - p.rpm) * 5 * dt;
-            } else {
+            if (raceState > 0) { p.gear = 0; ins.handbrake = true; p.rpm += ((1000 + Math.max(0, mThrottle) * 7000) - p.rpm) * 5 * dt; } else {
                 if (preset.ev) {
                     p.gear = lVx >= -0.5 ? 'D' : 'R'; p.rpm += (p.speedKmh * 80 - p.rpm) * 12 * dt;
                     if (mThrottle > 0 || isRev) dForce = (aPower * 735.5 * 0.85 * (isRev ? 0.45 : 1.0) / Math.max(Math.abs(lVx), 5.0)) * mThrottle;
                 } else {
                     if (p.speedKmh < 1.0 && mThrottle <= 0) p.gear = 1; else if (p.gear === 0 && raceState === 0) { p.gear = 1; p.clutchDump = p.rpm / 7500; }
                     let wheelSpeedRpm = (p.speedKmh / 3.6) / wheelRadius * 9.55; let targetRpm = 1000 + wheelSpeedRpm * gearRatios[p.gear] * finalDrive;
-                    
                     if (p.speedKmh < 10 && mThrottle > 0) { targetRpm += Math.abs(mThrottle) * 4500 * (1 - p.speedKmh/10); }
-
                     if (targetRpm > 7500 && p.gear < 5) p.gear++; else if (targetRpm < 3500 && p.gear > 1 && p.speedKmh > 10) p.gear--;
                     p.rpm += (targetRpm - p.rpm) * 10 * dt;
                     if ((mThrottle > 0 || isRev) && p.gear > 0) {
-                        let torque = aPower * 2.0 * Math.max(0.1, 1.0 - Math.pow((p.rpm - 5500)/4500, 2));
-                        dForce = (torque * gearRatios[p.gear] * finalDrive / wheelRadius) * mThrottle;
+                        let torque = aPower * 2.0 * Math.max(0.1, 1.0 - Math.pow((p.rpm - 5500)/4500, 2)); dForce = (torque * gearRatios[p.gear] * finalDrive / wheelRadius) * mThrottle;
                         if (p.clutchDump > 0) { dForce *= (1.0 + p.clutchDump * 3.5); p.clutchDump -= dt * 2.5; } if (p.clutchDump < 0) p.clutchDump = 0;
                     }
                 }
             }
 
             const maxGrip = (aMass * 9.81 / 2) * surfaceMu; const maxLat = maxGrip * 1.40; 
-            let fLongF = preset.drivetrain === 'FWD' ? dForce : (preset.drivetrain === 'AWD' ? dForce*0.5 : 0);
-            let fLongR = preset.drivetrain === 'RWD' ? dForce : (preset.drivetrain === 'AWD' ? dForce*0.5 : 0);
-
+            let fLongF = preset.drivetrain === 'FWD' ? dForce : (preset.drivetrain === 'AWD' ? dForce*0.5 : 0); let fLongR = preset.drivetrain === 'RWD' ? dForce : (preset.drivetrain === 'AWD' ? dForce*0.5 : 0);
             let bDistR = bForce * 0.35; if (ins.handbrake) { bDistR += aMass * 20.0; p.appliesBrake = true; }
-            fLongF -= Math.sign(lVx) * (bForce * 0.65); fLongR -= Math.sign(lVx) * bDistR;
-            fLongF = Math.max(-maxGrip, Math.min(maxGrip, fLongF)) || 0; fLongR = Math.max(-maxGrip, Math.min(maxGrip, fLongR)) || 0;
+            fLongF -= Math.sign(lVx) * (bForce * 0.65); fLongR -= Math.sign(lVx) * bDistR; fLongF = Math.max(-maxGrip, Math.min(maxGrip, fLongF)) || 0; fLongR = Math.max(-maxGrip, Math.min(maxGrip, fLongR)) || 0;
+            let gripF = maxLat * Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongF) / maxGrip, 2) * 0.65)); let gripR = ins.handbrake ? maxLat * 0.02 : maxLat * Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongR) / maxGrip, 2) * 0.85));
 
-            let gripF = maxLat * Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongF) / maxGrip, 2) * 0.65));
-            let gripR = ins.handbrake ? maxLat * 0.02 : maxLat * Math.sqrt(Math.max(0.01, 1.0 - Math.pow(Math.abs(fLongR) / maxGrip, 2) * 0.85));
-
-            let a = preset.l / 24.0; let b = preset.l / 24.0; let Iz = Math.max(1, aMass * (Math.pow(preset.w/12.0, 2) + Math.pow(preset.l/12.0, 2)) / 12.0);
-            let slipAngle = p.speedKmh > 10.0 ? Math.atan2(lVy, Math.abs(lVx)) : 0; let maxRadian = (preset.turn * 10 * serverSettings.steering) * (Math.PI / 180); 
-            let delta = Math.max(-maxRadian, Math.min(maxRadian, (p.steer - slipAngle*0.45*serverSettings.caster) * maxRadian));
-
+            let a = preset.l / 24.0; let b = preset.l / 24.0; let Iz = Math.max(1, aMass * (Math.pow(preset.w/12.0, 2) + Math.pow(preset.l/12.0, 2)) / 12.0); let slipAngle = p.speedKmh > 10.0 ? Math.atan2(lVy, Math.abs(lVx)) : 0; let maxRadian = (preset.turn * 10 * serverSettings.steering) * (Math.PI / 180); let delta = Math.max(-maxRadian, Math.min(maxRadian, (p.steer - slipAngle*0.45*serverSettings.caster) * maxRadian));
             let vYf = lVy + p.yawRate * a; let vSlipF = vYf * Math.cos(delta) - lVx * Math.sin(delta); let vYr = lVy - p.yawRate * b; let vSlipR = vYr;
             let MeffF = 1.0 / (1.0/aMass + (a*a)/Iz); let MeffR = 1.0 / (1.0/aMass + (b*b)/Iz);
             let Jf = Math.max(-(gripF * dt), Math.min(gripF * dt, -vSlipF * MeffF)); let Jr = Math.max(-(gripR * dt), Math.min(gripR * dt, -vSlipR * MeffR));
 
-            let fLatF = Jf / dt; let fLatR = Jr / dt;
-            let fX = fLongF * Math.cos(delta) + fLongR - fLatF * Math.sin(delta) - 0.45 * lVx * Math.abs(lVx) - rollingResistance * aMass * 9.81 * Math.sign(lVx) * 0.1;
-            let fY = fLongF * Math.sin(delta) + fLatF * Math.cos(delta) + fLatR - 0.45 * lVy * Math.abs(lVy);
-            let torque = (fLongF * Math.sin(delta) + fLatF * Math.cos(delta)) * a - fLatR * b - (1.5 + Math.abs(lVy)*0.3) * p.yawRate * Iz;
+            let fLatF = Jf / dt; let fLatR = Jr / dt; let fX = fLongF * Math.cos(delta) + fLongR - fLatF * Math.sin(delta) - 0.45 * lVx * Math.abs(lVx) - rollingResistance * aMass * 9.81 * Math.sign(lVx) * 0.1; let fY = fLongF * Math.sin(delta) + fLatF * Math.cos(delta) + fLatR - 0.45 * lVy * Math.abs(lVy); let torque = (fLongF * Math.sin(delta) + fLatF * Math.cos(delta)) * a - fLatR * b - (1.5 + Math.abs(lVy)*0.3) * p.yawRate * Iz;
 
             lVx += (fX / aMass) * dt; lVy += (fY / aMass) * dt; p.yawRate += (torque / Iz) * dt;
             p.vx = lVx * Math.cos(p.angle) - lVy * Math.sin(p.angle); p.vy = lVx * Math.sin(p.angle) + lVy * Math.cos(p.angle); p.angle += p.yawRate * dt;
             p.prevX = p.x; p.prevY = p.y; p.x += p.vx * 12.0 * dt; p.y += p.vy * 12.0 * dt;
 
-            p.frontSpinSeverity = Math.abs(-vSlipF * MeffF) > gripF * dt ? Math.min(1.0, (Math.abs(-vSlipF * MeffF)-gripF * dt)/(gripF * dt)) : 0;
-            p.rearSpinSeverity = Math.abs(-vSlipR * MeffR) > gripR * dt ? Math.min(1.0, (Math.abs(-vSlipR * MeffR)-gripR * dt)/(gripR * dt)) : 0;
-            if (Math.abs(fLongR)/maxGrip > 0.95) p.rearSpinSeverity = 1.0; if (Math.abs(fLongF)/maxGrip > 0.95) p.frontSpinSeverity = 1.0; 
+            p.frontSpinSeverity = Math.abs(-vSlipF * MeffF) > gripF * dt ? Math.min(1.0, (Math.abs(-vSlipF * MeffF)-gripF * dt)/(gripF * dt)) : 0; p.rearSpinSeverity = Math.abs(-vSlipR * MeffR) > gripR * dt ? Math.min(1.0, (Math.abs(-vSlipR * MeffR)-gripR * dt)/(gripR * dt)) : 0; if (Math.abs(fLongR)/maxGrip > 0.95) p.rearSpinSeverity = 1.0; if (Math.abs(fLongF)/maxGrip > 0.95) p.frontSpinSeverity = 1.0; 
 
-            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, c: p.color, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake, n: p.name, l: p.lap, bl: p.bestLap === Infinity ? null : p.bestLap, fin: p.finished, cLT: p.currentLapTime };
+            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, c: p.color, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake, n: p.name, l: p.lap, bl: p.bestLap === Infinity ? null : p.bestLap, lL: p.lastLap, fin: p.finished, cLT: p.currentLapTime };
         }
 
         for(let i=0; i<pkeys.length; i++) {
             for(let j=i+1; j<pkeys.length; j++) {
                 let pA = players[pkeys[i]], pB = players[pkeys[j]]; if(!pA || !pB || !isFinite(pA.x) || !isFinite(pB.x)) continue;
                 let dx = pB.x - pA.x, dy = pB.y - pA.y, dist = Math.hypot(dx, dy); 
-                
-                let preA = vehiclePresets[pA.presetId]||vehiclePresets['jaguar'];
-                let preB = vehiclePresets[pB.presetId]||vehiclePresets['jaguar'];
-                let rA = (preA.l + preA.w) / 4; 
-                let rB = (preB.l + preB.w) / 4;
+                let preA = vehiclePresets[pA.presetId]||vehiclePresets['jaguar']; let preB = vehiclePresets[pB.presetId]||vehiclePresets['jaguar']; let rA = (preA.l + preA.w) / 4; let rB = (preB.l + preB.w) / 4;
                 
                 if(dist < rA + rB && dist > 0) {
-                    // SPØKELSESMODUS: Hvis én av bilene er spøkelse, passerer de tvers gjennom hverandre
                     if (pA.isGhost || pB.isGhost) continue;
-                    let nx = dx/dist, ny = dy/dist; 
-                    let velN = (pB.vx - pA.vx)*nx + (pB.vy - pA.vy)*ny; 
-                    
-                    let mA = preA.mass * serverSettings.mass, mB = preB.mass * serverSettings.mass;
-                    
-                    if (pA.speedKmh < 10 && pB.speedKmh < 10) {
-                        let pushAway = 2.0;
-                        pA.x -= nx * pushAway; pA.y -= ny * pushAway;
-                        pB.x += nx * pushAway; pB.y += ny * pushAway;
-                    }
-
-                    if(velN <= 0) {
-                        let jImp = -(1 + 0.1) * velN / (1/mA + 1/mB); 
-                        pA.vx -= (jImp * nx)/mA; pA.vy -= (jImp * ny)/mA; 
-                        pB.vx += (jImp * nx)/mB; pB.vy += (jImp * ny)/mB;
-                    }
-                    
-                    let corr = Math.max(0, (rA+rB - dist)) / (1/mA + 1/mB) * 0.8; 
-                    pA.x -= (nx*corr)/mA; pA.y -= (ny*corr)/mA; 
-                    pB.x += (nx*corr)/mB; pB.y += (ny*corr)/mB;
+                    let nx = dx/dist, ny = dy/dist; let velN = (pB.vx - pA.vx)*nx + (pB.vy - pA.vy)*ny; let mA = preA.mass * serverSettings.mass, mB = preB.mass * serverSettings.mass;
+                    if (pA.speedKmh < 10 && pB.speedKmh < 10) { let pushAway = 2.0; pA.x -= nx * pushAway; pA.y -= ny * pushAway; pB.x += nx * pushAway; pB.y += ny * pushAway; }
+                    if(velN <= 0) { let jImp = -(1 + 0.1) * velN / (1/mA + 1/mB); pA.vx -= (jImp * nx)/mA; pA.vy -= (jImp * ny)/mA; pB.vx += (jImp * nx)/mB; pB.vy += (jImp * ny)/mB; }
+                    let corr = Math.max(0, (rA+rB - dist)) / (1/mA + 1/mB) * 0.8; pA.x -= (nx*corr)/mA; pA.y -= (ny*corr)/mA; pB.x += (nx*corr)/mB; pB.y += (ny*corr)/mB;
                 }
             }
         }
@@ -1002,8 +705,7 @@ function update() {
             let p = players[pid]; 
             if (isFinite(p.targetX) && isFinite(p.targetY)) {
                 p.x += (p.targetX - p.x) * 0.3; p.y += (p.targetY - p.y) * 0.3;
-                let d = p.targetAngle - p.angle; while(d < -Math.PI) d+=Math.PI*2; while(d > Math.PI) d-=Math.PI*2; 
-                p.angle += d * 0.3;
+                let d = p.targetAngle - p.angle; while(d < -Math.PI) d+=Math.PI*2; while(d > Math.PI) d-=Math.PI*2; p.angle += d * 0.3;
             }
         }
     }
@@ -1012,15 +714,73 @@ function update() {
         let lightUI = document.getElementById('f1-lights');
         if (lightUI) {
             if(raceState === -1 || (raceState === 0 && now - raceStartTime > 2000)) lightUI.style.display = 'none';
-            else {
-                lightUI.style.display = 'flex'; let lights = lightUI.getElementsByClassName('light');
-                for(let i=0; i<5; i++) { if(lights[i]){ lights[i].className = 'light'; if(raceState === 0) lights[i].classList.add('green'); else if(5 - raceState > i) lights[i].classList.add('red'); } }
-                if(raceState > 0) playBeep(440, 0.2); if(raceState === 0) playBeep(880, 0.8);
-            }
+            else { lightUI.style.display = 'flex'; let lights = lightUI.getElementsByClassName('light'); for(let i=0; i<5; i++) { if(lights[i]){ lights[i].className = 'light'; if(raceState === 0) lights[i].classList.add('green'); else if(5 - raceState > i) lights[i].classList.add('red'); } } if(raceState > 0) playBeep(440, 0.2); if(raceState === 0) playBeep(880, 0.8); }
         }
         lastLightState = raceState;
-    } else if (raceState === 0 && now - raceStartTime > 2000) { 
-        let lUI = document.getElementById('f1-lights'); if(lUI) lUI.style.display = 'none'; 
+    } else if (raceState === 0 && now - raceStartTime > 2000) { let lUI = document.getElementById('f1-lights'); if(lUI) lUI.style.display = 'none'; }
+
+    // --- LEADERBOARD & RANGERINGS-LOGIKK ---
+    let lbArr = Object.values(players).map(p => {
+        let distToNext = 0;
+        if (!p.finished && isFinite(p.x)) {
+            let target = p.cp ? track.finish : track.checkpoint;
+            distToNext = Math.hypot(p.x - target.x, p.y - target.y);
+        }
+        return {
+            id: p.id, n: p.name, b: p.bestLap, l: p.lap, fin: p.finished,
+            cp: p.cp, dist: distToNext, last: p.lastLap || 0, isMe: p.id === myId
+        };
+    }).sort((a,b) => {
+        if(a.fin && !b.fin) return -1;
+        if(!a.fin && b.fin) return 1;
+        if(a.l !== b.l) return b.l - a.l;
+        if(a.cp !== b.cp) return a.cp ? -1 : 1;
+        return a.dist - b.dist; 
+    });
+
+    let displayArr = lbArr;
+    if (deviceType === 'phone') {
+        let myIndex = lbArr.findIndex(p => p.isMe);
+        if (myIndex !== -1) {
+            let start = Math.max(0, myIndex - 1);
+            let end = Math.min(lbArr.length, myIndex + 2);
+            displayArr = lbArr.slice(start, end);
+        } else {
+            displayArr = lbArr.slice(0, 3);
+        }
+    }
+
+    let lbHTML = ""; 
+    displayArr.forEach(p => {
+        let actualRank = lbArr.findIndex(x => x.id === p.id) + 1;
+        let bestStr = p.b === Infinity || !p.b ? "-.--" : formatTime(p.b);
+        let lastStr = p.last === 0 || !p.last ? "-.--" : formatTime(p.last);
+        let rowStyle = p.isMe ? 'color:#2ecc71; font-weight:bold;' : (p.fin ? 'color:#f1c40f;' : '');
+        lbHTML += `<li style="${rowStyle}">
+            <span class="lb-name">${actualRank}. ${p.n}</span>
+            <span class="lb-times">B: ${bestStr} | S: ${lastStr}</span>
+        </li>`;
+    });
+    let lbL = document.getElementById('lb-list'); if(lbL) lbL.innerHTML = lbHTML;
+
+    // --- PODIUM UTSTEDELSE ---
+    if(raceState === 0 && players[myId] && players[myId].finished) {
+        if(!window.finishTimer) window.finishTimer = performance.now();
+        if(performance.now() - window.finishTimer > 2500) {
+            let pUI = document.getElementById('podium-overlay');
+            if(pUI && pUI.style.display !== 'flex') {
+                pUI.style.display = 'flex';
+                pUI.classList.add('celebrate');
+                document.getElementById('podium-1').innerText = "🥇 " + (lbArr[0] ? lbArr[0].n : '-');
+                document.getElementById('podium-2').innerText = "🥈 " + (lbArr[1] ? lbArr[1].n : '-');
+                document.getElementById('podium-3').innerText = "🥉 " + (lbArr[2] ? lbArr[2].n : '-');
+                playBeep(600, 0.2); setTimeout(()=>playBeep(800, 0.4), 200);
+            }
+        }
+    } else {
+        window.finishTimer = null;
+        let pUI = document.getElementById('podium-overlay');
+        if(pUI && raceState !== 0) { pUI.style.display = 'none'; pUI.classList.remove('celebrate'); }
     }
 
     if (players[myId]) {
@@ -1028,59 +788,24 @@ function update() {
         let hs = document.getElementById('hud-speed'); if(hs) hs.innerText = Math.round(me.speedKmh || 0);
         let hg = document.getElementById('hud-gear'); if(hg) hg.innerText = me.gear === -1 ? 'R' : (me.gear === 0 ? 'N' : me.gear);
         let hr = document.getElementById('hud-rpm'); if(hr) hr.innerText = me.rpm < 10 ? 0 : Math.round(me.rpm || 0);
-        
-        let ha = document.getElementById('hud-assist'); 
-        if (ha) { 
-            ha.innerText = localInputs.driftAssist ? "PÅ" : "AV";
-            ha.style.color = localInputs.driftAssist ? "#2ecc71" : "#e74c3c";
-        }
-        
-        let ff = document.getElementById('fuel-fill');
-        if (ff) {
-            ff.style.width = ((me.fuel || 0) / (me.maxFuel || 100) * 100) + '%';
-            ff.style.background = me.fuel < (me.maxFuel||100)*0.2 ? '#e74c3c' : '#f1c40f';
-        }
+        let ha = document.getElementById('hud-assist'); if (ha) { ha.innerText = localInputs.driftAssist ? "PÅ" : "AV"; ha.style.color = localInputs.driftAssist ? "#2ecc71" : "#e74c3c"; }
+        let ff = document.getElementById('fuel-fill'); if (ff) { ff.style.width = ((me.fuel || 0) / (me.maxFuel || 100) * 100) + '%'; ff.style.background = me.fuel < (me.maxFuel||100)*0.2 ? '#e74c3c' : '#f1c40f'; }
         let hLp = document.getElementById('hud-lap'); if(hLp) hLp.innerText = `${Math.min(me.lap + 1, totalLaps)}/${totalLaps}`;
         let hTm = document.getElementById('hud-time'); if(hTm) hTm.innerText = me.finished ? formatTime(me.bestLap) : (raceState === 0 ? formatTime(me.currentLapTime) : "0.00");
         
         if (audioReady && engineOsc && engineGain) {
-            let sRpm = isFinite(me.rpm) && me.rpm > 0 ? me.rpm : 0;
-            let sSpd = isFinite(me.speedKmh) && me.speedKmh > 0 ? me.speedKmh : 0;
-            let sThr = isFinite(localInputs.throttle) ? localInputs.throttle : 0;
-            
-            engineOsc.frequency.value = Math.max(10, 40 + (sRpm / 22)); 
-            engineGain.gain.value = sRpm < 100 ? 0 : 0.08 + (Math.abs(sThr) * 0.2);
-            
+            let sRpm = isFinite(me.rpm) && me.rpm > 0 ? me.rpm : 0; let sSpd = isFinite(me.speedKmh) && me.speedKmh > 0 ? me.speedKmh : 0; let sThr = isFinite(localInputs.throttle) ? localInputs.throttle : 0;
+            engineOsc.frequency.value = Math.max(10, 40 + (sRpm / 22)); engineGain.gain.value = sRpm < 100 ? 0 : 0.08 + (Math.abs(sThr) * 0.2);
             let sq = Math.max(me.frontSpinSeverity || 0, me.rearSpinSeverity || 0); 
-            if (squealGain && squealOsc) {
-                if(sq > 0.1 && sSpd > 5) { squealGain.gain.value = isFinite(sq) ? sq * 0.15 : 0; squealOsc.frequency.value = 800 + Math.random()*200; } 
-                else { squealGain.gain.value = 0; }
-            }
+            if (squealGain && squealOsc) { if(sq > 0.1 && sSpd > 5) { squealGain.gain.value = isFinite(sq) ? sq * 0.15 : 0; squealOsc.frequency.value = 800 + Math.random()*200; } else { squealGain.gain.value = 0; } }
         }
     }
 
-    let lbArr = Object.values(players).map(p => ({ n: p.name, b: p.bestLap, l: p.lap, fin: p.finished })).sort((a,b) => {
-        if(a.fin && !b.fin) return -1; if(!a.fin && b.fin) return 1; if(a.l !== b.l) return b.l - a.l; return (a.b||0) - (b.b||0);
-    });
-    let lbHTML = ""; for(let i=0; i<Math.min(5, lbArr.length); i++) lbHTML += `<li><span>${i+1}. ${lbArr[i].n}</span><span style="color:${lbArr[i].fin?'#2ecc71':'#f1c40f'};">${lbArr[i].fin?'Ferdig':formatTime(lbArr[i].b)}</span></li>`;
-    let lbL = document.getElementById('lb-list'); if(lbL) lbL.innerHTML = lbHTML;
-
     ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = '#2d4c1e'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.save(); 
-    
-    // --- SKALERING OG KAMERA-ZOOM ---
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.scale(cameraZoom, cameraZoom);
-    if(players[myId] && isFinite(players[myId].x) && isFinite(players[myId].y)) {
-        ctx.translate(-players[myId].x, -players[myId].y); 
-    } else { 
-        ctx.translate(-track.startX, -track.startY); 
-    }
+    ctx.translate(canvas.width / 2, canvas.height / 2); ctx.scale(cameraZoom, cameraZoom);
+    if(players[myId] && isFinite(players[myId].x) && isFinite(players[myId].y)) { ctx.translate(-players[myId].x, -players[myId].y); } else { ctx.translate(-track.startX, -track.startY); }
 
-    let pt = track.pit;
-    ctx.save(); ctx.translate(pt.x, pt.y); ctx.rotate(pt.angle);
-    ctx.fillStyle = '#2c2c2c';
-    ctx.beginPath(); ctx.roundRect(-pt.l/2 - 40, -pt.w/2, pt.l + 80, pt.w, 40); ctx.fill();
-    ctx.restore();
+    let pt = track.pit; ctx.save(); ctx.translate(pt.x, pt.y); ctx.rotate(pt.angle); ctx.fillStyle = '#2c2c2c'; ctx.beginPath(); ctx.roundRect(-pt.l/2 - 40, -pt.w/2, pt.l + 80, pt.w, 40); ctx.fill(); ctx.restore();
 
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.lineWidth = 250; ctx.strokeStyle = '#1a2e12'; ctx.stroke(track.path); ctx.lineWidth = 240; ctx.strokeStyle = '#c2b280'; ctx.stroke(track.path);
@@ -1089,20 +814,13 @@ function update() {
     
     ctx.save(); ctx.translate(pt.x, pt.y); ctx.rotate(pt.angle);
     ctx.fillStyle = 'rgba(52, 152, 219, 0.3)'; ctx.strokeStyle = '#3498db'; ctx.lineWidth = 4; ctx.setLineDash([10,10]);
-    ctx.beginPath(); ctx.roundRect(-pt.l/2, -pt.w/2, pt.l, pt.w, 10); ctx.fill(); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = '#fff'; ctx.font = '20px sans-serif'; ctx.fillText('PIT', -15, 6);
-    ctx.restore();
+    ctx.beginPath(); ctx.roundRect(-pt.l/2, -pt.w/2, pt.l, pt.w, 10); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#fff'; ctx.font = '20px sans-serif'; ctx.fillText('PIT', -15, 6); ctx.restore();
 
     ctx.save(); ctx.translate(track.startX, track.startY); ctx.rotate(track.startAngle);
-    let cbW = 10; ctx.fillStyle = '#fff';
-    for(let r=-8; r<8; r++) { for(let c=0; c<4; c++) { if((r+c)%2===0) ctx.fillRect(-c*cbW, r*cbW, cbW, cbW); } }
-    
+    let cbW = 10; ctx.fillStyle = '#fff'; for(let r=-8; r<8; r++) { for(let c=0; c<4; c++) { if((r+c)%2===0) ctx.fillRect(-c*cbW, r*cbW, cbW, cbW); } }
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
-    for(let i=0; i<Object.keys(players).length; i++) {
-        let row = Math.floor(i / 2); let col = i % 2 === 0 ? 1 : -1; let spacing = 120, lateral = 40; let gx = -(row * spacing + 60); let gy = (col * lateral);
-        ctx.beginPath(); ctx.moveTo(gx + 20, gy - 12); ctx.lineTo(gx - 20, gy - 12); ctx.lineTo(gx - 20, gy + 12); ctx.lineTo(gx + 20, gy + 12); ctx.stroke();
-    }
+    for(let i=0; i<Object.keys(players).length; i++) { let row = Math.floor(i / 2); let col = i % 2 === 0 ? 1 : -1; let spacing = 120, lateral = 40; let gx = -(row * spacing + 60); let gy = (col * lateral); ctx.beginPath(); ctx.moveTo(gx + 20, gy - 12); ctx.lineTo(gx - 20, gy - 12); ctx.lineTo(gx - 20, gy + 12); ctx.lineTo(gx + 20, gy + 12); ctx.stroke(); }
     ctx.restore();
 
     for (let obj of envObjects) {
@@ -1123,9 +841,7 @@ function update() {
     
     for (let i = 0; i < skidmarks.length; i++) { 
         let m = skidmarks[i]; 
-        if (isFinite(m.x1) && isFinite(m.y1) && isFinite(m.x2) && isFinite(m.y2)) {
-            ctx.rect(m.x1 - 2, m.y1 - 2, 4, 4); ctx.rect(m.x2 - 2, m.y2 - 2, 4, 4); 
-        }
+        if (isFinite(m.x1) && isFinite(m.y1) && isFinite(m.x2) && isFinite(m.y2)) { ctx.rect(m.x1 - 2, m.y1 - 2, 4, 4); ctx.rect(m.x2 - 2, m.y2 - 2, 4, 4); }
     } 
     ctx.fill();
 
@@ -1134,7 +850,7 @@ function update() {
         if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.angle)) continue;
         
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
-        if (p.isGhost) ctx.globalAlpha = 0.45; // Gjør bilen halvt transparent når den er i spøkelsesmodus
+        if (p.isGhost) ctx.globalAlpha = 0.45;
         let hl = pre.l/2, hw = pre.w/2; const wheelW = 14, wheelThick = 6, wheelOffset = hw - 1; let maxRadian = (pre.turn * 10 * serverSettings.steering) * (Math.PI / 180); let delta = Math.max(-maxRadian, Math.min(maxRadian, (p.steer||0) * maxRadian));
 
         if (pre.type !== 'f1' && pre.type !== 'gokart') {
@@ -1176,21 +892,9 @@ function update() {
     ctx.restore(); 
 
     if (recordedWaypoints.length > 0) {
-        ctx.save();
-        ctx.strokeStyle = 'rgba(241, 196, 15, 0.8)';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(recordedWaypoints[0].x, recordedWaypoints[0].y);
-        for (let i = 1; i < recordedWaypoints.length; i++) {
-            ctx.lineTo(recordedWaypoints[i].x, recordedWaypoints[i].y);
-        }
-        ctx.stroke();
-        
-        ctx.fillStyle = '#e74c3c';
-        for (let pt of recordedWaypoints) {
-            ctx.fillRect(pt.x - 3, pt.y - 3, 6, 6);
-        }
-        ctx.restore();
+        ctx.save(); ctx.strokeStyle = 'rgba(241, 196, 15, 0.8)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(recordedWaypoints[0].x, recordedWaypoints[0].y);
+        for (let i = 1; i < recordedWaypoints.length; i++) { ctx.lineTo(recordedWaypoints[i].x, recordedWaypoints[i].y); } ctx.stroke();
+        ctx.fillStyle = '#e74c3c'; for (let pt of recordedWaypoints) { ctx.fillRect(pt.x - 3, pt.y - 3, 6, 6); } ctx.restore();
     }
     
     gameLoopId = requestAnimationFrame(update);
