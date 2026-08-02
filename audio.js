@@ -9,33 +9,39 @@ class AudioManager {
         this.prevThrottle = 0;
         this.bovTimer = 0;
         this.noiseBuffer = null;
+        
+        this.lastLog = 0;
     }
 
     init() {
         if (this.ready) return;
         try {
+            console.log("[AUDIO DEBUG] Initialiserer AudioContext...");
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
             this.setupSqueal();
             this.createNoiseBuffer();
             this.ready = true;
-        } catch(e) { console.error("Kunne ikke starte AudioContext", e); }
+            console.log("[AUDIO DEBUG] AudioContext opprettet. Status:", this.ctx.state);
+        } catch(e) { console.error("[AUDIO DEBUG] Kunne ikke starte AudioContext:", e); }
     }
 
     resume() {
         if (!this.ready) this.init();
         if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume().catch(() => {});
+            console.log("[AUDIO DEBUG] Forsøker å vekke AudioContext fra 'suspended'...");
+            this.ctx.resume().then(() => {
+                console.log("[AUDIO DEBUG] AudioContext vellykket vekket. Status:", this.ctx.state);
+            }).catch(e => {
+                console.error("[AUDIO DEBUG] AudioContext blokkert. Venter på interaksjon.", e);
+            });
         }
     }
 
-    // Fikset matematikk: Normaliserer utsignalet tilbake til -1.0 til 1.0
     makeDistortionCurve(amount) {
         const k = typeof amount === 'number' ? amount : 50;
         const n_samples = 44100;
         const curve = new Float32Array(n_samples);
         const deg = Math.PI / 180;
-        
-        // Finner maksverdien for å unngå signal-kvelning
         const max_x = 1;
         const max_val = (3 + k) * max_x * 20 * deg / (Math.PI + k * Math.abs(max_x));
 
@@ -72,6 +78,7 @@ class AudioManager {
     }
 
     buildEngine(type) {
+        console.log(`[AUDIO DEBUG] Bygger motornoder for profil: ${type}`);
         if (this.engineNodes) {
             try { if(this.engineNodes.osc) this.engineNodes.osc.stop(); } catch(e){}
             try { if(this.engineNodes.subOsc) this.engineNodes.subOsc.stop(); } catch(e){}
@@ -92,7 +99,7 @@ class AudioManager {
             this.engineNodes.osc.type = 'sawtooth';
             this.engineNodes.hpf = this.ctx.createBiquadFilter();
             this.engineNodes.hpf.type = 'highpass';
-            this.engineNodes.hpf.frequency.value = 80; // Senket fra 150 for å la bassen komme frem
+            this.engineNodes.hpf.frequency.value = 80;
             this.engineNodes.lpf = this.ctx.createBiquadFilter();
             this.engineNodes.lpf.type = 'lowpass';
             this.engineNodes.dist = this.ctx.createWaveShaper();
@@ -230,6 +237,7 @@ class AudioManager {
             this.engineNodes.lpf.connect(this.engineNodes.masterGain);
             this.engineNodes.osc.start();
         }
+        console.log(`[AUDIO DEBUG] Noder bygget og startet for ${type}.`);
     }
 
     playBlowoffValve() {
@@ -255,7 +263,15 @@ class AudioManager {
     update(vehicleType, rpm, speedKmh, throttle, spinSeverity) {
         if (!this.ready || !this.ctx) return;
         
-        // Tvinger resume under oppdateringsloopen hvis context har sovnet
+        let now = performance.now();
+        if (now - this.lastLog > 1000) {
+            console.log(`[AUDIO UPDATE] Type: ${vehicleType} | RPM: ${rpm.toFixed(0)} | Thr: ${throttle.toFixed(2)} | Spd: ${speedKmh.toFixed(0)} | Ctx State: ${this.ctx.state}`);
+            if (this.engineNodes && this.engineNodes.masterGain) {
+                console.log(`[AUDIO UPDATE] MasterGain Value: ${this.engineNodes.masterGain.gain.value}`);
+            }
+            this.lastLog = now;
+        }
+
         if (this.ctx.state !== 'running') this.resume();
 
         if (this.currentType !== vehicleType) this.buildEngine(vehicleType);
@@ -264,11 +280,10 @@ class AudioManager {
         let sSpd = isFinite(speedKmh) && speedKmh > 0 ? speedKmh : 0;
         let sThr = isFinite(throttle) ? Math.abs(throttle) : 0;
 
-        // Fysikk-korrekte frekvens-multiplikatorer
         let baseFreq = sRpm / 60; 
 
         if (vehicleType === 'gokart') {
-            this.engineNodes.osc.frequency.value = baseFreq; // 1 cyl, 1 puls per rotasjon
+            this.engineNodes.osc.frequency.value = baseFreq; 
             let lpFreq = 400 + (sRpm * 0.5) + (sThr * 2500); 
             if (sRpm > 7000 && sThr > 0.5) lpFreq += 3000;
             
@@ -296,20 +311,20 @@ class AudioManager {
             this.engineNodes.masterGain.gain.value = volTarget;
         } 
         else if (vehicleType === 'v8') {
-            this.engineNodes.osc.frequency.value = baseFreq * 4; // V8 = 4 pulser
+            this.engineNodes.osc.frequency.value = baseFreq * 4; 
             this.engineNodes.subOsc.frequency.value = baseFreq * 2;
-            this.engineNodes.lfo.frequency.value = baseFreq / 2; // Krysplan pulsering
+            this.engineNodes.lfo.frequency.value = baseFreq / 2; 
             this.engineNodes.lfoGain.gain.value = sRpm < 3500 ? 0.7 : 0.1;
             this.engineNodes.lpf.frequency.value = 800 + (sRpm * 0.6) + (sThr * 3000);
             this.engineNodes.masterGain.gain.value = 0.25 + (sThr * 0.5);
         }
         else if (vehicleType === 'v10') {
-            this.engineNodes.osc.frequency.value = baseFreq * 5; // V10 = 5 pulser
+            this.engineNodes.osc.frequency.value = baseFreq * 5; 
             this.engineNodes.lpf.frequency.value = 1500 + (sRpm * 1.5) + (sThr * 4500);
             this.engineNodes.masterGain.gain.value = 0.2 + (sThr * 0.6);
         }
         else if (vehicleType === 'rotary') {
-            this.engineNodes.osc.frequency.value = baseFreq * 3; // Wankel = 3 pulser per hovedrotasjon
+            this.engineNodes.osc.frequency.value = baseFreq * 3; 
             this.engineNodes.lfo.frequency.value = baseFreq / 1.5;
             this.engineNodes.lfoGain.gain.value = sRpm < 4000 ? 0.8 : 0.0;
             this.engineNodes.lpf.frequency.value = 1200 + (sRpm * 0.8) + (sThr * 2500);
@@ -317,7 +332,7 @@ class AudioManager {
             this.engineNodes.masterGain.gain.value = 0.2 + (sThr * 0.5);
         }
         else if (vehicleType === 'turbo') {
-            this.engineNodes.osc.frequency.value = baseFreq * 2; // I4 = 2 pulser
+            this.engineNodes.osc.frequency.value = baseFreq * 2; 
             this.engineNodes.lpf.frequency.value = 600 + (sRpm * 0.7) + (sThr * 3000);
             this.engineNodes.turboOsc.frequency.value = 2000 + (sRpm * 0.5) + (sThr * 4000);
             
@@ -333,7 +348,7 @@ class AudioManager {
             this.engineNodes.masterGain.gain.value = 0.25 + (sThr * 0.5);
         }
         else if (vehicleType === 'v6') {
-            this.engineNodes.osc.frequency.value = baseFreq * 3; // V6 = 3 pulser
+            this.engineNodes.osc.frequency.value = baseFreq * 3; 
             this.engineNodes.subOsc.frequency.value = baseFreq * 1.5;
             this.engineNodes.lpf.frequency.value = 1000 + (sRpm * 0.8) + (sThr * 2500);
             this.engineNodes.masterGain.gain.value = 0.25 + (sThr * 0.5);
