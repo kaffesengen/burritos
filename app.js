@@ -128,6 +128,36 @@ let raceState = -1, totalLaps = 3, raceStartTime = 0;
 let gameLoopId = null;
 let isRecording = false; let recordedWaypoints = [];
 
+let lastGamepadCount = 0;
+function checkGamepadDefault() {
+    let gps = navigator.getGamepads ? navigator.getGamepads() : [];
+    let activeCount = Array.from(gps).filter(gp => gp && gp.connected).length;
+    let inputSel = document.getElementById('input-selector');
+    if (inputSel) {
+        let parentDiv = inputSel.closest('.control');
+        if (parentDiv) parentDiv.style.display = 'block';
+
+        if (activeCount > lastGamepadCount) {
+            inputSel.value = 'gamepad';
+        }
+        lastGamepadCount = activeCount;
+    }
+}
+setInterval(checkGamepadDefault, 500);
+
+const safeAudioResume = () => { 
+    if(window.audioManager) {
+        console.log("[APP DEBUG] Kaller window.audioManager.resume() fra event listener");
+        window.audioManager.resume(); 
+    } else {
+        console.error("[APP DEBUG] Feil: window.audioManager er undefined ved interaksjon. Sjekk at audio.js lastes.");
+    }
+};
+window.addEventListener('click', safeAudioResume, { passive: true });
+window.addEventListener('keydown', safeAudioResume, { passive: true });
+window.addEventListener('touchstart', safeAudioResume, { passive: true });
+window.addEventListener('gamepadconnected', () => { safeAudioResume(); checkGamepadDefault(); });
+
 function createPlayerRecord(id, presetId, name, colorCode) {
     let safeName = "Gjest";
     if (typeof name === 'string' && name.trim().length > 0) safeName = name.trim().substring(0, 15);
@@ -322,9 +352,6 @@ function exitToMenu() {
     let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: 1`;
     showMsg('');
 }
-
-document.body.addEventListener('pointerdown', () => { if(window.audioManager) window.audioManager.init(); if(window.audioManager) window.audioManager.resume(); }, { once: true });
-document.body.addEventListener('keydown', () => { if(window.audioManager) window.audioManager.init(); if(window.audioManager) window.audioManager.resume(); }, { once: true });
 
 ['grip', 'power', 'mass', 'steering', 'caster'].forEach(id => {
     let el = document.getElementById(`sb-${id}`);
@@ -547,13 +574,13 @@ if (lA && gA) {
 function setupJoystick(zId, sId, key, onC) {
     const z = document.getElementById(zId), s = document.getElementById(sId); if (!z || !s) return;
     function move(cX, cY) { const r = z.getBoundingClientRect(); const dx = Math.max(-45, Math.min(cX-(r.left+r.width/2), 45)), dy = Math.max(-45, Math.min(cY-(r.top+r.height/2), 45)); s.style.transform = `translate(${dx}px, ${dy}px)`; onC(dx/45, dy/45); }
-    z.addEventListener('touchstart', e => { if(activeTouchState[key]===null){ activeTouchState[key]=e.changedTouches[0].identifier; move(e.changedTouches[0].clientX, e.changedTouches[0].clientY); if(window.audioManager) window.audioManager.resume(); } });
+    z.addEventListener('touchstart', e => { if(activeTouchState[key]===null){ activeTouchState[key]=e.changedTouches[0].identifier; move(e.changedTouches[0].clientX, e.changedTouches[0].clientY); safeAudioResume(); } });
     window.addEventListener('touchmove', e => { for(let t of e.changedTouches) if(t.identifier===activeTouchState[key]) move(t.clientX, t.clientY); });
     window.addEventListener('touchend', e => { for(let t of e.changedTouches) if(t.identifier===activeTouchState[key]){ activeTouchState[key]=null; s.style.transform=`translate(0px, 0px)`; onC(0,0); } });
 }
 setupJoystick('joystick-left-zone', 'stick-left', 'left', (x, y) => localInputs.steering = x); setupJoystick('joystick-right-zone', 'stick-right', 'right', (x, y) => localInputs.throttle = -y);
 
-const hbBtn = document.getElementById('btn-handbrake'); const hb = s => e => { e.preventDefault(); localInputs.handbrake = s; if(window.audioManager) window.audioManager.resume(); };
+const hbBtn = document.getElementById('btn-handbrake'); const hb = s => e => { e.preventDefault(); localInputs.handbrake = s; safeAudioResume(); };
 if (hbBtn) { hbBtn.addEventListener('touchstart', hb(true), {passive:false}); hbBtn.addEventListener('touchend', hb(false), {passive:false}); }
 
 let initialThreeFingerY = null; const canvasContainer = document.getElementById('canvas-container');
@@ -600,7 +627,6 @@ window.addEventListener('keydown', e => {
 
     if(e.key==='w'||e.key==='ArrowUp') localInputs.throttle=1; if(e.key==='s'||e.key==='ArrowDown') localInputs.throttle=-1; if(e.key==='a'||e.key==='ArrowLeft') localInputs.steering=-1; if(e.key==='d'||e.key==='ArrowRight') localInputs.steering=1; if(e.key===' ') localInputs.handbrake=true; 
     if(e.key.toLowerCase() === 'e') localInputs.shiftUp = true; if(e.key.toLowerCase() === 'q') localInputs.shiftDown = true;
-    if(window.audioManager) window.audioManager.resume(); 
 });
 window.addEventListener('keyup', e => { 
     if(e.key==='w'||e.key==='s'||e.key==='ArrowUp'||e.key==='ArrowDown') localInputs.throttle=0; if(e.key==='a'||e.key==='d'||e.key==='ArrowLeft'||e.key==='ArrowRight') localInputs.steering=0; if(e.key===' ') localInputs.handbrake=false; 
@@ -663,55 +689,73 @@ function update() {
     let gps = navigator.getGamepads ? navigator.getGamepads() : [];
     if (!window.prevGamepadState) window.prevGamepadState = {};
 
-    // --- LOCAL PLAYERS INPUTS ---
     localPlayers.forEach(lp => {
         let p = players[lp.id];
         if (!p) return;
 
         let fin = { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: p.inputs.smartAssist, shiftUp: false, shiftDown: false };
 
-        if (lp.isKeyboard || !isSplitScreen) {
-            fin.steering = localInputs.steering;
-            fin.throttle = localInputs.throttle;
-            fin.handbrake = localInputs.handbrake;
-            fin.driftAssist = localInputs.driftAssist;
-            fin.shiftUp = localInputs.shiftUp;
-            fin.shiftDown = localInputs.shiftDown;
-        }
+        let inputMode = document.getElementById('input-selector')?.value || 'touch';
         
-        let gpIdx = isSplitScreen ? lp.gamepad : 0;
-        if (gpIdx !== -1) {
-            let gp = gps[gpIdx];
-            if (gp && gp.connected) {
-                let gpSteer = gp.axes[0] || 0;
-                let gpThr = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0);
-                let gpHb = gp.buttons[0]?.pressed||false;
-                
-                if (isSplitScreen) {
-                    fin.steering = gpSteer; fin.throttle = gpThr; fin.handbrake = gpHb; fin.driftAssist = localInputs.driftAssist;
-                } else {
-                    if (Math.abs(gpSteer) > 0.05) fin.steering = gpSteer;
-                    if (Math.abs(gpThr) > 0.05) fin.throttle = gpThr;
-                    if (gpHb) fin.handbrake = true;
-                }
+        let gpIdx = isSplitScreen ? lp.gamepad : -1;
+        let gp = null;
+        
+        if (!isSplitScreen && inputMode === 'gamepad') {
+            let activeGps = Array.from(gps).filter(g => g && g.connected);
+            if (activeGps.length > 0) gp = activeGps[0];
+            if (gp) gpIdx = gp.index;
+        } else if (gpIdx !== -1) {
+            gp = gps[gpIdx];
+        }
 
-                // Giring (LB og RB)
+        let hasActiveGamepad = gp && gp.connected;
+
+        if (isSplitScreen) {
+            if (lp.isKeyboard) {
+                fin.steering = localInputs.steering;
+                fin.throttle = localInputs.throttle;
+                fin.handbrake = localInputs.handbrake;
+                fin.driftAssist = localInputs.driftAssist;
+                fin.shiftUp = localInputs.shiftUp;
+                fin.shiftDown = localInputs.shiftDown;
+            } else if (hasActiveGamepad) {
+                fin.steering = gp.axes[0] || 0;
+                fin.throttle = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0);
+                fin.handbrake = gp.buttons[0]?.pressed||false;
+                fin.driftAssist = localInputs.driftAssist;
                 if (gp.buttons[4]?.pressed && !window.prevGamepadState[gpIdx+'_4']) fin.shiftDown = true;
                 if (gp.buttons[5]?.pressed && !window.prevGamepadState[gpIdx+'_5']) fin.shiftUp = true;
-
-                // Gamepad B Button (Knapp 1) - Smart Assist (Evan Modus) Toggle
                 if (gp.buttons[1]?.pressed && !window.prevGamepadState[gpIdx+'_1']) {
                     fin.smartAssist = !fin.smartAssist;
                     showEvanModeFlash(fin.smartAssist, p.name);
                 }
-                
-                // Hotkeys mapping på Gamepad (Zoom, Restart, AI)
+            }
+        } else {
+            if (inputMode === 'gamepad' && hasActiveGamepad) {
+                fin.steering = gp.axes[0] || 0;
+                fin.throttle = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0);
+                fin.handbrake = gp.buttons[0]?.pressed||false;
+                fin.driftAssist = localInputs.driftAssist;
+                if (gp.buttons[4]?.pressed && !window.prevGamepadState[gpIdx+'_4']) fin.shiftDown = true;
+                if (gp.buttons[5]?.pressed && !window.prevGamepadState[gpIdx+'_5']) fin.shiftUp = true;
+                if (gp.buttons[1]?.pressed && !window.prevGamepadState[gpIdx+'_1']) {
+                    fin.smartAssist = !fin.smartAssist;
+                    showEvanModeFlash(fin.smartAssist, p.name);
+                }
+            } else {
+                fin.steering = localInputs.steering;
+                fin.throttle = localInputs.throttle;
+                fin.handbrake = localInputs.handbrake;
+                fin.driftAssist = localInputs.driftAssist;
+                fin.shiftUp = localInputs.shiftUp;
+                fin.shiftDown = localInputs.shiftDown;
+            }
+
+            if (hasActiveGamepad) {
                 if (gp.buttons[3]?.pressed && !window.prevGamepadState[gpIdx+'_3']) { let btnStart = document.getElementById('btn-start-race'); if(isHost && raceState <= 0 && btnStart) btnStart.click(); }
                 if (gp.buttons[2]?.pressed && !window.prevGamepadState[gpIdx+'_2']) { if(isHost) { assignGridPositions(); raceState = -1; } }
-                if (gp.buttons[14]?.pressed && !window.prevGamepadState[gpIdx+'_14']) adjustZoom(-0.15); // D-Pad Left
-                if (gp.buttons[15]?.pressed && !window.prevGamepadState[gpIdx+'_15']) adjustZoom(0.15);  // D-Pad Right
-                
-                // D-Pad Opp / Ned (Legg til / Fjern AI)
+                if (gp.buttons[14]?.pressed && !window.prevGamepadState[gpIdx+'_14']) adjustZoom(-0.15);
+                if (gp.buttons[15]?.pressed && !window.prevGamepadState[gpIdx+'_15']) adjustZoom(0.15);
                 if (gp.buttons[12]?.pressed && !window.prevGamepadState[gpIdx+'_12']) {
                     if(isHost) { let t = getTrack(); aiManager.spawnAI(players, t.startX, t.startY, t.startAngle); assignGridPositions(); }
                 }
@@ -721,7 +765,6 @@ function update() {
                         if (botIds.length > 0) { let botToRemove = botIds[botIds.length - 1]; delete players[botToRemove]; }
                     }
                 }
-                if(window.audioManager) window.audioManager.resume(); 
             }
         }
 
@@ -773,14 +816,12 @@ function update() {
             }
         }
         
-        // Reset local shift triggers to avoid sticking
         if (lp.isKeyboard || !isSplitScreen) {
             localInputs.shiftUp = false;
             localInputs.shiftDown = false;
         }
     });
 
-    // --- PHYSICS / STATE ---
     if (isHost) {
         let outState = { players: {} }; let pkeys = Object.keys(players);
         
@@ -846,7 +887,6 @@ function update() {
             p.speedKmh = Math.abs(lVx * 3.6) || 0; p.appliesBrake = mThrottle < 0 && lVx >= 1.0;
             let dForce = 0; let bForce = p.appliesBrake ? aMass * 15.0 * Math.abs(mThrottle) : 0; const isRev = mThrottle < 0 && lVx < 1.0; 
 
-            // Gearbox & Clutch Logic
             if (raceState > 0) { 
                 p.gear = 0; ins.handbrake = true; p.rpm += ((1000 + Math.max(0, mThrottle) * 7000) - p.rpm) * 5 * dt; 
             } else {
@@ -951,7 +991,6 @@ function update() {
         lastLightState = raceState;
     } else if (raceState === 0 && now - raceStartTime > 2000) { let lUI = document.getElementById('f1-lights'); if(lUI) lUI.style.display = 'none'; }
 
-    // --- LEADERBOARD & RANGERINGS-LOGIKK ---
     let trackLines = (typeof aiManager !== 'undefined' && aiManager.waypoints[activeTrackId] && aiManager.waypoints[activeTrackId][0]) ? aiManager.waypoints[activeTrackId][0] : [];
     let totalWp = Math.max(1, trackLines.length);
 
@@ -1001,7 +1040,6 @@ function update() {
     });
     let lbL = document.getElementById('lb-list'); if(lbL) lbL.innerHTML = lbHTML;
 
-    // --- PODIUM ---
     let allFinished = Object.keys(players).length > 0 && Object.values(players).every(p => p.finished);
 
     if(raceState === 0 && allFinished) {
@@ -1024,16 +1062,22 @@ function update() {
         }
     }
 
-    // --- AUDIO ---
-    if (localPlayers.length > 0 && players[localPlayers[0].id] && window.audioManager) {
+    if (localPlayers.length > 0 && players[localPlayers[0].id]) {
         let me = players[localPlayers[0].id];
         let pInputs = me.inputs || { throttle: 0 };
         let sq = Math.max(me.frontSpinSeverity || 0, me.rearSpinSeverity || 0); 
-        let audioProfile = vehiclePresets[me.presetId] ? vehiclePresets[me.presetId].audio : 'i4';
-        window.audioManager.update(audioProfile, me.rpm, me.speedKmh, pInputs.throttle, sq);;
+        let audioProfile = vehiclePresets[me.presetId] ? (vehiclePresets[me.presetId].audio || 'i4') : 'i4';
+        
+        if (!window.audioManager) {
+            if (!window.warnedAudio) {
+                console.error("[APP DEBUG] Finner ikke window.audioManager! Sjekk at audio.js er lastet inn FØR app.js i index.html");
+                window.warnedAudio = true;
+            }
+        } else {
+            window.audioManager.update(audioProfile, me.rpm, me.speedKmh, pInputs.throttle, sq);
+        }
     }
 
-    // --- RENDERING / VIEWPORTS ---
     ctx.setTransform(1,0,0,1,0,0); 
     ctx.fillStyle = '#000'; 
     ctx.fillRect(0,0,canvas.width,canvas.height); 
@@ -1175,7 +1219,6 @@ function update() {
         ctx.stroke();
     }
     
-    // Oppdaterer lagret gamepad-state på slutten av loopen
     for (let j = 0; j < 4; j++) {
         let gp = gps[j];
         if (gp) {
