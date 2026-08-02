@@ -130,7 +130,11 @@ generateEnvironment();
 
 let peer = null, isHost = true, gameActive = false, myId = null, hostConnection = null;
 const connections = {}, players = {}; 
+
+// Split-screen State
+let isSplitScreen = false;
 let localPlayers = []; 
+
 let raceState = -1, totalLaps = 3, raceStartTime = 0;
 let gameLoopId = null;
 let isRecording = false; let recordedWaypoints = [];
@@ -146,7 +150,7 @@ function createPlayerRecord(id, presetId, name, colorCode) {
         x: t.startX, y: t.startY, prevX: t.startX, prevY: t.startY,
         vx: 0, vy: 0, angle: t.startAngle, yawRate: 0,
         gear: 1, rpm: 1000, steer: 0, targetX: t.startX, targetY: t.startY, targetAngle: t.startAngle,
-        inputs: { steering: 0, throttle: 0, handbrake: false, driftAssist: false },
+        inputs: { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: false },
         frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0, fuel: cap, maxFuel: cap,
         lastSeen: performance.now(), clutchDump: 0, prevThrottle: 0,
         lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, lastLap: 0, totalTime: 0, finished: false
@@ -154,24 +158,8 @@ function createPlayerRecord(id, presetId, name, colorCode) {
 }
 
 function initLocalPlayer(baseId) {
+    isSplitScreen = false;
     localPlayers = [{ id: baseId, gamepad: -1, isKeyboard: true }];
-}
-
-function addLocalPlayer(gpIndex) {
-    if (localPlayers.length >= 4) return;
-    let newId = myId + '_p' + (localPlayers.length + 1);
-    localPlayers.push({ id: newId, gamepad: gpIndex, isKeyboard: false });
-    let pName = "P" + localPlayers.length;
-    let selPreset = document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar';
-    let selColor = document.getElementById('ingame-car-color')?.value || document.getElementById('car-color')?.value || '#e74c3c';
-    
-    if (isHost) {
-        players[newId] = createPlayerRecord(newId, selPreset, pName, selColor);
-        let t = getTrack();
-        if (gameActive && raceState === 0) { players[newId].x = t.pit.x; players[newId].y = t.pit.y; } else if (gameActive) { assignGridPositions(); }
-    } else if (hostConnection && hostConnection.open) {
-        hostConnection.send({ type: 'join_local', id: newId, preset: selPreset, name: pName, color: selColor });
-    }
 }
 
 function assignGridPositions() {
@@ -205,6 +193,99 @@ function enterGame() {
     gameLoopId = requestAnimationFrame(update);
 }
 
+// --- Split-Screen UI Setup ---
+function renderSplitScreenCards() {
+    let container = document.getElementById('ss-cards-container');
+    let countSel = document.getElementById('ss-player-count');
+    if(!container || !countSel) return;
+    
+    let count = parseInt(countSel.value);
+    let html = '';
+    let presetOptions = document.getElementById('ingame-preset-selector') ? document.getElementById('ingame-preset-selector').innerHTML : '';
+    let defaultColors = ['#3498db', '#e74c3c', '#f1c40f', '#2ecc71'];
+
+    for(let i=1; i<=count; i++) {
+        html += `
+        <div class="ss-card" style="background: #1a1a1a; padding: 15px; border-radius: 8px; border: 1px solid #333;">
+            <h3 style="color: #3498db; margin-bottom: 10px;">Spiller ${i}</h3>
+            <label style="font-size: 11px; color: #888;">Input:</label>
+            <select id="ss-in-${i}" class="input-text" style="padding: 5px; margin-top: 2px; margin-bottom: 10px;">
+                <option value="kb" ${i===1 ? 'selected' : ''}>Tastatur</option>
+                <option value="0" ${i===2 ? 'selected' : ''}>Kontroller 1</option>
+                <option value="1" ${i===3 ? 'selected' : ''}>Kontroller 2</option>
+                <option value="2" ${i===4 ? 'selected' : ''}>Kontroller 3</option>
+                <option value="3">Kontroller 4</option>
+            </select>
+            <label style="font-size: 11px; color: #888;">Kjøretøy:</label>
+            <select id="ss-car-${i}" class="input-text" style="padding: 5px; margin-top: 2px; margin-bottom: 10px;">
+                ${presetOptions}
+            </select>
+            <label style="font-size: 11px; color: #888;">Farge:</label>
+            <input type="color" id="ss-col-${i}" value="${defaultColors[i-1]}" style="width: 100%; height: 30px; border: none; margin-top: 2px; margin-bottom: 10px; cursor: pointer;">
+            <label style="font-size: 11px; color: #888; display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" id="ss-evan-${i}"> Evan-modus PÅ
+            </label>
+        </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+
+let btnSSMode = document.getElementById('btn-splitscreen-mode');
+if (btnSSMode) {
+    btnSSMode.addEventListener('click', () => {
+        document.getElementById('mode-selection').style.display = 'none';
+        document.getElementById('splitscreen-setup').style.display = 'block';
+        renderSplitScreenCards();
+    });
+}
+let ssCount = document.getElementById('ss-player-count');
+if (ssCount) ssCount.addEventListener('change', renderSplitScreenCards);
+
+let btnCancelSS = document.getElementById('btn-cancel-splitscreen');
+if (btnCancelSS) {
+    btnCancelSS.addEventListener('click', () => {
+        document.getElementById('splitscreen-setup').style.display = 'none';
+        document.getElementById('mode-selection').style.display = 'block';
+    });
+}
+
+let btnStartSS = document.getElementById('btn-start-splitscreen');
+if (btnStartSS) {
+    btnStartSS.addEventListener('click', () => {
+        isSplitScreen = true;
+        myId = 'host'; isHost = true;
+        localPlayers = [];
+        
+        for(let id in players) delete players[id];
+
+        let count = parseInt(document.getElementById('ss-player-count').value);
+        for(let i=1; i<=count; i++) {
+            let inVal = document.getElementById(`ss-in-${i}`).value;
+            let carVal = document.getElementById(`ss-car-${i}`).value;
+            let colVal = document.getElementById(`ss-col-${i}`).value;
+            let evanVal = document.getElementById(`ss-evan-${i}`).checked;
+            
+            let pId = 'local_p' + i;
+            localPlayers.push({
+                id: pId,
+                isKeyboard: inVal === 'kb',
+                gamepad: inVal === 'kb' ? -1 : parseInt(inVal)
+            });
+            
+            players[pId] = createPlayerRecord(pId, carVal, "P" + i, colVal);
+            players[pId].inputs.smartAssist = evanVal;
+        }
+        
+        let hl = document.getElementById('ss-laps');
+        totalLaps = hl ? parseInt(hl.value) : 3;
+        
+        document.getElementById('splitscreen-setup').style.display = 'none';
+        enterGame();
+    });
+}
+
+
 let menuBtn = document.getElementById('btn-ingame-menu');
 let modal = document.getElementById('ingame-modal');
 let resumeBtn = document.getElementById('btn-resume');
@@ -235,11 +316,13 @@ function exitToMenu() {
     if(peer) { peer.destroy(); peer = null; }
     for(let id in players) delete players[id];
     localPlayers = [];
+    isSplitScreen = false;
     raceState = -1;
     
     document.getElementById('canvas-container').style.display = 'none';
     document.getElementById('ingame-modal').style.display = 'none';
     document.getElementById('podium-overlay').style.display = 'none';
+    document.getElementById('splitscreen-setup').style.display = 'none';
     document.getElementById('lobby').style.display = 'flex';
     document.getElementById('mode-selection').style.display = 'block';
     document.getElementById('host-ui').style.display = 'none';
@@ -321,17 +404,15 @@ if (btnHost) {
                             conn.send({ type: 'init', trackId: activeTrackId, laps: hl ? parseInt(hl.value) : 3, yourId: conn.peer });
                         }
                     }
-                } else if (data.type === 'join_local') {
-                    if (!players[data.id]) {
-                        players[data.id] = createPlayerRecord(data.id, data.preset, data.name, data.color);
+                } else if (data.type === 'inputs') {
+                    if (!players[conn.peer]) {
+                        players[conn.peer] = createPlayerRecord(conn.peer, 'jaguar', "Gjest");
                         let t = getTrack();
-                        if (gameActive && raceState === 0) { players[data.id].x = t.pit.x; players[data.id].y = t.pit.y; } else if (gameActive) { assignGridPositions(); }
+                        if (gameActive && raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; } else if (gameActive) { assignGridPositions(); }
+                        conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
+                        if (gameActive) conn.send({ type: 'start', laps: totalLaps, rs: raceState });
                     }
-                } else if (data.type === 'inputs_local') {
-                    if (players[data.id]) {
-                        players[data.id].inputs = data.inputs;
-                        players[data.id].lastSeen = performance.now();
-                    }
+                    players[conn.peer].inputs = data.inputs; players[conn.peer].lastSeen = performance.now();
                 } else if (data.type === 'changeCar') { if (players[conn.peer]) { players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100; } } 
                 else if (data.type === 'changeColor') { if (players[conn.peer]) { players[conn.peer].color = data.color; } }
             });
@@ -385,7 +466,10 @@ let btnStart = document.getElementById('btn-start-race');
 if (btnStart) {
     btnStart.addEventListener('click', () => {
         if(!isHost || raceState > 0) return;
-        assignGridPositions(); let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3;
+        assignGridPositions(); 
+        let hl = isSplitScreen ? document.getElementById('ss-laps') : document.getElementById('host-laps'); 
+        totalLaps = hl ? parseInt(hl.value) : 3;
+        
         let count = 5; raceState = count;
         Object.values(connections).forEach(c => { try { c.send({ type: 'state', laps: totalLaps, raceState: raceState, players: {} }); } catch(e){} }); 
         let int = setInterval(() => {
@@ -461,17 +545,20 @@ if (btnJoin) { btnJoin.addEventListener('click', () => { const code = document.g
 
 const urlParams = new URLSearchParams(window.location.search); let joinInp = document.getElementById('join-code-input'); if (joinInp && urlParams.get('join')) { joinInp.value = urlParams.get('join'); }
 
-const localInputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: false };
+const localInputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: false };
 const activeTouchState = { left: null, right: null };
 
-function showEvanModeFlash(isOn) {
+function showEvanModeFlash(isOn, pName = "") {
     let el = document.getElementById('evan-flash-msg');
     if (!el) {
         el = document.createElement('div'); el.id = 'evan-flash-msg';
         Object.assign(el.style, { position: 'absolute', top: '25%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '5vw', fontWeight: '900', textShadow: '4px 4px 10px rgba(0,0,0,1)', zIndex: '9999', pointerEvents: 'none', transition: 'opacity 0.2s ease-out', fontFamily: 'Arial, sans-serif', textTransform: 'uppercase' });
         document.body.appendChild(el);
     }
-    el.style.color = isOn ? '#2ecc71' : '#e74c3c'; el.innerText = isOn ? 'Evan-modus PÅ' : 'Evan-modus AV'; el.style.opacity = '1';
+    el.style.color = isOn ? '#2ecc71' : '#e74c3c'; 
+    el.innerText = `Evan-modus PÅ ${pName ? '('+pName+')' : ''}`; 
+    if(!isOn) el.innerText = `Evan-modus AV ${pName ? '('+pName+')' : ''}`;
+    el.style.opacity = '1';
     clearTimeout(window.evanFlashTimeout); window.evanFlashTimeout = setTimeout(() => el.style.opacity = '0', 2500);
 }
 
@@ -528,7 +615,10 @@ function adjustZoom(delta) { cameraZoom = Math.max(0.4, Math.min(2.5, cameraZoom
 window.addEventListener('keydown', e => { 
     if(e.key.toLowerCase() === 't') toggleAssist();
     if(e.key === '+' || e.key === '=') adjustZoom(0.15); if(e.key === '-' || e.key === '_') adjustZoom(-0.15);
-    if(e.key.toLowerCase() === 'h') { localInputs.smartAssist = !localInputs.smartAssist; showEvanModeFlash(localInputs.smartAssist); }
+    
+    // Toggels keyboard Evan-mode directly via window flag
+    if(e.key.toLowerCase() === 'h') { window.pendingSmartAssistToggle = true; }
+    
     if(e.key.toLowerCase() === 'k' && isHost) { let botIds = Object.keys(players).filter(id => players[id].isAI); if (botIds.length > 0) { let botToRemove = botIds[botIds.length - 1]; delete players[botToRemove]; } }
     if(e.key.toLowerCase() === 'r') {
         isRecording = !isRecording; let recInd = document.getElementById('recording-indicator'); if (recInd) recInd.style.display = isRecording ? 'block' : 'none';
@@ -553,7 +643,7 @@ window.addEventListener('resize', resize);
 let btnFull = document.getElementById('btn-fullscreen'); if (btnFull) { btnFull.addEventListener('click', () => { const e = document.documentElement; if(!document.fullscreenElement) e.requestFullscreen(); else document.exitFullscreen(); setTimeout(resize,200); }); }
 
 let lastTime = performance.now(); let lastLightState = -1; const skidmarks = [];
-let lastNetUpdate = 0;
+let lastNetUpdate = 0; let lastInputSend = 0; let lastInputString = "";
 
 function formatTime(ms) { if(ms === Infinity || !isFinite(ms)) return "-.--"; let total = Math.floor(ms/10); let min = Math.floor(total/6000); let sec = Math.floor((total%6000)/100); let hund = total%100; return `${min>0?min+':':''}${sec.toString().padStart(min>0?2:1,'0')}.${hund.toString().padStart(2,'0')}`; }
 
@@ -583,7 +673,10 @@ function drawHUD(ctx, p, vx, vy, vw, vh, playerIndex) {
     ctx.fillStyle = 'rgba(0,0,0,0.8)';
     ctx.beginPath(); ctx.roundRect(vx + vw - 45, vy + 10, 35, 35, 6); ctx.fill(); ctx.stroke();
     ctx.fillStyle = p.color; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(`P${playerIndex+1}`, vx + vw - 27, vy + 34);
+    
+    // In Split-Screen, use indices P1/P2/P3. Else just "P"
+    let pText = isSplitScreen ? `P${playerIndex+1}` : `P`;
+    ctx.fillText(pText, vx + vw - 27, vy + 34);
 }
 
 function update() {
@@ -591,17 +684,13 @@ function update() {
     const now = performance.now(); const dt = Math.max(0.001, Math.min((now - lastTime) / 1000, 0.1)); lastTime = now;
     let track = getTrack();
 
-    // --- GAMEPAD / SPLIT-SCREEN DROP-IN ---
+    // --- GAMEPAD HOTKEYS ---
     let gps = navigator.getGamepads ? navigator.getGamepads() : [];
     if (!window.prevGamepadState) window.prevGamepadState = {};
 
     for (let j = 0; j < 4; j++) {
         let gp = gps[j];
         if (gp) {
-            if (gp.buttons[9]?.pressed && !window.prevGamepadState[j+'_9']) {
-                let isUsed = localPlayers.some(lp => lp.gamepad === j);
-                if (!isUsed) addLocalPlayer(j);
-            }
             if (gp.buttons[3]?.pressed && !window.prevGamepadState[j+'_3']) { 
                 let btnStart = document.getElementById('btn-start-race'); if(isHost && raceState <= 0 && btnStart) btnStart.click(); 
             }
@@ -610,7 +699,7 @@ function update() {
             }
             if (gp.buttons[4]?.pressed && !window.prevGamepadState[j+'_4']) adjustZoom(-0.15);
             if (gp.buttons[5]?.pressed && !window.prevGamepadState[j+'_5']) adjustZoom(0.15);
-
+            
             for (let b = 0; b < gp.buttons.length; b++) { window.prevGamepadState[j+'_'+b] = gp.buttons[b].pressed; }
             resumeAudio(); 
         }
@@ -621,24 +710,50 @@ function update() {
         let p = players[lp.id];
         if (!p) return;
 
-        let fin = { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: false };
-        
-        if (lp.isKeyboard) {
-            fin = { ...localInputs };
+        let fin = { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: p.inputs.smartAssist };
+
+        // Allow Keyboard
+        if (lp.isKeyboard || !isSplitScreen) {
+            fin.steering = localInputs.steering;
+            fin.throttle = localInputs.throttle;
+            fin.handbrake = localInputs.handbrake;
+            fin.driftAssist = localInputs.driftAssist;
         }
         
-        if (lp.gamepad !== -1) {
-            let gp = gps[lp.gamepad];
-            if (gp) {
-                fin.steering = gp.axes[0] || 0;
-                fin.throttle = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0);
-                fin.handbrake = gp.buttons[0]?.pressed||false;
-                fin.driftAssist = localInputs.driftAssist;
-                if (gp.buttons[1]?.pressed && !window.prevGamepadState[lp.gamepad+'_1']) { fin.smartAssist = !p.inputs.smartAssist; showEvanModeFlash(fin.smartAssist); }
-                else { fin.smartAssist = p.inputs ? p.inputs.smartAssist : false; }
+        // Map configured Gamepad (or fallback to Gamepad 0 if 1-player mode)
+        let gpIdx = isSplitScreen ? lp.gamepad : 0;
+        if (gpIdx !== -1) {
+            let gp = gps[gpIdx];
+            if (gp && gp.connected) {
+                let gpSteer = gp.axes[0] || 0;
+                let gpThr = (gp.buttons[7]?.value||0) - (gp.buttons[6]?.value||0);
+                let gpHb = gp.buttons[0]?.pressed||false;
+                
+                if (isSplitScreen) {
+                    fin.steering = gpSteer; fin.throttle = gpThr; fin.handbrake = gpHb; fin.driftAssist = localInputs.driftAssist;
+                } else {
+                    // Hybrid mode for Single Player: Use whichever is actively touched
+                    if (Math.abs(gpSteer) > 0.05) fin.steering = gpSteer;
+                    if (Math.abs(gpThr) > 0.05) fin.throttle = gpThr;
+                    if (gpHb) fin.handbrake = true;
+                }
+
+                // Gamepad Smart Assist Toggle (Button 1 / B)
+                if (gp.buttons[1]?.pressed && !window.prevGamepadState[gpIdx+'_1']) {
+                    fin.smartAssist = !fin.smartAssist;
+                    showEvanModeFlash(fin.smartAssist, p.name);
+                }
             }
         }
+
+        // Keyboard Smart Assist Toggle (Hotkey 'H')
+        if (window.pendingSmartAssistToggle && (lp.isKeyboard || !isSplitScreen)) {
+            fin.smartAssist = !fin.smartAssist;
+            showEvanModeFlash(fin.smartAssist, p.name);
+            window.pendingSmartAssistToggle = false;
+        }
         
+        // Execute Smart Assist (Evan-Modus) physics constraint
         if (fin.smartAssist && !p.finished && typeof aiManager !== 'undefined' && aiManager.waypoints[activeTrackId] && aiManager.waypoints[activeTrackId].length > 0) {
             let waypoints = aiManager.waypoints[activeTrackId][0]; 
             let closestDist = Infinity; let closestIdx = 0;
@@ -666,15 +781,21 @@ function update() {
 
         p.inputs = fin;
         
-        if (lp.isKeyboard && lp.id === myId) {
+        // Single-player live vehicle change handling
+        if (!isSplitScreen && lp.id === myId) {
             let pSel = document.getElementById('ingame-preset-selector') || document.getElementById('preset-selector');
             if (pSel && pSel.value && p.presetId !== pSel.value) { p.presetId = pSel.value; p.maxFuel = vehiclePresets[pSel.value]?.fuelCap || 100; if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeCar', preset: pSel.value }); } catch(e){} } }
             let cSel = document.getElementById('ingame-car-color') || document.getElementById('car-color');
             if (cSel && cSel.value && p.color !== cSel.value) { p.color = cSel.value; if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeColor', color: cSel.value }); } catch(e){} } }
         }
         
+        // Network Sync for non-host local players
         if (!isHost && hostConnection && hostConnection.open) {
-            hostConnection.send({ type: 'inputs_local', id: lp.id, inputs: fin });
+            let currentInputString = fin.steering + "," + fin.throttle + "," + fin.handbrake + "," + fin.driftAssist + "," + fin.smartAssist;
+            if (currentInputString !== lastInputString || now - lastInputSend > 250) { 
+                try { hostConnection.send({ type: 'inputs_local', id: lp.id, inputs: fin }); } catch(e){} 
+                lastInputString = currentInputString; lastInputSend = now; 
+            }
         }
     });
 
@@ -924,7 +1045,7 @@ function update() {
     ctx.fillRect(0,0,canvas.width,canvas.height); 
 
     let cw = canvas.width; let ch = canvas.height;
-    let numViews = localPlayers.length;
+    let numViews = isSplitScreen ? localPlayers.length : 1;
 
     for (let i = 0; i < numViews; i++) {
         let lp = localPlayers[i];
