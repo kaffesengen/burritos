@@ -1,7 +1,7 @@
 const aiNames = [
-    "Maverick", "Viper", "Iceman", "Goose", "Jester", "Cougar", "Wolfman", "Slider", "Merlin", "Sundown",
-    "Hollywood", "Wolf", "Ghost", "Shadow", "Raven", "Phoenix", "Hawk", "Eagle", "Falcon", "Hunter",
-    "Striker", "Racer", "Turbo", "Nitro", "Boost", "Drifter", "Skid", "Burnout", "Clutch", "Apex"
+    "Evan king", "Liamcho", "Emmacho", "Elenamoren", "Joar Politi", "Jarl", "Martin", "Renate", "Harald",
+    "Åshild", "Hugo", "Charlie", "Nando", "Willy", "Linn", "Elisei", "Mario", "Maxi", "Miggi", "Mia",
+    "Kristoffer", "Esther", "Egon", "Skjeggefant", "Eggemann"
 ];
 
 const aiVehiclePreset = { 
@@ -38,7 +38,6 @@ class AIDriver {
 
         if (!trackWaypoints || trackWaypoints.length === 0) return inputs;
 
-        // Trinn 3: Sømløs Failsafe (Hard Reset)
         if (raceStarted && vehicle.speedKmh < 4.0) {
             this.failsafeTimer += dt;
             if (this.failsafeTimer > 4.0) {
@@ -70,7 +69,6 @@ class AIDriver {
             this.failsafeTimer = 0;
         }
 
-        // Trinn 2.1: Gjennomføring av aktiv recovery (Korrektiv rygging)
         if (this.reverseTime > 0) {
             this.reverseTime -= dt;
             inputs.throttle = -1.0;
@@ -91,7 +89,6 @@ class AIDriver {
             return inputs;
         }
 
-        // Veipunkt-Navigasjon
         let closestDist = Infinity; let closestIdx = 0;
         for (let i = 0; i < trackWaypoints.length; i++) {
             let dist = Math.hypot(vehicle.x - trackWaypoints[i].x, vehicle.y - trackWaypoints[i].y);
@@ -125,7 +122,6 @@ class AIDriver {
             if (Math.abs(inputs.steering) > 0.6) inputs.throttle = 0.4;
         }
 
-        // Trinn 1: Preventiv Unnvikelse (Raycast Whiskers)
         if (track && ctx && track.path) {
             let rayAngles = [-0.6, 0, 0.6];
             let rayDistance = 70 + (vehicle.speedKmh * 0.4); 
@@ -159,7 +155,6 @@ class AIDriver {
             }
         }
 
-        // Trinn 2.0: Deteksjon av manglende fremdrift
         if (raceStarted && vehicle.speedKmh < 4.0 && inputs.throttle > 0) {
             this.stuckTime += dt;
             if (this.stuckTime > 0.8) {
@@ -179,7 +174,7 @@ class AIManager {
     constructor() {
         this.aiList = {};
         this.maxAI = 20;
-        this.waypoints = {}; // Settes til et tomt objekt her, fylles deretter av waypoints.js
+        this.waypoints = typeof aiManagerWaypoints !== 'undefined' ? aiManagerWaypoints : {}; 
     }
 
     spawnAI(playersObject, trackStartX, trackStartY, trackStartAngle) {
@@ -198,7 +193,7 @@ class AIManager {
             inputs: { steering: 0, throttle: 0, handbrake: false, driftAssist: true },
             frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0, fuel: 100, maxFuel: 100,
             lastSeen: performance.now(), clutchDump: 0, prevThrottle: 0,
-            lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, totalTime: 0, finished: false,
+            lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, lastLap: 0, totalTime: 0, finished: false,
             isAI: true,
             ghostTimer: 0,
             isGhost: false
