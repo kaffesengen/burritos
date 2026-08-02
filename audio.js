@@ -6,11 +6,8 @@ class AudioManager {
         this.squealNodes = null;
         this.currentType = null;
         
-        // State tracking
         this.prevThrottle = 0;
         this.bovTimer = 0;
-        
-        // Hvit støy buffer (For Turbo BOV)
         this.noiseBuffer = null;
     }
 
@@ -25,7 +22,12 @@ class AudioManager {
     }
 
     resume() {
-        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+        if (!this.ready) {
+            this.init();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
     }
 
     makeDistortionCurve(amount) {
@@ -41,6 +43,7 @@ class AudioManager {
     }
 
     createNoiseBuffer() {
+        if (!this.ctx) return;
         const bufferSize = this.ctx.sampleRate * 1.0; 
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -51,6 +54,7 @@ class AudioManager {
     }
 
     setupSqueal() {
+        if (!this.ctx) return;
         this.squealNodes = {
             osc: this.ctx.createOscillator(),
             gain: this.ctx.createGain()
@@ -74,12 +78,10 @@ class AudioManager {
         this.currentType = type;
         this.engineNodes = {};
 
-        // Felles Master Gain
         this.engineNodes.masterGain = this.ctx.createGain();
         this.engineNodes.masterGain.gain.value = 0;
         this.engineNodes.masterGain.connect(this.ctx.destination);
 
-        // --- GOKART (2-TAKT) ---
         if (type === 'gokart') {
             this.engineNodes.osc = this.ctx.createOscillator();
             this.engineNodes.osc.type = 'sawtooth';
@@ -98,36 +100,27 @@ class AudioManager {
             this.engineNodes.lpf.connect(this.engineNodes.masterGain);
             this.engineNodes.osc.start();
         } 
-        // --- V8 (BRUTAL RUMBLE) ---
         else if (type === 'v8') {
             this.engineNodes.osc = this.ctx.createOscillator();
             this.engineNodes.osc.type = 'sawtooth';
-            
-            // Sub-oscillator for bunndrag
             this.engineNodes.subOsc = this.ctx.createOscillator();
             this.engineNodes.subOsc.type = 'square';
-            
-            // LFO for krysplan "lopping" tomgang (Amplitudemodulasjon)
             this.engineNodes.lfo = this.ctx.createOscillator();
             this.engineNodes.lfo.type = 'sine';
             this.engineNodes.amGain = this.ctx.createGain();
-            
             this.engineNodes.lpf = this.ctx.createBiquadFilter();
             this.engineNodes.lpf.type = 'lowpass';
             this.engineNodes.dist = this.ctx.createWaveShaper();
             this.engineNodes.dist.curve = this.makeDistortionCurve(50);
 
-            // Ruting
             this.engineNodes.osc.connect(this.engineNodes.dist);
             this.engineNodes.subOsc.connect(this.engineNodes.dist);
             this.engineNodes.dist.connect(this.engineNodes.lpf);
-            
             this.engineNodes.lpf.connect(this.engineNodes.amGain);
             this.engineNodes.amGain.connect(this.engineNodes.masterGain);
             
-            // LFO ruter til amGain.gain for å pulsere volumet
             this.engineNodes.lfoGain = this.ctx.createGain();
-            this.engineNodes.lfoGain.gain.value = 0.6; // Dybde på puls
+            this.engineNodes.lfoGain.gain.value = 0.6;
             this.engineNodes.lfo.connect(this.engineNodes.lfoGain);
             this.engineNodes.lfoGain.connect(this.engineNodes.amGain.gain);
 
@@ -135,37 +128,29 @@ class AudioManager {
             this.engineNodes.subOsc.start();
             this.engineNodes.lfo.start();
         }
-        // --- FORMEL 1 V10 (SKRIK) ---
         else if (type === 'v10') {
             this.engineNodes.osc = this.ctx.createOscillator();
             this.engineNodes.osc.type = 'sawtooth';
-            
             this.engineNodes.lpf = this.ctx.createBiquadFilter();
             this.engineNodes.lpf.type = 'lowpass';
-            this.engineNodes.lpf.Q.value = 8; // Kraftig resonans
-            
+            this.engineNodes.lpf.Q.value = 8;
             this.engineNodes.dist = this.ctx.createWaveShaper();
             this.engineNodes.dist.curve = this.makeDistortionCurve(40);
 
             this.engineNodes.osc.connect(this.engineNodes.dist);
             this.engineNodes.dist.connect(this.engineNodes.lpf);
             this.engineNodes.lpf.connect(this.engineNodes.masterGain);
-            
             this.engineNodes.osc.start();
         }
-        // --- ROTARY / WANKEL (BRAP BRAP) ---
         else if (type === 'rotary') {
             this.engineNodes.osc = this.ctx.createOscillator();
             this.engineNodes.osc.type = 'square';
-            
             this.engineNodes.lfo = this.ctx.createOscillator();
-            this.engineNodes.lfo.type = 'sawtooth'; // Skarp brap
+            this.engineNodes.lfo.type = 'sawtooth';
             this.engineNodes.amGain = this.ctx.createGain();
             this.engineNodes.lfoGain = this.ctx.createGain();
-
             this.engineNodes.lpf = this.ctx.createBiquadFilter();
-            this.engineNodes.lpf.type = 'bandpass'; // Mer hvesende
-            
+            this.engineNodes.lpf.type = 'bandpass';
             this.engineNodes.dist = this.ctx.createWaveShaper();
             this.engineNodes.dist.curve = this.makeDistortionCurve(90);
 
@@ -180,19 +165,15 @@ class AudioManager {
             this.engineNodes.osc.start();
             this.engineNodes.lfo.start();
         }
-        // --- I4 TURBO (SPOOL & BOV) ---
         else if (type === 'turbo') {
             this.engineNodes.osc = this.ctx.createOscillator();
             this.engineNodes.osc.type = 'sawtooth';
-            
             this.engineNodes.turboOsc = this.ctx.createOscillator();
-            this.engineNodes.turboOsc.type = 'sine'; // Hylende turbo
+            this.engineNodes.turboOsc.type = 'sine';
             this.engineNodes.turboGain = this.ctx.createGain();
             this.engineNodes.turboGain.gain.value = 0;
-
             this.engineNodes.lpf = this.ctx.createBiquadFilter();
             this.engineNodes.lpf.type = 'lowpass';
-            
             this.engineNodes.dist = this.ctx.createWaveShaper();
             this.engineNodes.dist.curve = this.makeDistortionCurve(60);
 
@@ -206,17 +187,14 @@ class AudioManager {
             this.engineNodes.osc.start();
             this.engineNodes.turboOsc.start();
         }
-        // --- V6 (RASP) ---
         else if (type === 'v6') {
             this.engineNodes.osc = this.ctx.createOscillator();
             this.engineNodes.osc.type = 'sawtooth';
             this.engineNodes.subOsc = this.ctx.createOscillator();
             this.engineNodes.subOsc.type = 'triangle';
-            
             this.engineNodes.lpf = this.ctx.createBiquadFilter();
             this.engineNodes.lpf.type = 'lowpass';
             this.engineNodes.lpf.Q.value = 4;
-            
             this.engineNodes.dist = this.ctx.createWaveShaper();
             this.engineNodes.dist.curve = this.makeDistortionCurve(40);
 
@@ -228,21 +206,17 @@ class AudioManager {
             this.engineNodes.osc.start();
             this.engineNodes.subOsc.start();
         }
-        // --- EV (ELBIL) ---
         else if (type === 'ev') {
             this.engineNodes.osc = this.ctx.createOscillator();
             this.engineNodes.osc.type = 'triangle';
-            
             this.engineNodes.hpf = this.ctx.createBiquadFilter();
             this.engineNodes.hpf.type = 'highpass';
             this.engineNodes.hpf.frequency.value = 1000;
             
             this.engineNodes.osc.connect(this.engineNodes.hpf);
             this.engineNodes.hpf.connect(this.engineNodes.masterGain);
-            
             this.engineNodes.osc.start();
         }
-        // --- STANDARD / I4 ---
         else {
             this.engineNodes.osc = this.ctx.createOscillator();
             this.engineNodes.osc.type = 'sawtooth';
@@ -257,29 +231,27 @@ class AudioManager {
 
     playBlowoffValve() {
         if (!this.noiseBuffer || !this.ready) return;
-        
         let source = this.ctx.createBufferSource();
         source.buffer = this.noiseBuffer;
-        
         let bpFilter = this.ctx.createBiquadFilter();
         bpFilter.type = 'bandpass';
-        bpFilter.frequency.value = 4500 + Math.random() * 1000; // Pshhh frekvens
+        bpFilter.frequency.value = 4500 + Math.random() * 1000;
         bpFilter.Q.value = 1.5;
 
         let gainNode = this.ctx.createGain();
         gainNode.gain.setValueAtTime(0.8, this.ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3); // Skarp cut-off
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
 
         source.connect(bpFilter);
         bpFilter.connect(gainNode);
         gainNode.connect(this.ctx.destination);
-        
         source.start();
         source.stop(this.ctx.currentTime + 0.35);
     }
 
     update(vehicleType, rpm, speedKmh, throttle, spinSeverity) {
-        if (!this.ready) return;
+        this.resume();
+        if (!this.ready || !this.ctx) return;
         if (this.currentType !== vehicleType) this.buildEngine(vehicleType);
 
         let sRpm = isFinite(rpm) && rpm > 0 ? rpm : 0;
@@ -287,15 +259,11 @@ class AudioManager {
         let sThr = isFinite(throttle) ? Math.abs(throttle) : 0;
         let t = this.ctx.currentTime;
 
-        // --- DSP MATEMATIKK PER PROFIL ---
-
         if (vehicleType === 'gokart') {
             let freq = sRpm / 60;
             this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-
             let lpFreq = 400 + (sRpm * 0.5) + (sThr * 2000); 
             if (sRpm > 7000 && sThr > 0.5) lpFreq += 3000;
-
             let volTarget = 0.05 + (sThr * 0.15);
             let qTarget = 2;
 
@@ -320,103 +288,75 @@ class AudioManager {
             this.engineNodes.lpf.Q.setTargetAtTime(qTarget, t, 0.1);
             this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.01);
         } 
-        
         else if (vehicleType === 'v8') {
             let freq = sRpm / 60 * 1.5;
             this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            this.engineNodes.subOsc.frequency.setTargetAtTime(freq / 2, t, 0.05); // V8 bunndrag
-            
-            // Modulering for loping idle (Cross-plane V8 pulser)
+            this.engineNodes.subOsc.frequency.setTargetAtTime(freq / 2, t, 0.05);
             let lfoFreq = (sRpm / 120); 
             this.engineNodes.lfo.frequency.setTargetAtTime(lfoFreq, t, 0.05);
-            
-            // LFO dybde: Hard på tomgang, glattes ut på turtall
             let lfoDepth = sRpm < 3000 ? 0.7 : 0.1;
             this.engineNodes.lfoGain.gain.setTargetAtTime(lfoDepth, t, 0.1);
-
             let lpFreq = 800 + (sRpm * 0.6) + (sThr * 3000);
             this.engineNodes.lpf.frequency.setTargetAtTime(lpFreq, t, 0.05);
-            
             let volTarget = 0.08 + (sThr * 0.2);
             this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
         }
-
         else if (vehicleType === 'v10') {
-            let freq = (sRpm / 60) * 3.5; // Skrikende frekvens
+            let freq = (sRpm / 60) * 3.5;
             this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            
             let lpFreq = 1500 + (sRpm * 1.5) + (sThr * 4000);
             this.engineNodes.lpf.frequency.setTargetAtTime(lpFreq, t, 0.05);
-            
             let volTarget = 0.05 + (sThr * 0.25);
             this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
         }
-
         else if (vehicleType === 'rotary') {
             let freq = (sRpm / 60) * 2;
             this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            
-            // "Brap" modulasjon
             let lfoFreq = sRpm / 80;
             this.engineNodes.lfo.frequency.setTargetAtTime(lfoFreq, t, 0.05);
-            let lfoDepth = sRpm < 4000 ? 0.9 : 0.0; // Forsvinner helt over 4000 rpm
+            let lfoDepth = sRpm < 4000 ? 0.9 : 0.0;
             this.engineNodes.lfoGain.gain.setTargetAtTime(lfoDepth, t, 0.1);
-
             let bpFreq = 1200 + (sRpm * 0.8) + (sThr * 2500);
             this.engineNodes.lpf.frequency.setTargetAtTime(bpFreq, t, 0.05);
-            this.engineNodes.lpf.Q.setTargetAtTime(1.5 + sThr * 2, t, 0.1); // Skarpere i powerbandet
-
+            this.engineNodes.lpf.Q.setTargetAtTime(1.5 + sThr * 2, t, 0.1);
             let volTarget = 0.06 + (sThr * 0.2);
             this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
         }
-
         else if (vehicleType === 'turbo') {
             let freq = (sRpm / 60) * 2;
             this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            
             let lpFreq = 600 + (sRpm * 0.7) + (sThr * 3000);
             this.engineNodes.lpf.frequency.setTargetAtTime(lpFreq, t, 0.05);
-
-            // Turbo spooling
             let turboFreq = 2000 + (sRpm * 0.5) + (sThr * 4000);
             this.engineNodes.turboOsc.frequency.setTargetAtTime(turboFreq, t, 0.2);
             let turboVol = (sRpm > 3500 && sThr > 0.4) ? (sThr * 0.08) : 0;
-            this.engineNodes.turboGain.gain.setTargetAtTime(turboVol, t, 0.5); // Spool delay
+            this.engineNodes.turboGain.gain.setTargetAtTime(turboVol, t, 0.5);
 
-            // Blow-off Valve Logic (Slipper gassen brått under last)
             if (this.prevThrottle > 0.7 && sThr < 0.1 && sRpm > 4500 && (t - this.bovTimer > 0.5)) {
                 this.playBlowoffValve();
                 this.bovTimer = t;
-                // Kutt turbovolum umiddelbart
                 this.engineNodes.turboGain.gain.setTargetAtTime(0, t, 0.05);
             }
 
             let volTarget = 0.06 + (sThr * 0.15);
             this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
         }
-
         else if (vehicleType === 'v6') {
             let freq = (sRpm / 60) * 2.5;
             this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
             this.engineNodes.subOsc.frequency.setTargetAtTime(freq / 1.5, t, 0.05);
-            
             let lpFreq = 1000 + (sRpm * 0.8) + (sThr * 2500);
             this.engineNodes.lpf.frequency.setTargetAtTime(lpFreq, t, 0.05);
-            
             let volTarget = 0.06 + (sThr * 0.18);
             this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
         }
-
         else if (vehicleType === 'ev') {
-            let freq = 100 + (sSpd * 12); // Følger hjulhastighet primært
+            let freq = 100 + (sSpd * 12);
             this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
-            
             let volTarget = sSpd > 1 ? 0.05 + (sThr * 0.1) : 0;
             this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.1);
         }
-
         else {
-            // Standard / I4 NA
             let freq = (sRpm / 60) * 2;
             this.engineNodes.osc.frequency.setTargetAtTime(freq, t, 0.05);
             let lpFreq = 800 + (sRpm * 0.6) + (sThr * 2000);
@@ -425,7 +365,6 @@ class AudioManager {
             this.engineNodes.masterGain.gain.setTargetAtTime(volTarget, t, 0.05);
         }
 
-        // --- DEKKSKRIK FELLESLOGIKK ---
         if (this.squealNodes) {
             if(spinSeverity > 0.1 && sSpd > 5) { 
                 this.squealNodes.gain.gain.setTargetAtTime(isFinite(spinSeverity) ? spinSeverity * 0.15 : 0, t, 0.05); 
@@ -439,7 +378,8 @@ class AudioManager {
     }
 
     playBeep(freq, duration = 0.3) {
-        if (!this.ready || this.ctx.state !== 'running' || !isFinite(freq)) return;
+        this.resume();
+        if (!this.ready || !this.ctx || this.ctx.state !== 'running' || !isFinite(freq)) return;
         let osc = this.ctx.createOscillator(); let gain = this.ctx.createGain();
         osc.frequency.value = freq; osc.connect(gain); gain.connect(this.ctx.destination);
         osc.start(); gain.gain.setValueAtTime(0.5, this.ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration); osc.stop(this.ctx.currentTime + duration);
