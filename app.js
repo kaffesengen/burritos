@@ -81,9 +81,7 @@ for (let tId in tracks) {
 let activeTrackId = 'standard'; let envObjects = [];
 let serverSettings = { grip: 1.0, power: 1.0, mass: 1.0, steering: 1.0, caster: 1.0 };
 
-let deviceType = 'pc'; 
-let cameraZoom = 1.0;
-
+let deviceType = 'pc'; let cameraZoom = 1.0;
 function detectDevice() {
     let w = window.innerWidth; let h = window.innerHeight; let minDim = Math.min(w, h); let maxDim = Math.max(w, h);
     if (minDim > 750) deviceType = 'pc';
@@ -109,9 +107,7 @@ function applyDeviceUIRules() {
 }
 
 let hamBtn = document.getElementById('btn-hamburger');
-if(hamBtn) {
-    hamBtn.addEventListener('click', () => { phoneMenuState = (phoneMenuState + 1) % 3; applyDeviceUIRules(); });
-}
+if(hamBtn) { hamBtn.addEventListener('click', () => { phoneMenuState = (phoneMenuState + 1) % 3; applyDeviceUIRules(); }); }
 
 function getTrack() { return tracks[activeTrackId] || tracks['standard']; }
 
@@ -136,8 +132,7 @@ let peer = null, isHost = true, gameActive = false, myId = null, hostConnection 
 const connections = {}, players = {}; 
 let raceState = -1, totalLaps = 3, raceStartTime = 0;
 let gameLoopId = null;
-let isRecording = false;
-let recordedWaypoints = [];
+let isRecording = false; let recordedWaypoints = [];
 
 function createPlayerRecord(id, presetId, name, colorCode) {
     let safeName = "Gjest";
@@ -201,6 +196,7 @@ let btnClosePodium = document.getElementById('btn-close-podium');
 if (btnClosePodium) {
     btnClosePodium.addEventListener('click', () => {
         document.getElementById('podium-overlay').style.display = 'none';
+        window.podiumClosed = true;
     });
 }
 
@@ -345,6 +341,20 @@ if (btnReset) { btnReset.addEventListener('click', () => { if(isHost) { assignGr
 
 let btnAddAi = document.getElementById('btn-add-ai');
 if (btnAddAi) { btnAddAi.addEventListener('click', () => { if(isHost) { let t = getTrack(); aiManager.spawnAI(players, t.startX, t.startY, t.startAngle); assignGridPositions(); } }); }
+
+let btnForceEnd = document.getElementById('btn-force-end');
+if (btnForceEnd) {
+    btnForceEnd.addEventListener('click', () => {
+        if (isHost && raceState === 0) {
+            for (let pid in players) {
+                if (!players[pid].finished) {
+                    players[pid].finished = true;
+                    players[pid].totalTime = performance.now();
+                }
+            }
+        }
+    });
+}
 
 let btnStart = document.getElementById('btn-start-race');
 if (btnStart) {
@@ -535,7 +545,7 @@ function update() {
 
     if (players[myId]) {
         let p = players[myId]; let finalInputs = { ...localInputs };
-        if (finalInputs.smartAssist && !p.finished && aiManager.waypoints[activeTrackId] && aiManager.waypoints[activeTrackId].length > 0) {
+        if (finalInputs.smartAssist && !p.finished && typeof aiManager !== 'undefined' && aiManager.waypoints[activeTrackId] && aiManager.waypoints[activeTrackId].length > 0) {
             let waypoints = aiManager.waypoints[activeTrackId][0]; 
             let closestDist = Infinity; let closestIdx = 0;
             for (let i = 0; i < waypoints.length; i++) {
@@ -692,7 +702,7 @@ function update() {
         }
 
         let raceIsRunning = (raceState === 0 || raceState === -1);
-        aiManager.updateAll(players, activeTrackId, track, ctx, raceIsRunning);
+        if (typeof aiManager !== 'undefined') aiManager.updateAll(players, activeTrackId, track, ctx, raceIsRunning);
         
         if (now - lastNetUpdate > 40) {
             let stateMsg = { type: 'state', raceState: raceState, laps: totalLaps, settings: serverSettings, players: outState.players };
@@ -720,7 +730,7 @@ function update() {
     } else if (raceState === 0 && now - raceStartTime > 2000) { let lUI = document.getElementById('f1-lights'); if(lUI) lUI.style.display = 'none'; }
 
     // --- LEADERBOARD & RANGERINGS-LOGIKK ---
-    let trackLines = (typeof aiManagerWaypoints !== 'undefined' && aiManagerWaypoints[activeTrackId] && aiManagerWaypoints[activeTrackId][0]) ? aiManagerWaypoints[activeTrackId][0] : [];
+    let trackLines = (typeof aiManager !== 'undefined' && aiManager.waypoints[activeTrackId] && aiManager.waypoints[activeTrackId][0]) ? aiManager.waypoints[activeTrackId][0] : [];
     let totalWp = Math.max(1, trackLines.length);
 
     let lbArr = Object.values(players).map(p => {
@@ -770,9 +780,11 @@ function update() {
     let lbL = document.getElementById('lb-list'); if(lbL) lbL.innerHTML = lbHTML;
 
     // --- PODIUM UTSTEDELSE ---
-    if(raceState === 0 && players[myId] && players[myId].finished) {
+    let allFinished = Object.keys(players).length > 0 && Object.values(players).every(p => p.finished);
+
+    if(raceState === 0 && allFinished) {
         if(!window.finishTimer) window.finishTimer = performance.now();
-        if(performance.now() - window.finishTimer > 2500) {
+        if(performance.now() - window.finishTimer > 2500 && !window.podiumClosed) {
             let pUI = document.getElementById('podium-overlay');
             if(pUI && pUI.style.display !== 'flex') {
                 pUI.style.display = 'flex';
@@ -784,9 +796,12 @@ function update() {
             }
         }
     } else {
-        window.finishTimer = null;
-        let pUI = document.getElementById('podium-overlay');
-        if(pUI && raceState !== 0) { pUI.style.display = 'none'; pUI.classList.remove('celebrate'); }
+        if (raceState !== 0) {
+            window.finishTimer = null;
+            window.podiumClosed = false;
+            let pUI = document.getElementById('podium-overlay');
+            if(pUI) { pUI.style.display = 'none'; pUI.classList.remove('celebrate'); }
+        }
     }
 
     if (players[myId]) {
