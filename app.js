@@ -90,24 +90,14 @@ function detectDevice() {
     applyDeviceUIRules();
 }
 
-let phoneMenuState = 0; 
 function applyDeviceUIRules() {
-    let uiPanel = document.getElementById('ui-panel');
-    let hostActions = document.getElementById('host-actions');
     let hamBtn = document.getElementById('btn-hamburger');
-
     if (deviceType === 'phone') {
-        hamBtn.style.display = 'block';
-        if (phoneMenuState === 0) { uiPanel.style.display = 'none'; if(hostActions) hostActions.style.display = 'none'; } 
-        else if (phoneMenuState === 1) { uiPanel.style.display = 'grid'; if(hostActions) hostActions.style.display = 'none'; } 
-        else if (phoneMenuState === 2) { uiPanel.style.display = 'none'; if(hostActions && isHost) hostActions.style.display = 'flex'; }
+        if(hamBtn) hamBtn.style.display = 'block';
     } else {
-        hamBtn.style.display = 'none'; uiPanel.style.display = 'grid'; if (isHost && hostActions) hostActions.style.display = 'flex';
+        if(hamBtn) hamBtn.style.display = 'none';
     }
 }
-
-let hamBtn = document.getElementById('btn-hamburger');
-if(hamBtn) { hamBtn.addEventListener('click', () => { phoneMenuState = (phoneMenuState + 1) % 3; applyDeviceUIRules(); }); }
 
 function getTrack() { return tracks[activeTrackId] || tracks['standard']; }
 
@@ -131,7 +121,6 @@ generateEnvironment();
 let peer = null, isHost = true, gameActive = false, myId = null, hostConnection = null;
 const connections = {}, players = {}; 
 
-// Split-screen State
 let isSplitScreen = false;
 let localPlayers = []; 
 
@@ -193,7 +182,6 @@ function enterGame() {
     gameLoopId = requestAnimationFrame(update);
 }
 
-// --- Split-Screen UI Setup ---
 function renderSplitScreenCards() {
     let container = document.getElementById('ss-cards-container');
     let countSel = document.getElementById('ss-player-count');
@@ -285,12 +273,13 @@ if (btnStartSS) {
     });
 }
 
-
+let hamBtn = document.getElementById('btn-hamburger');
 let menuBtn = document.getElementById('btn-ingame-menu');
 let modal = document.getElementById('ingame-modal');
 let resumeBtn = document.getElementById('btn-resume');
 let exitBtn = document.getElementById('btn-exit');
 
+if (hamBtn && modal) hamBtn.addEventListener('click', () => modal.style.display = 'flex');
 if (menuBtn && modal) menuBtn.addEventListener('click', () => modal.style.display = 'flex');
 if (resumeBtn && modal) resumeBtn.addEventListener('click', () => modal.style.display = 'none');
 if (exitBtn) exitBtn.addEventListener('click', exitToMenu);
@@ -616,7 +605,6 @@ window.addEventListener('keydown', e => {
     if(e.key.toLowerCase() === 't') toggleAssist();
     if(e.key === '+' || e.key === '=') adjustZoom(0.15); if(e.key === '-' || e.key === '_') adjustZoom(-0.15);
     
-    // Toggels keyboard Evan-mode directly via window flag
     if(e.key.toLowerCase() === 'h') { window.pendingSmartAssistToggle = true; }
     
     if(e.key.toLowerCase() === 'k' && isHost) { let botIds = Object.keys(players).filter(id => players[id].isAI); if (botIds.length > 0) { let botToRemove = botIds[botIds.length - 1]; delete players[botToRemove]; } }
@@ -660,8 +648,12 @@ function drawHUD(ctx, p, vx, vy, vw, vh, playerIndex) {
     let rpm = p.rpm < 10 ? 0 : Math.round(p.rpm || 0);
     let lapStr = `${Math.min(p.lap + 1, totalLaps)}/${totalLaps}`;
     let timeStr = p.finished ? formatTime(p.bestLap) : (raceState === 0 ? formatTime(p.currentLapTime) : "0.00");
+    let evanState = p.inputs?.smartAssist ? 'PÅ' : 'AV';
+    let evanColor = p.inputs?.smartAssist ? '#2ecc71' : '#e74c3c';
     
     ctx.fillStyle = '#2ecc71'; ctx.fillText(`Fart: ${speed} km/t`, vx + 18, vy + 28);
+    ctx.fillStyle = evanColor; ctx.fillText(`Evan: ${evanState}`, vx + 120, vy + 28);
+    
     ctx.fillStyle = '#3498db'; ctx.fillText(`Gir: ${gear} | RPM: ${rpm}`, vx + 18, vy + 46);
     ctx.fillStyle = '#f1c40f'; ctx.fillText(`Runde: ${lapStr} | ${timeStr}`, vx + 18, vy + 64);
     
@@ -674,7 +666,6 @@ function drawHUD(ctx, p, vx, vy, vw, vh, playerIndex) {
     ctx.beginPath(); ctx.roundRect(vx + vw - 45, vy + 10, 35, 35, 6); ctx.fill(); ctx.stroke();
     ctx.fillStyle = p.color; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
     
-    // In Split-Screen, use indices P1/P2/P3. Else just "P"
     let pText = isSplitScreen ? `P${playerIndex+1}` : `P`;
     ctx.fillText(pText, vx + vw - 27, vy + 34);
 }
@@ -700,7 +691,17 @@ function update() {
             if (gp.buttons[4]?.pressed && !window.prevGamepadState[j+'_4']) adjustZoom(-0.15);
             if (gp.buttons[5]?.pressed && !window.prevGamepadState[j+'_5']) adjustZoom(0.15);
             
-            for (let b = 0; b < gp.buttons.length; b++) { window.prevGamepadState[j+'_'+b] = gp.buttons[b].pressed; }
+            // D-Pad Up / Down (AI spawn and remove)
+            if (gp.buttons[12]?.pressed && !window.prevGamepadState[j+'_12']) {
+                if(isHost) { let t = getTrack(); aiManager.spawnAI(players, t.startX, t.startY, t.startAngle); assignGridPositions(); }
+            }
+            if (gp.buttons[13]?.pressed && !window.prevGamepadState[j+'_13']) {
+                if(isHost) {
+                    let botIds = Object.keys(players).filter(id => players[id].isAI);
+                    if (botIds.length > 0) { let botToRemove = botIds[botIds.length - 1]; delete players[botToRemove]; }
+                }
+            }
+            
             resumeAudio(); 
         }
     }
@@ -712,7 +713,6 @@ function update() {
 
         let fin = { steering: 0, throttle: 0, handbrake: false, driftAssist: false, smartAssist: p.inputs.smartAssist };
 
-        // Allow Keyboard
         if (lp.isKeyboard || !isSplitScreen) {
             fin.steering = localInputs.steering;
             fin.throttle = localInputs.throttle;
@@ -720,7 +720,6 @@ function update() {
             fin.driftAssist = localInputs.driftAssist;
         }
         
-        // Map configured Gamepad (or fallback to Gamepad 0 if 1-player mode)
         let gpIdx = isSplitScreen ? lp.gamepad : 0;
         if (gpIdx !== -1) {
             let gp = gps[gpIdx];
@@ -732,13 +731,12 @@ function update() {
                 if (isSplitScreen) {
                     fin.steering = gpSteer; fin.throttle = gpThr; fin.handbrake = gpHb; fin.driftAssist = localInputs.driftAssist;
                 } else {
-                    // Hybrid mode for Single Player: Use whichever is actively touched
                     if (Math.abs(gpSteer) > 0.05) fin.steering = gpSteer;
                     if (Math.abs(gpThr) > 0.05) fin.throttle = gpThr;
                     if (gpHb) fin.handbrake = true;
                 }
 
-                // Gamepad Smart Assist Toggle (Button 1 / B)
+                // Gamepad B Button - Smart Assist (Evan Modus) Toggle
                 if (gp.buttons[1]?.pressed && !window.prevGamepadState[gpIdx+'_1']) {
                     fin.smartAssist = !fin.smartAssist;
                     showEvanModeFlash(fin.smartAssist, p.name);
@@ -746,14 +744,12 @@ function update() {
             }
         }
 
-        // Keyboard Smart Assist Toggle (Hotkey 'H')
         if (window.pendingSmartAssistToggle && (lp.isKeyboard || !isSplitScreen)) {
             fin.smartAssist = !fin.smartAssist;
             showEvanModeFlash(fin.smartAssist, p.name);
             window.pendingSmartAssistToggle = false;
         }
         
-        // Execute Smart Assist (Evan-Modus) physics constraint
         if (fin.smartAssist && !p.finished && typeof aiManager !== 'undefined' && aiManager.waypoints[activeTrackId] && aiManager.waypoints[activeTrackId].length > 0) {
             let waypoints = aiManager.waypoints[activeTrackId][0]; 
             let closestDist = Infinity; let closestIdx = 0;
@@ -781,7 +777,6 @@ function update() {
 
         p.inputs = fin;
         
-        // Single-player live vehicle change handling
         if (!isSplitScreen && lp.id === myId) {
             let pSel = document.getElementById('ingame-preset-selector') || document.getElementById('preset-selector');
             if (pSel && pSel.value && p.presetId !== pSel.value) { p.presetId = pSel.value; p.maxFuel = vehiclePresets[pSel.value]?.fuelCap || 100; if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeCar', preset: pSel.value }); } catch(e){} } }
@@ -789,7 +784,6 @@ function update() {
             if (cSel && cSel.value && p.color !== cSel.value) { p.color = cSel.value; if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeColor', color: cSel.value }); } catch(e){} } }
         }
         
-        // Network Sync for non-host local players
         if (!isHost && hostConnection && hostConnection.open) {
             let currentInputString = fin.steering + "," + fin.throttle + "," + fin.handbrake + "," + fin.driftAssist + "," + fin.smartAssist;
             if (currentInputString !== lastInputString || now - lastInputSend > 250) { 
@@ -1181,5 +1175,15 @@ function update() {
         ctx.stroke();
     }
     
+    // Oppdater forrige gamepad state HELT til slutt for at trykk ikke skal forsvinne
+    for (let j = 0; j < 4; j++) {
+        let gp = gps[j];
+        if (gp) {
+            for (let b = 0; b < gp.buttons.length; b++) { 
+                window.prevGamepadState[j+'_'+b] = gp.buttons[b].pressed; 
+            }
+        }
+    }
+
     gameLoopId = requestAnimationFrame(update);
 }
