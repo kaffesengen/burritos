@@ -65,18 +65,37 @@
         </div>
     </div>
 
-    <!-- HAMBURGERKNAPP (Synlig på mobil og tablet) -->
     <button id="btn-hamburger">☰</button>
 
     <button id="btn-ingame-menu">⚙️ Meny</button>
 
     <div id="leaderboard">
-        <h3 style="margin-bottom: 5px; color: #3498db; border-bottom: 1px solid #444; padding-bottom: 3px;">TOP 5</h3>
-        <ul id="lb-list" style="list-style: none; color: #ddd;"></ul>
+        <h3>LEADERBOARD</h3>
+        <ul id="lb-list"></ul>
     </div>
     
     <div id="f1-lights">
         <div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div>
+    </div>
+
+    <!-- PODIUM OVERLAY -->
+    <div id="podium-overlay">
+        <div class="podium-title">Løp Fullført!</div>
+        <div class="podium-container">
+            <div class="podium-step">
+                <div class="podium-name" id="podium-2">🥈 -</div>
+                <div class="podium-block step-2">2</div>
+            </div>
+            <div class="podium-step">
+                <div class="podium-name" id="podium-1">🥇 -</div>
+                <div class="podium-block step-1">1</div>
+            </div>
+            <div class="podium-step">
+                <div class="podium-name" id="podium-3">🥉 -</div>
+                <div class="podium-block step-3">3</div>
+            </div>
+        </div>
+        <button id="btn-close-podium" class="btn btn-green" style="max-width: 250px; margin-top: 40px; font-size: 18px; padding: 15px;">Lukk Podium</button>
     </div>
 
     <div id="host-actions">
@@ -183,7 +202,6 @@
     </div>
 </div>
 
-<!-- BUNNMENY (Skjules på telefoner med mindre hamburger trykkes én eller to ganger) -->
 <div id="ui-panel">
     <div class="control">
         <label>Bytt Kjøretøy:</label>
