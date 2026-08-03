@@ -346,6 +346,8 @@ class AIDriver {
         return inputs;
     }
 
+}
+
 class AIManager {
     constructor() {
         this.aiList = {};
