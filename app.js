@@ -1,7 +1,7 @@
 const vehiclePresets = {
     ai_standard: { power: 350, mass: 1400, drivetrain: 'AWD', grip: 2.10, turn: 4.8, roll: 0.04, w: 20, l: 45, ev: false, type: 'r34', fuelCap: 100, audio: 'turbo', maxRPM: 7000, gears: [0, 3.5, 2.2, 1.6, 1.2, 0.9], finalDrive: 3.8 },
     jaguar: { power: 400, mass: 2200, drivetrain: 'AWD', grip: 1.85, turn: 4.0, roll: 0.05, w: 24, l: 52, ev: true, type: 'jaguar', fuelCap: 100, audio: 'ev', maxRPM: 13000, gears: [0, 9.06], finalDrive: 1.0 },
-    gokart: { power: 28.5, mass: 180, drivetrain: 'RWD', grip: 5.04, turn: 0.55, roll: 0.02, w: 14, l: 24, ev: false, type: 'gokart', fuelCap: 10, audio: 'gokart', maxRPM: 14000, gears: [0, 2.30, 1.60, 1.25, 1.05, 0.90, 0.78], finalDrive: 4.3 },
+    gokart: { power: 28.5, mass: 180, drivetrain: 'RWD', grip: 2.52, turn: 0.55, roll: 0.02, w: 14, l: 24, ev: false, type: 'gokart', fuelCap: 10, audio: 'gokart', maxRPM: 14000, gears: [0, 2.30, 1.60, 1.25, 1.05, 0.90, 0.78], finalDrive: 4.3 },
     mx5: { power: 184, mass: 1050, drivetrain: 'RWD', grip: 1.60, turn: 4.5, roll: 0.04, w: 20, l: 42, ev: false, type: 'mx5', fuelCap: 50, audio: 'i4', maxRPM: 7500, gears: [0, 5.08, 2.99, 2.03, 1.59, 1.29, 1.00], finalDrive: 2.86 },
     r34: { power: 330, mass: 1560, drivetrain: 'AWD', grip: 1.85, turn: 3.8, roll: 0.04, w: 22, l: 48, ev: false, type: 'r34', fuelCap: 70, audio: 'turbo', maxRPM: 8000, gears: [0, 3.82, 2.36, 1.68, 1.31, 1.00, 0.79], finalDrive: 3.54 },
     s15: { power: 420, mass: 1240, drivetrain: 'RWD', grip: 1.70, turn: 5.5, roll: 0.04, w: 21, l: 45, ev: false, type: 's15', fuelCap: 65, audio: 'turbo', maxRPM: 7500, gears: [0, 3.62, 2.20, 1.54, 1.21, 1.00, 0.76], finalDrive: 3.69 },
