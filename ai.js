@@ -6,6 +6,10 @@ const aiNames = [
 
 class AIDriver {
     constructor(id) {
+        this.kp = 0.8; // Hvor hardt bilen svinger inn
+        this.kd = 0.35; // Hvor mye den demper utslaget for å unngå slingring
+        this.prevSteerError = 0;
+        
         this.id = id;
         this.name = aiNames[Math.floor(Math.random() * aiNames.length)];
         this.color = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
@@ -25,7 +29,39 @@ class AIDriver {
         this.aggression = 0.5 + Math.random() * 0.5;
     }
 
-    calculateInputs(vehicle, trackWaypoints, allPlayers, track, ctx, raceStarted, vehiclePresets) {
+    getLookaheadPoint(vehicle, trackLine) {
+        let v = vehicle.speedKmh / 3.6; // meter i sekundet
+        let lookaheadDist = Math.max(12, v * 0.75); // Minimum 12 meter
+        
+        // Finn nærmeste punkt først
+        let closestIdx = 0;
+        let minDist = Infinity;
+        for (let i = 0; i < trackLine.length; i++) {
+            let pt = trackLine[i];
+            let d = Math.hypot(vehicle.x - pt.x, vehicle.y - pt.y);
+            if (d < minDist) {
+                minDist = d;
+                closestIdx = i;
+            }
+        }
+        
+        // Skann fremover langs ruten til vi når lookaheadDist
+        let targetPt = trackLine[closestIdx];
+        let accumulatedDist = 0;
+        for (let i = closestIdx; i < closestIdx + trackLine.length; i++) {
+            let curr = trackLine[i % trackLine.length];
+            let next = trackLine[(i + 1) % trackLine.length];
+            accumulatedDist += Math.hypot(curr.x - next.x, curr.y - next.y);
+            
+            if (accumulatedDist >= lookaheadDist) {
+                targetPt = next;
+                break;
+            }
+        }
+        return targetPt;
+    }
+    
+    calculateInputs(vehicle, trackWaypoints, allPlayers, track, ctx, raceStarted, vehiclePresets, useDynamicSpeed = true) {
         let inputs = { steering: 0, throttle: 0, handbrake: false, driftAssist: true, shiftUp: false, shiftDown: false };
         let now = performance.now();
         let dt = (now - this.lastUpdate) / 1000;
@@ -169,31 +205,22 @@ class AIDriver {
 
         this.lateralOffset += (this.targetOffset - this.lateralOffset) * 2.0 * dt;
 
-        // --- VEIPUNKT-NAVIGASJON MED OFFSET ---
-        let closestDist = Infinity; let closestIdx = 0;
-        for (let i = 0; i < trackWaypoints.length; i++) {
-            let dist = Math.hypot(vehicle.x - trackWaypoints[i].x, vehicle.y - trackWaypoints[i].y);
-            if (dist < closestDist) { closestDist = dist; closestIdx = i; }
-        }
+        // --- FASE 2: PURE PURSUIT & PD-STYRING ---
+        let target = this.getLookaheadPoint(vehicle, trackWaypoints);
+        let upcomingTarget = target; 
 
-        let lookAheadOffset = 3 + Math.floor(vehicle.speedKmh / 15); 
-        let targetIdx = (closestIdx + lookAheadOffset) % trackWaypoints.length;
-        let nextTargetIdx = (targetIdx + 1) % trackWaypoints.length;
+        // Anvender lateral offset (forbikjøring) på siktepunktet
+        let targetIndex = trackWaypoints.indexOf(target);
+        if (targetIndex === -1) targetIndex = 0; // Fallback
+        let nextTarget = trackWaypoints[(targetIndex + 1) % trackWaypoints.length];
         
-        let targetPt = trackWaypoints[targetIdx];
-        let nextPt = trackWaypoints[nextTargetIdx];
+        let trackAngle = Math.atan2(nextTarget.y - target.y, nextTarget.x - target.x);
+        let aimX = target.x + Math.cos(trackAngle + Math.PI/2) * this.lateralOffset;
+        let aimY = target.y + Math.sin(trackAngle + Math.PI/2) * this.lateralOffset;
 
-        let dirX = nextPt.x - targetPt.x;
-        let dirY = nextPt.y - targetPt.y;
-        let dirLen = Math.hypot(dirX, dirY) || 1;
-        let normX = -dirY / dirLen;
-        let normY = dirX / dirLen;
-
-        let aimX = targetPt.x + (normX * this.lateralOffset);
-        let aimY = targetPt.y + (normY * this.lateralOffset);
-
-        let targetAngle = Math.atan2(aimY - vehicle.y, aimX - vehicle.x);
-        let angleDiffSteer = targetAngle - vehicle.angle;
+        let targetAimAngle = Math.atan2(aimY - vehicle.y, aimX - vehicle.x);
+        let angleDiffSteer = targetAimAngle - vehicle.angle;
+        
         while (angleDiffSteer > Math.PI) angleDiffSteer -= Math.PI * 2;
         while (angleDiffSteer < -Math.PI) angleDiffSteer += Math.PI * 2;
 
@@ -202,22 +229,12 @@ class AIDriver {
             angleDiffSteer += this.recoverySteer;
         }
 
-        inputs.steering = Math.max(-1.0, Math.min(1.0, angleDiffSteer * 4.0));
+        // PD-Regulator
+        let derivative = angleDiffSteer - this.prevSteerError;
+        this.prevSteerError = angleDiffSteer;
+        let rawSteer = (this.kp * angleDiffSteer) + (this.kd * derivative);
 
-        // --- FARTSKONTROLL ---
-        let brakeCheckOffset = Math.floor(vehicle.speedKmh / 5);
-        let upcomingTarget = trackWaypoints[(closestIdx + brakeCheckOffset) % trackWaypoints.length];
-        let maxSafeSpeed = upcomingTarget.targetSpeed + this.draftBoost + (this.aggression * 5);
-
-        if (vehicle.speedKmh > maxSafeSpeed + 10) {
-            inputs.throttle = -1.0; 
-        } else if (vehicle.speedKmh > maxSafeSpeed) {
-            inputs.throttle = -0.5;
-        } else {
-            inputs.throttle = 1.0;
-            let corneringBrakeTolerance = (this.targetOffset !== 0) ? 0.8 : 0.6;
-            if (Math.abs(inputs.steering) > corneringBrakeTolerance) inputs.throttle = 0.4;
-        }
+        inputs.steering = Math.max(-1.0, Math.min(1.0, rawSteer));
 
         // --- PREVENTIV UNNVIKELSE (Whiskers) ---
         if (track && ctx && track.path && !vehicle.isGhost) {
@@ -254,6 +271,20 @@ class AIDriver {
             }
         }
 
+        // --- FASE 1: DYNAMISK FARTSKONTROLL ---
+        let baseSpeed = useDynamicSpeed ? (upcomingTarget.physicsSpeed || upcomingTarget.targetSpeed) : upcomingTarget.targetSpeed;
+        let maxSafeSpeed = baseSpeed + this.draftBoost + (this.aggression * 5);
+
+        if (vehicle.speedKmh > maxSafeSpeed + 10) {
+            inputs.throttle = -1.0; 
+        } else if (vehicle.speedKmh > maxSafeSpeed) {
+            inputs.throttle = -0.5;
+        } else {
+            inputs.throttle = 1.0;
+            let corneringBrakeTolerance = (this.targetOffset !== 0) ? 0.8 : 0.6;
+            if (Math.abs(inputs.steering) > corneringBrakeTolerance) inputs.throttle = 0.4;
+        }
+
         // --- STUCK-DETEKSJON ---
         if (raceStarted && vehicle.speedKmh < 4.0 && inputs.throttle > 0) {
             this.stuckTime += dt;
@@ -286,9 +317,8 @@ class AIManager {
         
         let pts = this.waypoints[trackId][0]; 
         let g = 9.81; 
-        let step = 3; // Avstand mellom punkter for å unngå mikrostøy i opptaket
+        let step = 3; 
 
-        // Del 1: Svingradius og maksimal hjørnehastighet
         for (let i = 0; i < pts.length; i++) {
             let pA = pts[(i - step + pts.length) % pts.length];
             let pB = pts[i];
@@ -305,19 +335,17 @@ class AIManager {
 
             if (area > 1.0) { 
                 radius = (a * b * c) / (4.0 * area);
-                if (radius > 500) radius = 500; // Capper radius på nesten-rette strekker
+                if (radius > 500) radius = 500; 
                 
-                // v = sqrt(R * my * g). Konvertert til km/h
                 physicsSpeed = Math.sqrt(radius * baselineGrip * g) * 3.6;
             }
 
-            pts[i].physicsSpeed = Math.max(20, physicsSpeed); // Aldri under 20 km/h
+            pts[i].physicsSpeed = Math.max(20, physicsSpeed);
         }
 
-        // Del 2: Baklengs pass (Bremseprofil før svingen)
-        let maxDecel = 9.0; // Maks bremsekraft i m/s^2 (Grovt regnet for racingdekk)
+        let maxDecel = 9.0; 
         
-        for (let loop = 0; loop < 2; loop++) { // Kjøres to ganger for å dekke overlapping ved start/mål
+        for (let loop = 0; loop < 2; loop++) { 
             for (let i = pts.length - 1; i >= 0; i--) {
                 let curr = pts[i];
                 let next = pts[(i + 1) % pts.length];
@@ -365,7 +393,6 @@ class AIManager {
     }
 
     updateAll(playersObject, activeTrackId, track, ctx, raceStarted) {
-        // Pre-kalkulerer fysikken for banen første gang AI kjører den
         this.processTrackGeometry(activeTrackId);
 
         let trackLines = this.waypoints[activeTrackId] || [];
@@ -381,7 +408,6 @@ class AIManager {
                     
                     let assignedLine = trackLines[aiLogic.lineIndex] || [];
                     
-                    // Sender inn "useDynamicSpeed" til calculateInputs
                     vehicleData.inputs = aiLogic.calculateInputs(vehicleData, assignedLine, playersObject, track, ctx, raceStarted, typeof vehiclePresets !== 'undefined' ? vehiclePresets : {}, this.useDynamicSpeed);
                 } else {
                     vehicleData.inputs = { steering: 0, throttle: -1, handbrake: true, driftAssist: false, shiftUp: false, shiftDown: false };
