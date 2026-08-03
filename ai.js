@@ -271,18 +271,43 @@ class AIDriver {
             }
         }
 
-        // --- FASE 1: DYNAMISK FARTSKONTROLL ---
-        let baseSpeed = useDynamicSpeed ? (upcomingTarget.physicsSpeed || upcomingTarget.targetSpeed) : upcomingTarget.targetSpeed;
+        // --- FASE 3 & 4: KINEMATISK BREMS OG KAMM-SIRKEL ---
+        
+        // 1. Finn punktet bilen faktisk befinner seg på for korrekt avlesing av Fase 1-bremsekurven.
+        let closestDistSpeed = Infinity; 
+        let currentPt = trackWaypoints[0];
+        for (let i = 0; i < trackWaypoints.length; i++) {
+            let dist = Math.hypot(vehicle.x - trackWaypoints[i].x, vehicle.y - trackWaypoints[i].y);
+            if (dist < closestDistSpeed) { 
+                closestDistSpeed = dist; 
+                currentPt = trackWaypoints[i]; 
+            }
+        }
+
+        let baseSpeed = useDynamicSpeed ? (currentPt.physicsSpeed || currentPt.targetSpeed) : currentPt.targetSpeed;
         let maxSafeSpeed = baseSpeed + this.draftBoost + (this.aggression * 5);
 
-        if (vehicle.speedKmh > maxSafeSpeed + 10) {
+        // 2. Kamm-sirkel (Friksjonsgrense for dekk)
+        let lateralGrip = Math.abs(inputs.steering);
+        let maxLongitudinalGrip = Math.sqrt(Math.max(0, 1.0 - (lateralGrip * lateralGrip)));
+
+        // 3. Kinematisk fartskontroll
+        if (vehicle.speedKmh > maxSafeSpeed) {
             inputs.throttle = -1.0; 
-        } else if (vehicle.speedKmh > maxSafeSpeed) {
-            inputs.throttle = -0.5;
+            
+            if (vehicle.speedKmh > maxSafeSpeed + 12) {
+                inputs.handbrake = true; 
+            } else {
+                inputs.handbrake = false;
+            }
         } else {
-            inputs.throttle = 1.0;
-            let corneringBrakeTolerance = (this.targetOffset !== 0) ? 0.8 : 0.6;
-            if (Math.abs(inputs.steering) > corneringBrakeTolerance) inputs.throttle = 0.4;
+            inputs.handbrake = false;
+            
+            // Akselerasjon strupes av styrevinkelen (Kamm-sirkel)
+            let speedDiff = maxSafeSpeed - vehicle.speedKmh;
+            let rawThrottle = speedDiff > 5 ? 1.0 : (speedDiff / 5.0); 
+            
+            inputs.throttle = rawThrottle * maxLongitudinalGrip;
         }
 
         // --- STUCK-DETEKSJON ---
