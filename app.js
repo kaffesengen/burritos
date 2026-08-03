@@ -1322,7 +1322,15 @@ function update() {
         ctx.save(); ctx.translate(track.startX, track.startY); ctx.rotate(track.startAngle);
         let cbW = 10; ctx.fillStyle = '#fff'; for(let r=-8; r<8; r++) { for(let c=0; c<4; c++) { if((r+c)%2===0) ctx.fillRect(-c*cbW, r*cbW, cbW, cbW); } }
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
-        for(let idx=0; idx<Object.keys(players).length; idx++) { let row = Math.floor(idx / 2); let col = idx % 2 === 0 ? 1 : -1; let spacing = 120, lateral = 40; let gx = -(row * spacing + 60); let gy = (col * lateral); ctx.beginPath(); ctx.moveTo(gx + 20, gy - 12); ctx.lineTo(gx - 20, gy - 12); ctx.lineTo(gx - 20, gy + 12); ctx.lineTo(gx + 20, gy + 12); ctx.stroke(); }
+        for(let idx=0; idx<Object.keys(players).length; idx++) { 
+            let row = Math.floor(idx / 2); let col = idx % 2 === 0 ? 1 : -1; 
+            
+            // Variablene her MÅ matche tallene i assignGridPositions
+            let spacing = 200, lateral = 40; 
+            
+            let gx = -(row * spacing + 60); let gy = (col * lateral); 
+            ctx.beginPath(); ctx.moveTo(gx + 20, gy - 12); ctx.lineTo(gx - 20, gy - 12); ctx.lineTo(gx - 20, gy + 12); ctx.lineTo(gx + 20, gy + 12); ctx.stroke(); 
+        }
         ctx.restore();
 
         for (let obj of envObjects) {
