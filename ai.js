@@ -74,6 +74,14 @@ class AIDriver {
 
         if (!trackWaypoints || trackWaypoints.length === 0) return inputs;
 
+        // --- STARTSTREK-LOGIKK (Før grønt lys) ---
+        if (!raceStarted) {
+            inputs.throttle = 1.0; 
+            if (vehicle.gear > 0) inputs.shiftDown = true; // Hold i nøytral for å bygge max turtall
+            inputs.handbrake = true; 
+            return inputs;
+        }
+
         let preset = vehiclePresets[vehicle.presetId] || vehiclePresets['ai_standard'];
         let maxRpm = preset.maxRPM || 7500;
 
@@ -140,7 +148,7 @@ class AIDriver {
         // --- MANUELL GIRING ---
         if (vehicle.gear < 1) {
             inputs.shiftUp = true;
-            inputs.throttle = 0;
+            inputs.throttle = 1.0; // Flat pedal for å utløse clutch-dump ved startstreken
         } else {
             let shiftUpRpm = preset.type === 'gokart' ? maxRpm - 700 : maxRpm * 0.90;
             let shiftDownRpm = preset.type === 'gokart' ? maxRpm * 0.48 : maxRpm * 0.45;
@@ -201,12 +209,10 @@ class AIDriver {
                     this.draftBoost = 15;
                 }
 
-                // Kollisjonsvern (strammet inn for å unngå tidlig bremsing)
                 if (Math.abs(angleDiff) < 0.25 && dist < 25) {
                     minSpeedAhead = Math.min(minSpeedAhead, otherCar.speedKmh);
                 }
 
-                // Forbikjøring
                 if (dist < 90 && vehicle.speedKmh > otherCar.speedKmh - 5 && this.overtakeTimer <= 0 && !isBrakingZone) {
                     this.overtakeTimer = 3.0; 
                     let offsetAmount = 35; 
@@ -225,7 +231,6 @@ class AIDriver {
         this.lateralOffset += (this.targetOffset - this.lateralOffset) * 2.0 * dt;
 
         // --- FASE 2: PURE PURSUIT & PD-STYRING ---
-        // Økt lookahead for roligere oppførsel i høye hastigheter
         let lookaheadDist = Math.max(15, (vehicle.speedKmh / 3.6) * 0.9); 
         
         let targetPt = trackWaypoints[0];
@@ -299,7 +304,7 @@ class AIDriver {
 
             if (wallAvoidance !== 0) {
                 inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + wallAvoidance));
-                if (vehicle.speedKmh > 40) inputs.throttle = 0.0; // Fjernet full brems, lar den trille i stedet
+                if (vehicle.speedKmh > 40) inputs.throttle = 0.0; 
             }
         }
 
@@ -307,11 +312,10 @@ class AIDriver {
         let maxSafeSpeed = baseSpeed + this.draftBoost + (this.aggression * 5);
         maxSafeSpeed = Math.min(maxSafeSpeed, minSpeedAhead);
 
-        // Kamm-sirkel med dødsone for rettstrekker
         let lateralGrip = Math.abs(inputs.steering);
         let maxLongitudinalGrip = 1.0; 
         
-        if (lateralGrip > 0.15) { // Ignorerer lette styreutslag for å holde 100% gass
+        if (lateralGrip > 0.15) { 
             maxLongitudinalGrip = Math.max(0.3, 1.0 - (lateralGrip * lateralGrip * 0.6));
         }
 
@@ -322,7 +326,6 @@ class AIDriver {
             inputs.handbrake = false;
             let speedDiff = maxSafeSpeed - vehicle.speedKmh;
             
-            // "Flat pedal"-regelen: Mye å gå på = maks gass, ignorer glidende utregning
             if (speedDiff > 20) {
                 inputs.throttle = 1.0;
             } else {
@@ -334,7 +337,7 @@ class AIDriver {
         // --- STUCK-DETEKSJON ---
         if (raceStarted && vehicle.speedKmh < 4.0 && inputs.throttle > 0) {
             this.stuckTime += dt;
-            if (this.stuckTime > 0.8) {
+            if (this.stuckTime > 2.5) {
                 this.reverseTime = 1.5;
                 this.stuckTime = 0;
                 this.recoverySteer = (inputs.steering > 0 ? -1.5 : 1.5);
@@ -345,7 +348,6 @@ class AIDriver {
 
         return inputs;
     }
-
 }
 
 class AIManager {
@@ -358,7 +360,6 @@ class AIManager {
         this.useDynamicSpeed = true; 
     }
 
-    // Baseline-grep er senket til 1.7 for at de skal beregne svingene med mer edruelig fart.
     processTrackGeometry(trackId, baselineGrip = 1.7) {
         if (this.processedTracks[trackId] || !this.waypoints[trackId] || this.waypoints[trackId].length === 0) return;
         
@@ -390,7 +391,6 @@ class AIManager {
             pts[i].physicsSpeed = Math.max(20, physicsSpeed);
         }
 
-        // maxDecel senket fra 9.0 til 7.0 for å tvinge dem til å bremse MYE tidligere før svingen.
         let maxDecel = 7.0; 
         
         for (let loop = 0; loop < 2; loop++) { 
