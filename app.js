@@ -186,7 +186,12 @@ function initLocalPlayer(baseId) {
 function assignGridPositions() {
     let ids = Object.keys(players); let t = getTrack();
     ids.forEach((pid, index) => {
-        let row = Math.floor(index / 2); let col = index % 2 === 0 ? 1 : -1; let spacing = 120, lateral = 40;
+        let row = Math.floor(index / 2); 
+        let col = index % 2 === 0 ? 1 : -1; 
+        
+        // Økt avstand for å forhindre at AI trigges av kollisjonsvernet på startstreken
+        let spacing = 280, lateral = 80; 
+        
         players[pid].x = t.startX - Math.cos(t.startAngle) * (row * spacing + 60) + Math.sin(t.startAngle) * (col * lateral);
         players[pid].y = t.startY - Math.sin(t.startAngle) * (row * spacing + 60) - Math.cos(t.startAngle) * (col * lateral);
         players[pid].angle = t.startAngle; players[pid].vx = 0; players[pid].vy = 0; players[pid].yawRate = 0;
