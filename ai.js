@@ -64,6 +64,8 @@ class AIDriver {
         let now = performance.now();
         let dt = (now - this.lastUpdate) / 1000;
         this.lastUpdate = now;
+        
+        let timeSinceStart = (raceStarted && vehicle.lap === 0) ? (now - vehicle.lapStartTime) : 99999;
 
         if (vehicle.ghostTimer > 0) {
             vehicle.ghostTimer -= dt;
@@ -77,7 +79,7 @@ class AIDriver {
         // --- STARTSTREK-LOGIKK (Før grønt lys) ---
         if (!raceStarted) {
             inputs.throttle = 1.0; 
-            if (vehicle.gear > 0) inputs.shiftDown = true; // Hold i nøytral for å bygge max turtall
+            if (vehicle.gear > 0) inputs.shiftDown = true;
             inputs.handbrake = true; 
             return inputs;
         }
@@ -148,7 +150,7 @@ class AIDriver {
         // --- MANUELL GIRING ---
         if (vehicle.gear < 1) {
             inputs.shiftUp = true;
-            inputs.throttle = 1.0; // Flat pedal for å utløse clutch-dump ved startstreken
+            inputs.throttle = 1.0; 
         } else {
             let shiftUpRpm = preset.type === 'gokart' ? maxRpm - 700 : maxRpm * 0.90;
             let shiftDownRpm = preset.type === 'gokart' ? maxRpm * 0.48 : maxRpm * 0.45;
@@ -173,7 +175,6 @@ class AIDriver {
         let baseSpeed = useDynamicSpeed ? (currentPt.physicsSpeed || currentPt.targetSpeed) : currentPt.targetSpeed;
         
         // --- FORBIKJØRINGSLOGIKK & KLYNGE ---
-        let carsAhead = false;
         let sideClearance = { left: true, right: true };
         this.draftBoost = 0;
         let minSpeedAhead = Infinity;
@@ -204,7 +205,6 @@ class AIDriver {
             }
 
             if (Math.abs(angleDiff) < 0.4 && dist < 150) {
-                carsAhead = true;
                 if (dist > 40) {
                     this.draftBoost = 15;
                 }
@@ -310,7 +310,11 @@ class AIDriver {
 
         // --- FASE 3 & 4: KINEMATISK BREMS OG KAMM-SIRKEL ---
         let maxSafeSpeed = baseSpeed + this.draftBoost + (this.aggression * 5);
-        maxSafeSpeed = Math.min(maxSafeSpeed, minSpeedAhead);
+        
+        // Ignorerer avstandsregelen de første 4 sekundene
+        if (timeSinceStart > 4000) {
+            maxSafeSpeed = Math.min(maxSafeSpeed, minSpeedAhead);
+        }
 
         let lateralGrip = Math.abs(inputs.steering);
         let maxLongitudinalGrip = 1.0; 
@@ -410,7 +414,6 @@ class AIManager {
             }
         }
         
-        console.log(`[AI] Fysikk-kalkulering fullført for spor: ${trackId}`);
         this.processedTracks[trackId] = true;
     }
 
