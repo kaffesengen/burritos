@@ -152,7 +152,7 @@ class AIDriver {
             }
         }
 
-        // --- FASE 1 AVLESNING (For sjekk av bremsekurve) ---
+        // --- FASE 1 AVLESNING ---
         let closestDistSpeed = Infinity; 
         let currentPt = trackWaypoints[0];
         for (let i = 0; i < trackWaypoints.length; i++) {
@@ -164,12 +164,12 @@ class AIDriver {
         }
         let baseSpeed = useDynamicSpeed ? (currentPt.physicsSpeed || currentPt.targetSpeed) : currentPt.targetSpeed;
         
-        // --- FORBIKJØRINGSLOGIKK, KLYNGE & DRAFTING ---
+        // --- FORBIKJØRINGSLOGIKK & KLYNGE ---
         let carsAhead = false;
         let sideClearance = { left: true, right: true };
         this.draftBoost = 0;
         let minSpeedAhead = Infinity;
-        let isBrakingZone = (baseSpeed < vehicle.speedKmh - 15); // Er vi i en skarp nedbremsing?
+        let isBrakingZone = (baseSpeed < vehicle.speedKmh - 20); 
 
         if (this.overtakeTimer > 0) {
             this.overtakeTimer -= dt;
@@ -197,19 +197,19 @@ class AIDriver {
 
             if (Math.abs(angleDiff) < 0.4 && dist < 150) {
                 carsAhead = true;
-                if (dist > 60) {
+                if (dist > 40) {
                     this.draftBoost = 15;
                 }
 
-                // Kollisjonsvern: Hvis en bil er rett foran oss, avpass farten
-                if (Math.abs(angleDiff) < 0.25 && dist < 60) {
+                // Kollisjonsvern (strammet inn for å unngå tidlig bremsing)
+                if (Math.abs(angleDiff) < 0.25 && dist < 25) {
                     minSpeedAhead = Math.min(minSpeedAhead, otherCar.speedKmh);
                 }
 
-                // Forbikjøring: Kun hvis vi ikke befinner oss i en bremsekurve (hindrer krasj i apex)
+                // Forbikjøring
                 if (dist < 90 && vehicle.speedKmh > otherCar.speedKmh - 5 && this.overtakeTimer <= 0 && !isBrakingZone) {
                     this.overtakeTimer = 3.0; 
-                    let offsetAmount = 35; // Redusert fra 55 for å ikke gå rett i veggen
+                    let offsetAmount = 35; 
                     if (sideClearance.left && !sideClearance.right) this.targetOffset = -offsetAmount;
                     else if (sideClearance.right && !sideClearance.left) this.targetOffset = offsetAmount;
                     else {
@@ -225,16 +225,31 @@ class AIDriver {
         this.lateralOffset += (this.targetOffset - this.lateralOffset) * 2.0 * dt;
 
         // --- FASE 2: PURE PURSUIT & PD-STYRING ---
-        let target = this.getLookaheadPoint(vehicle, trackWaypoints);
-        let upcomingTarget = target; 
+        // Økt lookahead for roligere oppførsel i høye hastigheter
+        let lookaheadDist = Math.max(15, (vehicle.speedKmh / 3.6) * 0.9); 
+        
+        let targetPt = trackWaypoints[0];
+        let accumulatedDist = 0;
+        let cIdx = trackWaypoints.indexOf(currentPt);
+        if(cIdx === -1) cIdx = 0;
 
-        let targetIndex = trackWaypoints.indexOf(target);
+        for (let i = cIdx; i < cIdx + trackWaypoints.length; i++) {
+            let curr = trackWaypoints[i % trackWaypoints.length];
+            let next = trackWaypoints[(i + 1) % trackWaypoints.length];
+            accumulatedDist += Math.hypot(curr.x - next.x, curr.y - next.y);
+            if (accumulatedDist >= lookaheadDist) {
+                targetPt = next;
+                break;
+            }
+        }
+
+        let targetIndex = trackWaypoints.indexOf(targetPt);
         if (targetIndex === -1) targetIndex = 0;
         let nextTarget = trackWaypoints[(targetIndex + 1) % trackWaypoints.length];
         
-        let trackAngle = Math.atan2(nextTarget.y - target.y, nextTarget.x - target.x);
-        let aimX = target.x + Math.cos(trackAngle + Math.PI/2) * this.lateralOffset;
-        let aimY = target.y + Math.sin(trackAngle + Math.PI/2) * this.lateralOffset;
+        let trackAngle = Math.atan2(nextTarget.y - targetPt.y, nextTarget.x - targetPt.x);
+        let aimX = targetPt.x + Math.cos(trackAngle + Math.PI/2) * this.lateralOffset;
+        let aimY = targetPt.y + Math.sin(trackAngle + Math.PI/2) * this.lateralOffset;
 
         let targetAimAngle = Math.atan2(aimY - vehicle.y, aimX - vehicle.x);
         let angleDiffSteer = targetAimAngle - vehicle.angle;
@@ -284,37 +299,36 @@ class AIDriver {
 
             if (wallAvoidance !== 0) {
                 inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + wallAvoidance));
-                // Hardere avstraffing i gass dersom de er på vei i veggen
-                if (vehicle.speedKmh > 20) inputs.throttle = -1.0; 
+                if (vehicle.speedKmh > 40) inputs.throttle = 0.0; // Fjernet full brems, lar den trille i stedet
             }
         }
 
         // --- FASE 3 & 4: KINEMATISK BREMS OG KAMM-SIRKEL ---
-        
         let maxSafeSpeed = baseSpeed + this.draftBoost + (this.aggression * 5);
-        
-        // Tvinger boten til å matche farten på bilen foran i en klynge
         maxSafeSpeed = Math.min(maxSafeSpeed, minSpeedAhead);
 
-        // Kamm-sirkel (Tilpasset: kutter ikke all gass ved svake rattutslag på slettene)
+        // Kamm-sirkel med dødsone for rettstrekker
         let lateralGrip = Math.abs(inputs.steering);
-        let maxLongitudinalGrip = Math.max(0.2, 1.0 - (lateralGrip * lateralGrip * 0.5));
+        let maxLongitudinalGrip = 1.0; 
+        
+        if (lateralGrip > 0.15) { // Ignorerer lette styreutslag for å holde 100% gass
+            maxLongitudinalGrip = Math.max(0.3, 1.0 - (lateralGrip * lateralGrip * 0.6));
+        }
 
         if (vehicle.speedKmh > maxSafeSpeed) {
             inputs.throttle = -1.0; 
-            
-            if (vehicle.speedKmh > maxSafeSpeed + 12) {
-                inputs.handbrake = true; 
-            } else {
-                inputs.handbrake = false;
-            }
+            inputs.handbrake = (vehicle.speedKmh > maxSafeSpeed + 15);
         } else {
             inputs.handbrake = false;
-            
             let speedDiff = maxSafeSpeed - vehicle.speedKmh;
-            let rawThrottle = speedDiff > 5 ? 1.0 : (speedDiff / 5.0); 
             
-            inputs.throttle = rawThrottle * maxLongitudinalGrip;
+            // "Flat pedal"-regelen: Mye å gå på = maks gass, ignorer glidende utregning
+            if (speedDiff > 20) {
+                inputs.throttle = 1.0;
+            } else {
+                let rawThrottle = speedDiff > 5 ? 1.0 : (speedDiff / 5.0); 
+                inputs.throttle = rawThrottle * maxLongitudinalGrip;
+            }
         }
 
         // --- STUCK-DETEKSJON ---
@@ -331,7 +345,6 @@ class AIDriver {
 
         return inputs;
     }
-}
 
 class AIManager {
     constructor() {
