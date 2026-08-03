@@ -6,8 +6,8 @@ const aiNames = [
 
 class AIDriver {
     constructor(id) {
-        this.kp = 0.8; // Hvor hardt bilen svinger inn
-        this.kd = 0.35; // Hvor mye den demper utslaget for å unngå slingring
+        this.kp = 0.8; 
+        this.kd = 0.35; 
         this.prevSteerError = 0;
         
         this.id = id;
@@ -30,10 +30,9 @@ class AIDriver {
     }
 
     getLookaheadPoint(vehicle, trackLine) {
-        let v = vehicle.speedKmh / 3.6; // meter i sekundet
-        let lookaheadDist = Math.max(12, v * 0.75); // Minimum 12 meter
+        let v = vehicle.speedKmh / 3.6; 
+        let lookaheadDist = Math.max(12, v * 0.75); 
         
-        // Finn nærmeste punkt først
         let closestIdx = 0;
         let minDist = Infinity;
         for (let i = 0; i < trackLine.length; i++) {
@@ -45,7 +44,6 @@ class AIDriver {
             }
         }
         
-        // Skann fremover langs ruten til vi når lookaheadDist
         let targetPt = trackLine[closestIdx];
         let accumulatedDist = 0;
         for (let i = closestIdx; i < closestIdx + trackLine.length; i++) {
@@ -154,10 +152,24 @@ class AIDriver {
             }
         }
 
-        // --- FORBIKJØRINGSLOGIKK & DRAFTING ---
+        // --- FASE 1 AVLESNING (For sjekk av bremsekurve) ---
+        let closestDistSpeed = Infinity; 
+        let currentPt = trackWaypoints[0];
+        for (let i = 0; i < trackWaypoints.length; i++) {
+            let dist = Math.hypot(vehicle.x - trackWaypoints[i].x, vehicle.y - trackWaypoints[i].y);
+            if (dist < closestDistSpeed) { 
+                closestDistSpeed = dist; 
+                currentPt = trackWaypoints[i]; 
+            }
+        }
+        let baseSpeed = useDynamicSpeed ? (currentPt.physicsSpeed || currentPt.targetSpeed) : currentPt.targetSpeed;
+        
+        // --- FORBIKJØRINGSLOGIKK, KLYNGE & DRAFTING ---
         let carsAhead = false;
         let sideClearance = { left: true, right: true };
         this.draftBoost = 0;
+        let minSpeedAhead = Infinity;
+        let isBrakingZone = (baseSpeed < vehicle.speedKmh - 15); // Er vi i en skarp nedbremsing?
 
         if (this.overtakeTimer > 0) {
             this.overtakeTimer -= dt;
@@ -189,12 +201,19 @@ class AIDriver {
                     this.draftBoost = 15;
                 }
 
-                if (dist < 90 && vehicle.speedKmh > otherCar.speedKmh - 5 && this.overtakeTimer <= 0) {
+                // Kollisjonsvern: Hvis en bil er rett foran oss, avpass farten
+                if (Math.abs(angleDiff) < 0.25 && dist < 60) {
+                    minSpeedAhead = Math.min(minSpeedAhead, otherCar.speedKmh);
+                }
+
+                // Forbikjøring: Kun hvis vi ikke befinner oss i en bremsekurve (hindrer krasj i apex)
+                if (dist < 90 && vehicle.speedKmh > otherCar.speedKmh - 5 && this.overtakeTimer <= 0 && !isBrakingZone) {
                     this.overtakeTimer = 3.0; 
-                    if (sideClearance.left && !sideClearance.right) this.targetOffset = -55;
-                    else if (sideClearance.right && !sideClearance.left) this.targetOffset = 55;
+                    let offsetAmount = 35; // Redusert fra 55 for å ikke gå rett i veggen
+                    if (sideClearance.left && !sideClearance.right) this.targetOffset = -offsetAmount;
+                    else if (sideClearance.right && !sideClearance.left) this.targetOffset = offsetAmount;
                     else {
-                        this.targetOffset = (Math.random() > 0.5) ? 55 : -55;
+                        this.targetOffset = (Math.random() > 0.5) ? offsetAmount : -offsetAmount;
                     }
                 }
             }
@@ -209,9 +228,8 @@ class AIDriver {
         let target = this.getLookaheadPoint(vehicle, trackWaypoints);
         let upcomingTarget = target; 
 
-        // Anvender lateral offset (forbikjøring) på siktepunktet
         let targetIndex = trackWaypoints.indexOf(target);
-        if (targetIndex === -1) targetIndex = 0; // Fallback
+        if (targetIndex === -1) targetIndex = 0;
         let nextTarget = trackWaypoints[(targetIndex + 1) % trackWaypoints.length];
         
         let trackAngle = Math.atan2(nextTarget.y - target.y, nextTarget.x - target.x);
@@ -229,7 +247,6 @@ class AIDriver {
             angleDiffSteer += this.recoverySteer;
         }
 
-        // PD-Regulator
         let derivative = angleDiffSteer - this.prevSteerError;
         this.prevSteerError = angleDiffSteer;
         let rawSteer = (this.kp * angleDiffSteer) + (this.kd * derivative);
@@ -267,31 +284,22 @@ class AIDriver {
 
             if (wallAvoidance !== 0) {
                 inputs.steering = Math.max(-1.0, Math.min(1.0, inputs.steering + wallAvoidance));
-                if (vehicle.speedKmh > 40) inputs.throttle = -0.5; 
+                // Hardere avstraffing i gass dersom de er på vei i veggen
+                if (vehicle.speedKmh > 20) inputs.throttle = -1.0; 
             }
         }
 
         // --- FASE 3 & 4: KINEMATISK BREMS OG KAMM-SIRKEL ---
         
-        // 1. Finn punktet bilen faktisk befinner seg på for korrekt avlesing av Fase 1-bremsekurven.
-        let closestDistSpeed = Infinity; 
-        let currentPt = trackWaypoints[0];
-        for (let i = 0; i < trackWaypoints.length; i++) {
-            let dist = Math.hypot(vehicle.x - trackWaypoints[i].x, vehicle.y - trackWaypoints[i].y);
-            if (dist < closestDistSpeed) { 
-                closestDistSpeed = dist; 
-                currentPt = trackWaypoints[i]; 
-            }
-        }
-
-        let baseSpeed = useDynamicSpeed ? (currentPt.physicsSpeed || currentPt.targetSpeed) : currentPt.targetSpeed;
         let maxSafeSpeed = baseSpeed + this.draftBoost + (this.aggression * 5);
+        
+        // Tvinger boten til å matche farten på bilen foran i en klynge
+        maxSafeSpeed = Math.min(maxSafeSpeed, minSpeedAhead);
 
-        // 2. Kamm-sirkel (Friksjonsgrense for dekk)
+        // Kamm-sirkel (Tilpasset: kutter ikke all gass ved svake rattutslag på slettene)
         let lateralGrip = Math.abs(inputs.steering);
-        let maxLongitudinalGrip = Math.sqrt(Math.max(0, 1.0 - (lateralGrip * lateralGrip)));
+        let maxLongitudinalGrip = Math.max(0.2, 1.0 - (lateralGrip * lateralGrip * 0.5));
 
-        // 3. Kinematisk fartskontroll
         if (vehicle.speedKmh > maxSafeSpeed) {
             inputs.throttle = -1.0; 
             
@@ -303,7 +311,6 @@ class AIDriver {
         } else {
             inputs.handbrake = false;
             
-            // Akselerasjon strupes av styrevinkelen (Kamm-sirkel)
             let speedDiff = maxSafeSpeed - vehicle.speedKmh;
             let rawThrottle = speedDiff > 5 ? 1.0 : (speedDiff / 5.0); 
             
@@ -333,11 +340,11 @@ class AIManager {
         this.waypoints = typeof aiManagerWaypoints !== 'undefined' ? aiManagerWaypoints : {}; 
         this.processedTracks = {};
         
-        // TOGGLE: True = Fysikkbasert hastighet. False = Din innspilte hastighet.
         this.useDynamicSpeed = true; 
     }
 
-    processTrackGeometry(trackId, baselineGrip = 2.1) {
+    // Baseline-grep er senket til 1.7 for at de skal beregne svingene med mer edruelig fart.
+    processTrackGeometry(trackId, baselineGrip = 1.7) {
         if (this.processedTracks[trackId] || !this.waypoints[trackId] || this.waypoints[trackId].length === 0) return;
         
         let pts = this.waypoints[trackId][0]; 
@@ -368,7 +375,8 @@ class AIManager {
             pts[i].physicsSpeed = Math.max(20, physicsSpeed);
         }
 
-        let maxDecel = 9.0; 
+        // maxDecel senket fra 9.0 til 7.0 for å tvinge dem til å bremse MYE tidligere før svingen.
+        let maxDecel = 7.0; 
         
         for (let loop = 0; loop < 2; loop++) { 
             for (let i = pts.length - 1; i >= 0; i--) {
