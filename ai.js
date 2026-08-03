@@ -275,6 +275,67 @@ class AIManager {
         this.aiList = {};
         this.maxAI = 20;
         this.waypoints = typeof aiManagerWaypoints !== 'undefined' ? aiManagerWaypoints : {}; 
+        this.processedTracks = {};
+        
+        // TOGGLE: True = Fysikkbasert hastighet. False = Din innspilte hastighet.
+        this.useDynamicSpeed = true; 
+    }
+
+    processTrackGeometry(trackId, baselineGrip = 2.1) {
+        if (this.processedTracks[trackId] || !this.waypoints[trackId] || this.waypoints[trackId].length === 0) return;
+        
+        let pts = this.waypoints[trackId][0]; 
+        let g = 9.81; 
+        let step = 3; // Avstand mellom punkter for å unngå mikrostøy i opptaket
+
+        // Del 1: Svingradius og maksimal hjørnehastighet
+        for (let i = 0; i < pts.length; i++) {
+            let pA = pts[(i - step + pts.length) % pts.length];
+            let pB = pts[i];
+            let pC = pts[(i + step) % pts.length];
+
+            let a = Math.hypot(pB.x - pC.x, pB.y - pC.y);
+            let b = Math.hypot(pA.x - pC.x, pA.y - pC.y);
+            let c = Math.hypot(pA.x - pB.x, pA.y - pB.y);
+
+            let area = Math.abs(pA.x * (pB.y - pC.y) + pB.x * (pC.y - pA.y) + pC.x * (pA.y - pB.y)) / 2.0;
+            
+            let radius = Infinity;
+            let physicsSpeed = 320; 
+
+            if (area > 1.0) { 
+                radius = (a * b * c) / (4.0 * area);
+                if (radius > 500) radius = 500; // Capper radius på nesten-rette strekker
+                
+                // v = sqrt(R * my * g). Konvertert til km/h
+                physicsSpeed = Math.sqrt(radius * baselineGrip * g) * 3.6;
+            }
+
+            pts[i].physicsSpeed = Math.max(20, physicsSpeed); // Aldri under 20 km/h
+        }
+
+        // Del 2: Baklengs pass (Bremseprofil før svingen)
+        let maxDecel = 9.0; // Maks bremsekraft i m/s^2 (Grovt regnet for racingdekk)
+        
+        for (let loop = 0; loop < 2; loop++) { // Kjøres to ganger for å dekke overlapping ved start/mål
+            for (let i = pts.length - 1; i >= 0; i--) {
+                let curr = pts[i];
+                let next = pts[(i + 1) % pts.length];
+                let dist = Math.hypot(curr.x - next.x, curr.y - next.y);
+                
+                let vNextMpS = next.physicsSpeed / 3.6;
+                let vCurrMpS = curr.physicsSpeed / 3.6;
+
+                let maxEntrySpeedMpS = Math.sqrt(vNextMpS * vNextMpS + 2 * maxDecel * dist);
+                
+                if (vCurrMpS > maxEntrySpeedMpS) {
+                    curr.physicsSpeed = maxEntrySpeedMpS * 3.6;
+                }
+            }
+        }
+        
+        console.log(`[AI] Fysikk-kalkulering fullført for spor: ${trackId}`);
+        this.processedTracks[trackId] = true;
     }
 
     spawnAI(playersObject, trackStartX, trackStartY, trackStartAngle, presetId = 'ai_standard') {
@@ -304,6 +365,9 @@ class AIManager {
     }
 
     updateAll(playersObject, activeTrackId, track, ctx, raceStarted) {
+        // Pre-kalkulerer fysikken for banen første gang AI kjører den
+        this.processTrackGeometry(activeTrackId);
+
         let trackLines = this.waypoints[activeTrackId] || [];
         for (let aiId in this.aiList) {
             let aiLogic = this.aiList[aiId];
@@ -316,7 +380,9 @@ class AIManager {
                     }
                     
                     let assignedLine = trackLines[aiLogic.lineIndex] || [];
-                    vehicleData.inputs = aiLogic.calculateInputs(vehicleData, assignedLine, playersObject, track, ctx, raceStarted, typeof vehiclePresets !== 'undefined' ? vehiclePresets : {});
+                    
+                    // Sender inn "useDynamicSpeed" til calculateInputs
+                    vehicleData.inputs = aiLogic.calculateInputs(vehicleData, assignedLine, playersObject, track, ctx, raceStarted, typeof vehiclePresets !== 'undefined' ? vehiclePresets : {}, this.useDynamicSpeed);
                 } else {
                     vehicleData.inputs = { steering: 0, throttle: -1, handbrake: true, driftAssist: false, shiftUp: false, shiftDown: false };
                 }
