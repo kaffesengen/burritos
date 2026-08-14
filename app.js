@@ -1363,38 +1363,8 @@ function update() {
             if (pData.isGhost) ctx.globalAlpha = 0.45;
             let hl = pre.l/2, hw = pre.w/2; const wheelW = 14, wheelThick = 6, wheelOffset = hw - 1; let maxRadian = (pre.turn * 10 * serverSettings.steering) * (Math.PI / 180); let delta = Math.max(-maxRadian, Math.min(maxRadian, (pData.steer||0) * maxRadian));
 
-            if (pre.type !== 'f1' && pre.type !== 'gokart') {
-                ctx.fillStyle = '#111'; ctx.fillRect(-hl + 6 - wheelW/2, -wheelOffset - wheelThick/2, wheelW, wheelThick); ctx.fillRect(-hl + 6 - wheelW/2, wheelOffset - wheelThick/2, wheelW, wheelThick);
-                ctx.save(); ctx.translate(hl - 8, -wheelOffset); ctx.rotate(delta); ctx.fillRect(-wheelW/2, -wheelThick/2, wheelW, wheelThick); ctx.restore();
-                ctx.save(); ctx.translate(hl - 8, wheelOffset); ctx.rotate(delta); ctx.fillRect(-wheelW/2, -wheelThick/2, wheelW, wheelThick); ctx.restore();
-            }
-
-            if (pre.type === 'f1') { 
-                ctx.fillStyle = '#111'; ctx.fillRect(-hl + 8 - wheelW/2, -hw, wheelW, wheelThick*1.5); ctx.fillRect(-hl + 8 - wheelW/2, hw - wheelThick*1.5, wheelW, wheelThick*1.5);
-                ctx.save(); ctx.translate(hl - 6, -hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, 0, wheelW, wheelThick*1.5); ctx.restore();
-                ctx.save(); ctx.translate(hl - 6, hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, -wheelThick*1.5, wheelW, wheelThick*1.5); ctx.restore();
-                ctx.fillStyle = pData.color || '#e74c3c'; ctx.beginPath(); ctx.roundRect(-hl + 6, -hw*0.35, pre.l - 12, pre.w*0.7, 4); ctx.fill(); 
-                ctx.fillStyle = '#111'; ctx.fillRect(2, -hw*0.25, 10, pre.w*0.5); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(7, 0, 4, 0, Math.PI*2); ctx.fill(); 
-                ctx.fillStyle = '#111'; ctx.fillRect(hl - 4, -hw*0.9, 3, pre.w*1.8); ctx.fillRect(-hl, -hw*0.7, 4, pre.w*1.4); 
-            } 
-            else if (pre.type === 'gokart') { 
-                ctx.fillStyle = '#111'; ctx.fillRect(-hl + 4 - wheelW/2, -hw, wheelW, wheelThick); ctx.fillRect(-hl + 4 - wheelW/2, hw - wheelThick, wheelW, wheelThick);
-                ctx.save(); ctx.translate(hl - 4, -hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, 0, wheelW, wheelThick); ctx.restore();
-                ctx.save(); ctx.translate(hl - 4, hw); ctx.rotate(delta); ctx.fillRect(-wheelW/2, -wheelThick, wheelW, wheelThick); ctx.restore();
-                ctx.fillStyle = pData.color || '#7f8c8d'; ctx.beginPath(); ctx.roundRect(-hl+2, -hw*0.5, pre.l-4, pre.w, 2); ctx.fill(); 
-                ctx.fillStyle = '#e67e22'; ctx.fillRect(hl - 3, -hw*0.7, 2, pre.w*1.4); 
-                ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl + 6, -hw*0.4, 8, pre.w*0.8, 2); ctx.fill(); 
-                ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(-hl + 10, 0, 5, 0, Math.PI*2); ctx.fill(); 
-            } 
-            else if (pre.type === 'mx5') { ctx.fillStyle = pData.color || '#c0392b'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#222'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 3, pre.l*0.35, pre.w - 6, 4); ctx.fill(); } 
-            else if (pre.type === 'r34') { ctx.fillStyle = pData.color || '#2980b9'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 5); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.05, -hw + 2, pre.l*0.4, pre.w - 4, 3); ctx.fill(); ctx.fillStyle = '#2980b9'; ctx.fillRect(-hl - 3, -hw, 4, pre.w); } 
-            else if (pre.type === 's15') { ctx.fillStyle = pData.color || '#8e44ad'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 6); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 2, pre.l*0.45, pre.w - 4, 4); ctx.fill(); ctx.fillStyle = '#f39c12'; ctx.fillRect(-hl - 4, -hw - 2, 5, pre.w + 4); } 
-            else if (pre.type === 'jaguar') { ctx.fillStyle = pData.color || '#1abc9c'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.15, -hw + 3, pre.l*0.5, pre.w - 6, 6); ctx.fill(); }
-            else { ctx.fillStyle = pData.color || '#e67e22'; ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-hl*0.1, -hw + 3, pre.l*0.4, pre.w - 6, 4); ctx.fill(); }
-
-            ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.roundRect(hl - 3, -hw + 3, 4, 5, 2); ctx.roundRect(hl - 3, hw - 8, 4, 5, 2); ctx.fill();
-            ctx.fillStyle = pData.appliesBrake ? '#ff3333' : '#8b0000'; ctx.shadowColor = pData.appliesBrake ? '#ff0000' : 'transparent'; ctx.shadowBlur = pData.appliesBrake ? 10 : 0;
-            ctx.beginPath(); ctx.roundRect(-hl - 1, -hw + 3, 3, 5, 1); ctx.roundRect(-hl - 1, hw - 8, 3, 5, 1); ctx.fill(); ctx.shadowBlur = 0;
+            // All kjøretøy-tegning ligger i vehicles.js (én funksjon per bil).
+            Vehicles.draw(ctx, pre, pData, { hl, hw, wheelW, wheelThick, wheelOffset, delta });
 
             ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center'; ctx.fillText(pData.name, 0, -hw-12);
             ctx.restore();
