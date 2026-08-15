@@ -240,12 +240,113 @@
    *  JAGUAR I-PACE      (type: 'jaguar')  —  AWD elbil (standardbil)
    * ======================================================================== */
   function drawJaguar(ctx, pre, pData, g) {
-    const { hl, hw } = g;
-    drawStandardWheels(ctx, g);
-    ctx.fillStyle = pData.color || '#1abc9c';
-    ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 8); ctx.fill();
-    ctx.fillStyle = '#111';
-    ctx.beginPath(); ctx.roundRect(-hl * 0.15, -hw + 3, pre.l * 0.5, pre.w - 6, 6); ctx.fill();
+    const { hl, hw, delta } = g;
+    const body = pData.color || '#1abc9c'; // fargbart karosseri (spillerfarge)
+
+    // Karosseri-silhuett: rundet nese, full bredde over dørene, avsmalnende hekk.
+    function bodyPath() {
+      ctx.beginPath();
+      ctx.moveTo(hl, 0);
+      ctx.bezierCurveTo(hl, hw * 0.6, hl * 0.82, hw, hl * 0.45, hw);       // front-høyre skulder
+      ctx.lineTo(-hl * 0.5, hw);                                           // høyre flanke
+      ctx.bezierCurveTo(-hl * 0.85, hw, -hl, hw * 0.72, -hl, 0);           // hekk høyre
+      ctx.bezierCurveTo(-hl, -hw * 0.72, -hl * 0.85, -hw, -hl * 0.5, -hw); // hekk venstre
+      ctx.lineTo(hl * 0.45, -hw);                                          // venstre flanke
+      ctx.bezierCurveTo(hl * 0.82, -hw, hl, -hw * 0.6, hl, 0);             // front-venstre skulder
+      ctx.closePath();
+    }
+
+    // ---- Hjul (mørke, delvis skjult under karosseriet; forhjul styrer) ----
+    const tw = hl * 0.2, tt = 3.4; // hjul-lengde (langs x) og -tykkelse (langs y)
+    ctx.fillStyle = '#0a0a0a';
+    for (const s of [-1, 1]) {
+      ctx.save(); ctx.translate(-hl * 0.72, s * hw);
+      ctx.beginPath(); ctx.roundRect(-tw / 2, -tt / 2, tw, tt, 1.4); ctx.fill(); ctx.restore(); // bakhjul (faste)
+      ctx.save(); ctx.translate(hl * 0.6, s * hw); ctx.rotate(delta);
+      ctx.beginPath(); ctx.roundRect(-tw / 2, -tt / 2, tw, tt, 1.4); ctx.fill(); ctx.restore(); // forhjul (styrer)
+    }
+
+    // ---- Karosseri (spillerfarge) ----
+    bodyPath();
+    ctx.fillStyle = body;
+    ctx.fill();
+
+    // ---- Rund skyggelegging (lys midt, mørk mot kantene — funker på alle farger) ----
+    ctx.save();
+    bodyPath(); ctx.clip();
+    const shade = ctx.createLinearGradient(0, -hw, 0, hw);
+    shade.addColorStop(0, 'rgba(0,0,0,0.42)');
+    shade.addColorStop(0.28, 'rgba(255,255,255,0.10)');
+    shade.addColorStop(0.5, 'rgba(255,255,255,0.16)');
+    shade.addColorStop(0.72, 'rgba(255,255,255,0.10)');
+    shade.addColorStop(1, 'rgba(0,0,0,0.42)');
+    ctx.fillStyle = shade; ctx.fillRect(-hl, -hw, 2 * hl, 2 * hw);
+    const lg = ctx.createLinearGradient(hl, 0, -hl, 0); // litt mørkere i front/hekk
+    lg.addColorStop(0, 'rgba(0,0,0,0.28)');
+    lg.addColorStop(0.18, 'rgba(0,0,0,0)');
+    lg.addColorStop(0.85, 'rgba(0,0,0,0)');
+    lg.addColorStop(1, 'rgba(0,0,0,0.30)');
+    ctx.fillStyle = lg; ctx.fillRect(-hl, -hw, 2 * hl, 2 * hw);
+    ctx.restore();
+
+    // ---- Karosseri-kontur ----
+    bodyPath();
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 0.8; ctx.stroke();
+
+    // ---- Creases på panseret (mot front) ----
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.moveTo(hl * 0.5, hw * 0.36); ctx.lineTo(hl * 0.9, hw * 0.24); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(hl * 0.5, -hw * 0.36); ctx.lineTo(hl * 0.9, -hw * 0.24); ctx.stroke();
+
+    // ---- Dørskiller langs sidene ----
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 0.5;
+    for (const s of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(hl * 0.02, s * hw * 0.62); ctx.lineTo(hl * 0.02, s * hw * 0.97); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-hl * 0.28, s * hw * 0.6); ctx.lineTo(-hl * 0.28, s * hw * 0.95); ctx.stroke();
+    }
+
+    // ---- Sidespeil (foran, stikker ut) ----
+    for (const s of [-1, 1]) {
+      ctx.fillStyle = body;
+      ctx.beginPath(); ctx.ellipse(hl * 0.44, s * (hw + 1.4), hl * 0.05, hw * 0.16, s * 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 0.5; ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath(); ctx.ellipse(hl * 0.44, s * (hw + 1.9), hl * 0.03, hw * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // ---- Glasstak (mørkt, sammenhengende: frontrute -> tak -> bakrute) ----
+    ctx.beginPath();
+    ctx.moveTo(hl * 0.52, 0);
+    ctx.bezierCurveTo(hl * 0.46, hw * 0.5, hl * 0.22, hw * 0.62, 0, hw * 0.6);
+    ctx.lineTo(-hl * 0.32, hw * 0.55);
+    ctx.bezierCurveTo(-hl * 0.52, hw * 0.5, -hl * 0.58, hw * 0.25, -hl * 0.58, 0);
+    ctx.bezierCurveTo(-hl * 0.58, -hw * 0.25, -hl * 0.52, -hw * 0.5, -hl * 0.32, -hw * 0.55);
+    ctx.lineTo(0, -hw * 0.6);
+    ctx.bezierCurveTo(hl * 0.22, -hw * 0.62, hl * 0.46, -hw * 0.5, hl * 0.52, 0);
+    ctx.closePath();
+    const glass = ctx.createLinearGradient(hl * 0.5, 0, -hl * 0.6, 0);
+    glass.addColorStop(0, '#20242c'); glass.addColorStop(0.5, '#0b0d12'); glass.addColorStop(1, '#181c22');
+    ctx.fillStyle = glass; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 0.6; ctx.stroke();
+
+    // ---- Refleks-stripe på taket + antydet frontrute-skille ----
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(hl * 0.3, -hw * 0.18); ctx.lineTo(-hl * 0.4, -hw * 0.12); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(hl * 0.5, hw * 0.42); ctx.lineTo(hl * 0.5, -hw * 0.42); ctx.stroke();
+
+    // ---- Integrerte, diskré frontlys (antydning, ingen store gule prikker) ----
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.beginPath(); ctx.roundRect(hl * 0.82, hw * 0.24, hl * 0.09, 1.4, 0.7); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(hl * 0.82, -hw * 0.24 - 1.4, hl * 0.09, 1.4, 0.7); ctx.fill();
+
+    // ---- Baklys-stripe over hekken (lyser rødt ved bremsing) ----
+    const braking = pData.appliesBrake;
+    ctx.fillStyle = braking ? '#ff3b3b' : '#7a1414';
+    ctx.shadowColor = braking ? '#ff0000' : 'transparent';
+    ctx.shadowBlur = braking ? 9 : 0;
+    ctx.beginPath(); ctx.roundRect(-hl * 0.82 - 0.9, -hw * 0.6, 1.8, hw * 1.2, 0.9); ctx.fill();
+    ctx.shadowBlur = 0;
   }
 
   /* ==========================================================================
@@ -274,7 +375,8 @@
       case 'jaguar': drawJaguar(ctx, pre, pData, g); break;
       default:       drawGeneric(ctx, pre, pData, g); break;
     }
-    drawCommonLights(ctx, pre, pData, g);
+    // Jaguar tegner sine egne integrerte lys; øvrige biler bruker felles lys.
+    if (pre.type !== 'jaguar') drawCommonLights(ctx, pre, pData, g);
   }
 
   window.Vehicles = { draw };
