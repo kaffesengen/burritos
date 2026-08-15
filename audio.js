@@ -109,6 +109,21 @@ class AudioManager {
             this.engineNodes.lpf.connect(this.engineNodes.masterGain);
             this.engineNodes.osc.start();
         } 
+        else if (type === 'gx390' || type === 'gx390race') {
+            // Ensylindret 4-takt (Honda GX390). Race-varianten har mer vreng.
+            this.engineNodes.osc = this.ctx.createOscillator();
+            this.engineNodes.osc.type = 'sawtooth';
+            this.engineNodes.lpf = this.ctx.createBiquadFilter();
+            this.engineNodes.lpf.type = 'lowpass';
+            this.engineNodes.dist = this.ctx.createWaveShaper();
+            this.engineNodes.dist.curve = this.makeDistortionCurve(type === 'gx390race' ? 80 : 45);
+            this.engineNodes.dist.oversample = '4x';
+
+            this.engineNodes.osc.connect(this.engineNodes.dist);
+            this.engineNodes.dist.connect(this.engineNodes.lpf);
+            this.engineNodes.lpf.connect(this.engineNodes.masterGain);
+            this.engineNodes.osc.start();
+        }
         else if (type === 'v8') {
             this.engineNodes.osc = this.ctx.createOscillator();
             this.engineNodes.osc.type = 'sawtooth';
@@ -305,6 +320,36 @@ class AudioManager {
             this.engineNodes.lpf.Q.setTargetAtTime(qTarget, this.ctx.currentTime, 0.1);
             this.engineNodes.masterGain.gain.setTargetAtTime(volTarget * 2.5, this.ctx.currentTime, 0.01);
         } 
+        else if (vehicleType === 'gx390' || vehicleType === 'gx390race') {
+            // Kjørefølelse/lyd inspirert av Honda GX390-koden: lav ensylindret
+            // "putt-putt", ustabil tomgang, hard turtallssperre og backfires.
+            const race = vehicleType === 'gx390race';
+            const maxR = race ? 8500 : 3800;
+
+            let freq = sRpm / 90; // lav, thumpy ensylindret grunntone
+            if (sThr === 0 && sRpm < (race ? 2400 : 1600)) {
+                freq += (Math.random() * (race ? 1.6 : 0.8) - (race ? 0.8 : 0.4)); // ustabil racing-tomgang
+            }
+            this.engineNodes.osc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.02);
+
+            let lpFreq = (race ? 300 : 240) + (sRpm * (race ? 0.15 : 0.10)) + (sThr * (race ? 1200 : 650));
+            let volTarget = (race ? 0.08 : 0.07) + (sThr * (race ? 0.5 : 0.3));
+            let qTarget = 1.5;
+
+            // Elektronisk turtallssperre (mitraljøse-kutt) — mest aggressiv på race
+            if (sRpm > maxR - 150 && sThr > 0.5) {
+                if (Math.random() > (race ? 0.4 : 0.6)) volTarget = 0.0;
+            }
+            // Motorbrems + backfires ved gasslipp
+            else if (sThr < 0.1 && sRpm > (race ? 3500 : 2100)) {
+                lpFreq = 300 + sRpm * 0.2;
+                if (Math.random() > (race ? 0.90 : 0.95)) { volTarget = race ? 0.9 : 0.5; lpFreq = 3000; qTarget = 5; }
+            }
+
+            this.engineNodes.lpf.frequency.setTargetAtTime(lpFreq, this.ctx.currentTime, 0.02);
+            this.engineNodes.lpf.Q.setTargetAtTime(qTarget, this.ctx.currentTime, 0.05);
+            this.engineNodes.masterGain.gain.setTargetAtTime(volTarget * (race ? 2.4 : 2.0), this.ctx.currentTime, 0.01);
+        }
         else if (vehicleType === 'v8') {
             this.engineNodes.osc.frequency.value = baseFreq * 4; 
             this.engineNodes.subOsc.frequency.value = baseFreq * 2;

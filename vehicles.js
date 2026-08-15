@@ -176,6 +176,127 @@
   }
 
   /* ==========================================================================
+   *  UTLEIEKART         (sprite: 'kartrent')  —  tungt rental-kart, Honda GX390
+   * --------------------------------------------------------------------------
+   *  Basert på gokarten, men mer innkapslet: heldekkende plast-støtfangere for
+   *  og bak, brede sidekasser (nerf bars) og nummerskilt på nesa.
+   * ======================================================================== */
+  function drawKartRent(ctx, pre, pData, g) {
+    const { hl, hw, delta } = g;
+    const body = pData.color || '#e67e22';
+
+    // ---- Bakaksling + hjul (moderate dekk) ----
+    ctx.fillStyle = '#333'; ctx.fillRect(-hl + 1, -hw - 1, 1.6, hw * 2 + 2);
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.roundRect(-hl + 1, -hw - 2.4, hl * 0.62, 3.2, 1.2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-hl + 1, hw - 0.8, hl * 0.62, 3.2, 1.2); ctx.fill();
+    ctx.save(); ctx.translate(hl - 3, -hw - 1); ctx.rotate(delta); ctx.beginPath(); ctx.roundRect(-hl * 0.24, -1.2, hl * 0.48, 2.4, 1); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(hl - 3, hw + 1); ctx.rotate(delta); ctx.beginPath(); ctx.roundRect(-hl * 0.24, -1.2, hl * 0.48, 2.4, 1); ctx.fill(); ctx.restore();
+
+    // ---- Gulvplate / chassis ----
+    const floor = ctx.createLinearGradient(0, -hw, 0, hw);
+    floor.addColorStop(0, '#1b1c22'); floor.addColorStop(0.5, '#33353f'); floor.addColorStop(1, '#1b1c22');
+    ctx.fillStyle = floor; ctx.beginPath(); ctx.roundRect(-hl + 2, -hw * 0.72, 2 * hl - 4, hw * 1.44, 3); ctx.fill();
+
+    // ---- Motor bak + eksosglød ----
+    ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.roundRect(-hl + 2, -hw * 0.3, hl * 0.45, hw * 0.6, 1.5); ctx.fill();
+    const glowR = ctx.createRadialGradient(-hl - 0.5, hw * 0.4, 0, -hl - 0.5, hw * 0.4, 2.5);
+    glowR.addColorStop(0, 'rgba(255,110,0,0.8)'); glowR.addColorStop(1, 'rgba(255,110,0,0)');
+    ctx.fillStyle = glowR; ctx.beginPath(); ctx.arc(-hl - 0.5, hw * 0.4, 2.5, 0, Math.PI * 2); ctx.fill();
+
+    // ---- Brede sidekasser (plast, kroppsfarge) ----
+    for (const s of [-1, 1]) {
+      const yc = s * hw * 0.86;
+      const grd = ctx.createRadialGradient(0, yc, 1, 0, yc, hw);
+      grd.addColorStop(0, body); grd.addColorStop(0.7, body); grd.addColorStop(1, 'rgba(0,0,0,0.35)');
+      ctx.fillStyle = grd; ctx.beginPath(); ctx.roundRect(-hl * 0.72, yc - hw * 0.42, hl * 1.35, hw * 0.84, 4); ctx.fill();
+    }
+
+    // ---- Front-støtfanger (stor plast) + bak-støtfanger ----
+    const nose = ctx.createRadialGradient(hl * 0.72, 0, 1, hl * 0.72, 0, hw * 1.25);
+    nose.addColorStop(0, body); nose.addColorStop(0.75, body); nose.addColorStop(1, 'rgba(0,0,0,0.4)');
+    ctx.fillStyle = nose; ctx.beginPath(); ctx.roundRect(hl * 0.42, -hw * 0.9, hl * 0.72, hw * 1.8, 5); ctx.fill();
+    ctx.fillStyle = body; ctx.beginPath(); ctx.roundRect(-hl * 1.02, -hw * 0.85, hl * 0.12, hw * 1.7, 3); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 0.6; ctx.stroke();
+
+    // ---- Nummerskilt på nesa ----
+    ctx.fillStyle = '#f2f2f2'; ctx.beginPath(); ctx.roundRect(hl * 0.62, -hw * 0.34, hl * 0.3, hw * 0.68, 2); ctx.fill();
+
+    // ---- Sete + fører ----
+    ctx.fillStyle = '#141414'; ctx.beginPath(); ctx.ellipse(-hl * 0.12, 0, hl * 0.3, hw * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2c3e50';
+    ctx.beginPath(); ctx.ellipse(-hl * 0.02, 0, hl * 0.26, hw * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(hl * 0.16, -hw * 0.45, hl * 0.26, hw * 0.2, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(hl * 0.16, hw * 0.45, hl * 0.26, hw * 0.2, 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(hl * 0.3, 0, hw * 0.45, 0, Math.PI * 2); ctx.stroke();
+    const helmRr = hw * 0.56;
+    const helmR = ctx.createRadialGradient(-helmRr * 0.3, -helmRr * 0.3, 0.5, 0, 0, helmRr);
+    helmR.addColorStop(0, '#ff7043'); helmR.addColorStop(0.7, '#e64a19'); helmR.addColorStop(1, '#7f2a12');
+    ctx.fillStyle = helmR; ctx.beginPath(); ctx.arc(0, 0, helmRr, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#0a0a0a'; ctx.beginPath(); ctx.ellipse(helmRr * 0.55, 0, helmRr * 0.33, helmRr * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  /* ==========================================================================
+   *  RACE-KART          (sprite: 'kartrace')  —  lett rørchassis, tuned GX390
+   * --------------------------------------------------------------------------
+   *  Minimalt plast, eksponert rørramme, brede slicks bak, liten nesekåpe med
+   *  nummer-rundel. Racy fører med hvit hjelm.
+   * ======================================================================== */
+  function drawKartRace(ctx, pre, pData, g) {
+    const { hl, hw, delta } = g;
+    const body = pData.color || '#e74c3c';
+
+    // ---- Bakaksling + brede slicks bak, smalere foran ----
+    ctx.fillStyle = '#2a2a2a'; ctx.fillRect(-hl + 1, -hw - 2, 2, hw * 2 + 4);
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath(); ctx.roundRect(-hl + 0.5, -hw - 3.4, hl * 0.7, 4.2, 1.4); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-hl + 0.5, hw - 0.8, hl * 0.7, 4.2, 1.4); ctx.fill();
+    ctx.save(); ctx.translate(hl - 2.5, -hw - 1.2); ctx.rotate(delta); ctx.beginPath(); ctx.roundRect(-hl * 0.28, -1.1, hl * 0.56, 2.4, 1); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(hl - 2.5, hw + 1.2); ctx.rotate(delta); ctx.beginPath(); ctx.roundRect(-hl * 0.28, -1.3, hl * 0.56, 2.4, 1); ctx.fill(); ctx.restore();
+
+    // ---- Eksponert gulvpanne + synlige rammerør ----
+    ctx.fillStyle = '#15161b'; ctx.beginPath(); ctx.roundRect(-hl + 2, -hw * 0.5, 2 * hl - 4, hw, 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(150,150,160,0.35)'; ctx.lineWidth = 0.8;
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(hl * 0.85, s * hw * 0.35); ctx.lineTo(-hl * 0.7, s * hw * 0.7); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(hl * 0.85, 0); ctx.lineTo(-hl * 0.7, 0); ctx.stroke();
+
+    // ---- Motor bak (tuned) + sterk eksosglød ----
+    ctx.fillStyle = '#3a3a3a'; ctx.beginPath(); ctx.roundRect(-hl + 1.5, 0.2, hl * 0.5, hw * 0.75, 1.5); ctx.fill();
+    ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.roundRect(-hl + 1, hw * 0.1, 3, hw * 0.5, 1); ctx.fill();
+    const glowRace = ctx.createRadialGradient(-hl - 1, hw * 0.35, 0, -hl - 1, hw * 0.35, 3.5);
+    glowRace.addColorStop(0, 'rgba(255,70,0,1)'); glowRace.addColorStop(1, 'rgba(255,70,0,0)');
+    ctx.fillStyle = glowRace; ctx.beginPath(); ctx.arc(-hl - 1, hw * 0.35, 3.5, 0, Math.PI * 2); ctx.fill();
+
+    // ---- Små sidekasser (kroppsfarge) ----
+    for (const s of [-1, 1]) {
+      const yc = s * hw * 0.82;
+      const grd = ctx.createRadialGradient(0, yc, 1, 0, yc, hw * 0.7);
+      grd.addColorStop(0, body); grd.addColorStop(0.7, body); grd.addColorStop(1, 'rgba(0,0,0,0.4)');
+      ctx.fillStyle = grd; ctx.beginPath(); ctx.roundRect(-hl * 0.35, yc - hw * 0.26, hl * 0.75, hw * 0.52, 3); ctx.fill();
+    }
+
+    // ---- Liten nesekåpe + nummer-rundel ----
+    const noseRace = ctx.createRadialGradient(hl * 0.8, 0, 1, hl * 0.8, 0, hw);
+    noseRace.addColorStop(0, body); noseRace.addColorStop(0.7, body); noseRace.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = noseRace; ctx.beginPath(); ctx.roundRect(hl * 0.5, -hw * 0.58, hl * 0.55, hw * 1.16, 3); ctx.fill();
+    ctx.fillStyle = '#f2f2f2'; ctx.beginPath(); ctx.arc(hl * 0.78, 0, hw * 0.34, 0, Math.PI * 2); ctx.fill();
+
+    // ---- Sete + fører (framoverlent) ----
+    ctx.fillStyle = '#101010'; ctx.beginPath(); ctx.ellipse(-hl * 0.08, 0, hl * 0.3, hw * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c0392b';
+    ctx.beginPath(); ctx.ellipse(0, 0, hl * 0.26, hw * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#a5281b';
+    ctx.beginPath(); ctx.ellipse(hl * 0.2, -hw * 0.42, hl * 0.28, hw * 0.2, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(hl * 0.2, hw * 0.42, hl * 0.28, hw * 0.2, 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(hl * 0.34, 0, hw * 0.46, 0, Math.PI * 2); ctx.stroke();
+    const helmRcr = hw * 0.58;
+    const helmRace = ctx.createRadialGradient(-helmRcr * 0.3, -helmRcr * 0.3, 0.5, 0, 0, helmRcr);
+    helmRace.addColorStop(0, '#ffffff'); helmRace.addColorStop(0.65, '#e0e0e0'); helmRace.addColorStop(1, '#9a9a9a');
+    ctx.fillStyle = helmRace; ctx.beginPath(); ctx.arc(0, 0, helmRcr, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#0a0a0a'; ctx.beginPath(); ctx.ellipse(helmRcr * 0.55, 0, helmRcr * 0.35, helmRcr * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  /* ==========================================================================
    *  FORMEL 1           (type: 'f1')  —  åpen enseter med brede dekk
    * ======================================================================== */
   function drawF1(ctx, pre, pData, g) {
@@ -483,17 +604,22 @@
    *  til slutt på de felles frontlysene/baklysene på alle biler.
    * ------------------------------------------------------------------------ */
   function draw(ctx, pre, pData, g) {
-    switch (pre.type) {
-      case 'f1':     drawF1(ctx, pre, pData, g); break;
-      case 'gokart': drawGokart(ctx, pre, pData, g); break;
-      case 'mx5':    drawMX5(ctx, pre, pData, g); break;
-      case 'r34':    drawR34(ctx, pre, pData, g); break;
-      case 's15':    drawS15(ctx, pre, pData, g); break;
-      case 'jaguar': drawJaguar(ctx, pre, pData, g); break;
-      default:       drawGeneric(ctx, pre, pData, g); break;
+    // `sprite` overstyrer `type` for utseende (så karter kan dele gokart-fysikk
+    // men ha egen tegning). Faller tilbake på `type` når `sprite` mangler.
+    const key = pre.sprite || pre.type;
+    switch (key) {
+      case 'f1':       drawF1(ctx, pre, pData, g); break;
+      case 'gokart':   drawGokart(ctx, pre, pData, g); break;
+      case 'kartrent': drawKartRent(ctx, pre, pData, g); break;
+      case 'kartrace': drawKartRace(ctx, pre, pData, g); break;
+      case 'mx5':      drawMX5(ctx, pre, pData, g); break;
+      case 'r34':      drawR34(ctx, pre, pData, g); break;
+      case 's15':      drawS15(ctx, pre, pData, g); break;
+      case 'jaguar':   drawJaguar(ctx, pre, pData, g); break;
+      default:         drawGeneric(ctx, pre, pData, g); break;
     }
     // Jaguar og R34 tegner sine egne integrerte lys; øvrige biler bruker felles lys.
-    if (pre.type !== 'jaguar' && pre.type !== 'r34') drawCommonLights(ctx, pre, pData, g);
+    if (key !== 'jaguar' && key !== 'r34') drawCommonLights(ctx, pre, pData, g);
   }
 
   window.Vehicles = { draw };
