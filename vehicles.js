@@ -212,14 +212,131 @@
    *  NISSAN SKYLINE R34 (type: 'r34')  —  AWD, brukes også av R32
    * ======================================================================== */
   function drawR34(ctx, pre, pData, g) {
-    const { hl, hw } = g;
-    drawStandardWheels(ctx, g);
-    ctx.fillStyle = pData.color || '#2980b9';
-    ctx.beginPath(); ctx.roundRect(-hl, -hw, pre.l, pre.w, 5); ctx.fill();
-    ctx.fillStyle = '#111';
-    ctx.beginPath(); ctx.roundRect(-hl * 0.05, -hw + 2, pre.l * 0.4, pre.w - 4, 3); ctx.fill();
-    ctx.fillStyle = '#2980b9';
-    ctx.fillRect(-hl - 3, -hw, 4, pre.w); // bakvinge
+    const { hl, hw, delta } = g;
+    const body = pData.color || '#20489e'; // fargbart karosseri (default: GT-R-blå)
+    const braking = pData.appliesBrake;
+
+    // Boksete GT-R-silhuett: rette flanker, lett avrundede hjørner, flat hekk.
+    function bodyPath() {
+      const rF = hw * 0.55, rR = hw * 0.32;
+      ctx.beginPath();
+      ctx.moveTo(hl - rF, hw);
+      ctx.lineTo(-hl + rR, hw);
+      ctx.quadraticCurveTo(-hl, hw, -hl, hw - rR);
+      ctx.lineTo(-hl, -hw + rR);
+      ctx.quadraticCurveTo(-hl, -hw, -hl + rR, -hw);
+      ctx.lineTo(hl - rF, -hw);
+      ctx.quadraticCurveTo(hl, -hw, hl, -hw + rF); // rundet front-hjørne
+      ctx.lineTo(hl, hw - rF);
+      ctx.quadraticCurveTo(hl, hw, hl - rF, hw);
+      ctx.closePath();
+    }
+
+    // ---- Hjul (mørke, tucket under karosseriet; forhjul styrer) ----
+    const tw = hl * 0.2, tt = 3.2;
+    ctx.fillStyle = '#0a0a0a';
+    for (const s of [-1, 1]) {
+      ctx.save(); ctx.translate(-hl * 0.66, s * hw);
+      ctx.beginPath(); ctx.roundRect(-tw / 2, -tt / 2, tw, tt, 1.3); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.translate(hl * 0.62, s * hw); ctx.rotate(delta);
+      ctx.beginPath(); ctx.roundRect(-tw / 2, -tt / 2, tw, tt, 1.3); ctx.fill(); ctx.restore();
+    }
+
+    // ---- Karosseri (spillerfarge) ----
+    bodyPath();
+    ctx.fillStyle = body;
+    ctx.fill();
+
+    // ---- Rund skyggelegging (funker på alle farger) ----
+    ctx.save();
+    bodyPath(); ctx.clip();
+    const shade = ctx.createLinearGradient(0, -hw, 0, hw);
+    shade.addColorStop(0, 'rgba(0,0,0,0.40)');
+    shade.addColorStop(0.3, 'rgba(255,255,255,0.10)');
+    shade.addColorStop(0.5, 'rgba(255,255,255,0.15)');
+    shade.addColorStop(0.7, 'rgba(255,255,255,0.10)');
+    shade.addColorStop(1, 'rgba(0,0,0,0.40)');
+    ctx.fillStyle = shade; ctx.fillRect(-hl, -hw, 2 * hl, 2 * hw);
+    ctx.restore();
+
+    // ---- Karosseri-kontur ----
+    bodyPath();
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 0.8; ctx.stroke();
+
+    // ---- Panser-scoop (ikonisk, med luftespalter) ----
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.roundRect(hl * 0.5, -hw * 0.24, hl * 0.2, hw * 0.48, 1.5); ctx.fill();
+    ctx.strokeStyle = 'rgba(120,120,120,0.5)'; ctx.lineWidth = 0.5;
+    for (let i = 1; i < 3; i++) {
+      const xx = hl * 0.5 + i * (hl * 0.2 / 3);
+      ctx.beginPath(); ctx.moveTo(xx, -hw * 0.22); ctx.lineTo(xx, hw * 0.22); ctx.stroke();
+    }
+
+    // ---- Frontgrill-antydning + GT-R-emblem ----
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.moveTo(hl * 0.93, -hw * 0.45); ctx.lineTo(hl * 0.93, hw * 0.45); ctx.stroke();
+    ctx.fillStyle = '#c0392b';
+    ctx.beginPath(); ctx.ellipse(hl * 0.88, 0, 1.1, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+
+    // ---- Diskré frontlys i hjørnene (ingen store gule prikker) ----
+    ctx.fillStyle = 'rgba(240,245,255,0.22)';
+    ctx.beginPath(); ctx.roundRect(hl * 0.8, hw * 0.42, hl * 0.09, hw * 0.32, 0.8); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(hl * 0.8, -hw * 0.42 - hw * 0.32, hl * 0.09, hw * 0.32, 0.8); ctx.fill();
+
+    // ---- Kupé: mørk frontrute + bakrute, kroppsfarget tak imellom, mørkt sideglass ----
+    // Sammenhengende mørkt glass først ...
+    ctx.fillStyle = '#0c0e13';
+    ctx.beginPath(); ctx.roundRect(-hl * 0.6, -hw * 0.66, hl * 1.05, hw * 1.32, hw * 0.35); ctx.fill();
+    // ... så kroppsfarget takplate på midten (deler frontrute/bakrute)
+    ctx.fillStyle = body;
+    ctx.beginPath(); ctx.roundRect(-hl * 0.16, -hw * 0.6, hl * 0.28, hw * 1.2, hw * 0.2); ctx.fill();
+    // lett skygge på taket
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(-hl * 0.16, -hw * 0.6, hl * 0.28, hw * 1.2, hw * 0.2); ctx.clip();
+    const roofSh = ctx.createLinearGradient(0, -hw * 0.6, 0, hw * 0.6);
+    roofSh.addColorStop(0, 'rgba(0,0,0,0.35)'); roofSh.addColorStop(0.5, 'rgba(255,255,255,0.10)'); roofSh.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = roofSh; ctx.fillRect(-hl * 0.16, -hw * 0.6, hl * 0.28, hw * 1.2); ctx.restore();
+    // glass-refleks
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(hl * 0.35, -hw * 0.2); ctx.lineTo(hl * 0.15, -hw * 0.18); ctx.stroke();
+
+    // ---- Sidespeil (foran, stikker ut) ----
+    for (const s of [-1, 1]) {
+      ctx.fillStyle = body;
+      ctx.beginPath(); ctx.ellipse(hl * 0.4, s * (hw + 1.3), hl * 0.05, hw * 0.18, s * 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 0.5; ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath(); ctx.ellipse(hl * 0.4, s * (hw + 1.7), hl * 0.03, hw * 0.11, 0, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // ---- Dørskiller ----
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 0.5;
+    for (const s of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(-hl * 0.16, s * hw * 0.68); ctx.lineTo(-hl * 0.16, s * hw * 0.98); ctx.stroke();
+    }
+
+    // ---- Ikonisk bakvinge: tydelig bak hekken (skygge, stag, blad, endeplater) ----
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; // skygge bak vingen
+    ctx.beginPath(); ctx.roundRect(-hl * 1.24, -hw * 1.2, hw * 0.46, hw * 2.4, 2.5); ctx.fill();
+    ctx.fillStyle = '#141414'; // stag fra bagasjelokk ut til vingen
+    for (const s of [-1, 1]) { ctx.fillRect(-hl * 1.06, s * hw * 0.55 - 1.3, hw * 0.66, 2.6); }
+    ctx.fillStyle = body; // vingeblad (litt bredere enn bilen, sitter klart bak hekken)
+    ctx.beginPath(); ctx.roundRect(-hl * 1.22, -hw * 1.18, hw * 0.4, hw * 2.36, 2.5); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.fillStyle = '#111'; // endeplater (stikker litt ut i sidene)
+    ctx.fillRect(-hl * 1.24, -hw * 1.22, hw * 0.48, 2.4);
+    ctx.fillRect(-hl * 1.24, hw * 1.22 - 2.4, hw * 0.48, 2.4);
+
+    // ---- Bakre støtfanger + fire runde baklys (på hekken, foran vingen; lyser ved bremsing) ----
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.roundRect(-hl * 0.98, -hw * 0.82, hl * 0.06, hw * 1.64, 1.5); ctx.fill();
+    ctx.fillStyle = braking ? '#ff4040' : '#8e2020';
+    ctx.shadowColor = braking ? '#ff0000' : 'transparent';
+    ctx.shadowBlur = braking ? 9 : 0;
+    for (const ly of [-hw * 0.62, -hw * 0.28, hw * 0.28, hw * 0.62]) {
+      ctx.beginPath(); ctx.arc(-hl * 0.86, ly, hw * 0.13, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
   }
 
   /* ==========================================================================
@@ -375,8 +492,8 @@
       case 'jaguar': drawJaguar(ctx, pre, pData, g); break;
       default:       drawGeneric(ctx, pre, pData, g); break;
     }
-    // Jaguar tegner sine egne integrerte lys; øvrige biler bruker felles lys.
-    if (pre.type !== 'jaguar') drawCommonLights(ctx, pre, pData, g);
+    // Jaguar og R34 tegner sine egne integrerte lys; øvrige biler bruker felles lys.
+    if (pre.type !== 'jaguar' && pre.type !== 'r34') drawCommonLights(ctx, pre, pData, g);
   }
 
   window.Vehicles = { draw };
