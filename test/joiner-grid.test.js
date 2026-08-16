@@ -1,9 +1,16 @@
 const assert = require('assert');
 
-function shouldDropRemotePlayer(p, now, hasOpenConn) {
+function shouldDropRemotePlayer(p, now, hasOpenConn, isLocal) {
     if (!p || p.isAI) return false;
+    if (isLocal) return false;
     if (hasOpenConn) return false;
     return (now - (p.lastSeen || 0)) > 8000;
+}
+
+function poseIsUnusable(p) {
+    if (!p) return true;
+    if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.angle)) return true;
+    return p.x === 0 && p.y === 0;
 }
 
 function pruneMissingRemotes(store, localIds, netPlayers) {
@@ -44,10 +51,14 @@ function applyGridPose(p, slot) {
 }
 
 const now = 20000;
-assert.strictEqual(shouldDropRemotePlayer({ lastSeen: 1000 }, now, true), false, 'open connection must stay');
-assert.strictEqual(shouldDropRemotePlayer({ lastSeen: 1000, isAI: true }, now, false), false, 'AI must stay');
-assert.strictEqual(shouldDropRemotePlayer({ lastSeen: 19000 }, now, false), false, 'fresh lastSeen must stay');
-assert.strictEqual(shouldDropRemotePlayer({ lastSeen: 1000 }, now, false), true, 'stale disconnected remote may drop');
+assert.strictEqual(shouldDropRemotePlayer({ lastSeen: 1000 }, now, true, false), false, 'open connection must stay');
+assert.strictEqual(shouldDropRemotePlayer({ lastSeen: 1000, isAI: true }, now, false, false), false, 'AI must stay');
+assert.strictEqual(shouldDropRemotePlayer({ lastSeen: 19000 }, now, false, false), false, 'fresh lastSeen must stay');
+assert.strictEqual(shouldDropRemotePlayer({ lastSeen: 1000 }, now, false, false), true, 'stale disconnected remote may drop');
+assert.strictEqual(shouldDropRemotePlayer({ lastSeen: 1000, id: 'host' }, now, false, true), false, 'host must never drop after 8s');
+assert.strictEqual(shouldDropRemotePlayer({ lastSeen: 0, id: 'host' }, now, false, true), false, 'host without lastSeen must stay');
+assert.ok(poseIsUnusable({ x: 0, y: 0, angle: 0 }), 'origin is not a valid start pose');
+assert.ok(!poseIsUnusable({ x: 2160, y: 3240, angle: Math.PI }), 'grid pose is valid');
 
 const store = { host: { id: 'host' }, joiner: { id: 'joiner' }, me: { id: 'me' } };
 pruneMissingRemotes(store, ['me'], {});

@@ -215,6 +215,7 @@ function ensureLocalDriver() {
             ? collectLocalProfile()
             : { name: 'Gjest', preset: 'jaguar', color: '#3498db' };
         players[myId] = createPlayerRecord(myId, prof.preset, prof.name, prof.color);
+        applySafePose(players[myId], gridSlot(0, getTrack()));
     }
     if (localPlayers[0] && !players[localPlayers[0].id]) {
         let fallback = (myId && players[myId]) ? myId : Object.keys(players)[0];
@@ -229,10 +230,54 @@ function playerHasOpenConnection(pid) {
     return !!(connections[pid] && connections[pid].open);
 }
 
-function shouldDropRemotePlayer(p, now, hasOpenConn) {
+function isKeptLocalPlayer(pid, p) {
+    if (pid && pid === myId) return true;
+    if (p && p.id && p.id === myId) return true;
+    return localPlayers.some(lp => lp.id === pid);
+}
+
+function shouldDropRemotePlayer(p, now, hasOpenConn, isLocal) {
     if (!p || p.isAI) return false;
+    if (isLocal) return false;
     if (hasOpenConn) return false;
     return (now - (p.lastSeen || 0)) > 8000;
+}
+
+function applySafePose(p, slot) {
+    if (!p || !slot) return;
+    p.x = slot.x;
+    p.y = slot.y;
+    p.prevX = slot.x;
+    p.prevY = slot.y;
+    p.angle = slot.angle;
+    p.targetX = slot.x;
+    p.targetY = slot.y;
+    p.targetAngle = slot.angle;
+    p.vx = 0;
+    p.vy = 0;
+    p.yawRate = 0;
+}
+
+function poseIsUnusable(p) {
+    if (!p) return true;
+    if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.angle)) return true;
+    return p.x === 0 && p.y === 0;
+}
+
+function restoreHostIfMissing() {
+    if (!gameActive || isSplitScreen) return;
+    ensureLocalDriver();
+    if (!myId) return;
+    let p = players[myId];
+    if (!p) {
+        let prof = typeof collectLocalProfile === 'function'
+            ? collectLocalProfile()
+            : { name: 'Gjest', preset: 'jaguar', color: '#3498db' };
+        p = players[myId] = createPlayerRecord(myId, prof.preset, prof.name, prof.color);
+    }
+    if (poseIsUnusable(p)) applySafePose(p, gridSlot(0, getTrack()));
+    p.lastSeen = performance.now();
+    p.id = myId;
 }
 
 function touchPlayerSeen(pid) {
@@ -1563,6 +1608,7 @@ function update() {
     if (!gameActive || !canvas || !ctx) return;
     try {
     ensureLocalDriver();
+    restoreHostIfMissing();
     const now = performance.now(); const dt = Math.max(0.001, Math.min((now - lastTime) / 1000, 0.1)); lastTime = now;
     let track = getTrack();
 
@@ -1712,9 +1758,14 @@ function update() {
         
         for (let pid of pkeys) {
             let p = players[pid]; 
-            let isLocal = localPlayers.some(lp => lp.id === pid);
-            if (shouldDropRemotePlayer(p, now, playerHasOpenConnection(pid))) { delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: ${Object.keys(connections).length + 1}`; continue; }
-            if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.vx) || !isFinite(p.angle) || !isFinite(p.rpm)) { p.x = track.startX; p.y = track.startY; p.vx=0; p.vy=0; p.angle=track.startAngle; p.yawRate=0; p.rpm=1000; p.speedKmh=0; p.prevThrottle = 0; }
+            let isLocal = isKeptLocalPlayer(pid, p);
+            if (isLocal) p.lastSeen = now;
+            if (shouldDropRemotePlayer(p, now, playerHasOpenConnection(pid), isLocal)) { delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: ${Object.keys(connections).length + 1}`; continue; }
+            if (poseIsUnusable(p) || !isFinite(p.vx) || !isFinite(p.rpm)) {
+                if (isLocal) applySafePose(p, gridSlot(0, track));
+                else { p.x = track.startX; p.y = track.startY; p.prevX = p.x; p.prevY = p.y; p.angle = track.startAngle; }
+                p.vx=0; p.vy=0; p.yawRate=0; p.rpm=1000; p.speedKmh=0; p.prevThrottle = 0;
+            }
 
             let preset = vehiclePresets[p.presetId] || vehiclePresets['jaguar']; 
             let ins = p.inputs || { steering: 0, throttle: 0, handbrake: false, driftAssist: false, shiftUp: false, shiftDown: false };
