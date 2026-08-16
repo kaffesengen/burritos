@@ -523,6 +523,8 @@ function setSandboxHudVisible(on) {
 
 function setGarageVisible(on) {
     if (window.vehicleGarage) vehicleGarage.setVisible(on);
+    let lobby = document.getElementById('lobby');
+    if (lobby) lobby.classList.toggle('is-session', !!on);
 }
 
 function setLoadoutLocked(locked) {
