@@ -384,6 +384,8 @@ window.vehicleGarage = {
         this.visible = !!on;
         let box = document.getElementById('vehicle-garage');
         if (box) box.style.display = on ? 'flex' : 'none';
+        let lobby = document.getElementById('lobby');
+        if (lobby) lobby.classList.toggle('is-session', !!on);
         if (on) {
             let current = document.getElementById('preset-selector')?.value || this.selected;
             this.selected = current;
