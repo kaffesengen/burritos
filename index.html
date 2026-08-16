@@ -4,8 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Avansert Fysikkmotor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="preload" href="assets/audio/menu_music_02.mp3" as="audio">
+    <link rel="preload" href="assets/audio/hover.wav" as="fetch" crossorigin>
+    <link rel="preload" href="assets/audio/click.wav" as="fetch" crossorigin>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js" defer></script>
+    <script src="profile.js" defer></script>
+    <script src="presence.js" defer></script>
+    <script src="friends.js" defer></script>
     <script src="ai.js" defer></script>
     <script src="waypoints.js" defer></script>
     <script src="audio.js" defer></script>
@@ -13,58 +24,243 @@
     <script src="app.js" defer></script>
 </head>
 <body>
+<audio id="menu-music" src="assets/audio/menu_music_02.mp3" autoplay loop preload="auto" playsinline></audio>
+<script>
+(function () {
+    var a = document.getElementById('menu-music');
+    if (!a) return;
+    a.volume = 0.38;
+    var play = function () { a.play().catch(function () {}); };
+    play();
+    a.addEventListener('canplay', play);
+    a.addEventListener('canplaythrough', play);
+})();
+</script>
 
 <div id="lobby">
-    <h1>Avansert Fysikkmotor</h1>
+    <button type="button" id="btn-lobby-back" class="btn btn-back">← Tilbake</button>
+    <header class="menu-wordmark">
+        <p class="menu-wordmark-kicker">Burritos</p>
+        <h1>Avansert Fysikkmotor</h1>
+    </header>
     
-    <div class="lobby-box" id="mode-selection">
-        <label style="color: #aaa; font-size: 12px;">Ditt Førernavn:</label>
-        <input type="text" id="player-name" class="input-text" placeholder="Skriv inn navn" value="" maxlength="15" style="margin-bottom: 20px; text-align: center; font-weight: bold; font-size: 16px;">
+    <div class="lobby-box" id="profile-setup" style="display: none;">
+        <h2 class="profile-heading">Opprett profil</h2>
+        <p class="tourney-hint">Velg en gamer-tag. Den brukes som navnet ditt i alle spill, og kan ikke byttes i en pågående turnering.</p>
+        <div class="field">
+            <label for="profile-tag-input">Gamer-tag</label>
+            <input type="text" id="profile-tag-input" class="input-text" placeholder="f.eks. Joar" maxlength="15" autocomplete="username" style="margin-top: 0; text-align: center; font-weight: bold; font-size: 16px;">
+        </div>
+        <button type="button" class="btn btn-green" id="btn-profile-create">Opprett profil</button>
+        <p id="profile-setup-error" class="profile-error"></p>
 
-        <button class="btn" id="btn-sandbox-mode" style="background: #8e44ad; margin-bottom: 10px;">Spill Alene (Sandbox)</button>
-        <button class="btn" id="btn-splitscreen-mode" style="background: #e67e22; margin-bottom: 20px;">Lokal Split-Screen</button>
-        
-        <button class="btn btn-green" id="btn-host-mode">Opprett Spill (Host)</button>
-        <div style="margin: 20px 0; color: #777;">— ELLER —</div>
-        <input type="text" id="join-code-input" class="input-text" placeholder="Skriv inn Host ID">
-        <button class="btn" id="btn-join-mode">Bli Med</button>
+        <div class="profile-or">— Har du allerede profil? —</div>
+        <div class="field">
+            <label for="profile-login-tag">Gamer-tag</label>
+            <input type="text" id="profile-login-tag" class="input-text" maxlength="15" style="margin-top: 0;">
+        </div>
+        <div class="field">
+            <label for="profile-login-code">Gjenopprettingskode</label>
+            <input type="text" id="profile-login-code" class="input-text" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="24" autocomplete="off" style="margin-top: 0; text-align: center; letter-spacing: 1px;">
+        </div>
+        <button type="button" class="btn" id="btn-profile-login">Logg inn</button>
+        <p id="profile-login-error" class="profile-error"></p>
+
+        <details class="profile-server">
+            <summary>Valgfritt: unik tag på tvers av venner</summary>
+            <p class="tourney-hint">Opprett et Supabase-prosjekt, kjør <code>supabase-schema.sql</code> i SQL Editor, og lim inn URL + anon-nøkkel. Uten dette gjelder taggen bare på denne enheten.</p>
+            <div class="field">
+                <label for="sb-url">Supabase URL</label>
+                <input type="text" id="sb-url" class="input-text" placeholder="https://xxxx.supabase.co" style="margin-top: 0;">
+            </div>
+            <div class="field">
+                <label for="sb-key">Anon public key</label>
+                <input type="text" id="sb-key" class="input-text" placeholder="eyJ..." style="margin-top: 0;">
+            </div>
+            <button type="button" class="btn btn-back" id="btn-save-supabase">Lagre server</button>
+            <p id="profile-server-msg" class="tourney-hint"></p>
+        </details>
     </div>
 
-    <div id="splitscreen-setup" class="lobby-box" style="display: none; max-width: 800px; width: 100%;">
-        <h2 style="color: #e67e22; margin-bottom: 15px;">Split-Screen Oppsett</h2>
-        <label style="color: #aaa; font-size: 12px;">Antall spillere:</label>
-        <select id="ss-player-count" class="input-text" style="margin-bottom: 15px;">
+    <div class="lobby-box" id="profile-recovery" style="display: none;">
+        <h2 class="profile-heading">Lagre gjenopprettingskoden</h2>
+        <p class="tourney-hint">Denne koden er den eneste måten å hente profilen på en ny enhet. Vi viser den bare nå.</p>
+        <div id="profile-recovery-code" class="recovery-code"></div>
+        <button type="button" class="btn" id="btn-copy-recovery">Kopier kode</button>
+        <button type="button" class="btn btn-green" id="btn-recovery-done">Jeg har lagret koden</button>
+    </div>
+
+    <div class="lobby-box" id="profile-manage" style="display: none;">
+        <h2 class="profile-heading">Profil</h2>
+        <p id="profile-manage-tag" class="profile-tag-big">@</p>
+        <p id="profile-manage-sync" class="tourney-hint"></p>
+        <p class="tourney-hint">Gjenopprettingskode for denne enheten:</p>
+        <div id="profile-manage-code" class="recovery-code"></div>
+        <button type="button" class="btn btn-red" id="btn-profile-logout">Logg ut på denne enheten</button>
+        <p class="tourney-hint">Utlogging sletter ikke taggen på serveren. Du trenger koden for å logge inn igjen.</p>
+    </div>
+
+    <div class="menu-home" id="mode-selection" style="display: none;">
+        <input type="hidden" id="player-name" value="" maxlength="15">
+        <div class="menu-top">
+            <div class="profile-badge">
+                <div class="profile-badge-text">
+                    <span class="profile-label">Gamer-tag</span>
+                    <strong id="profile-tag-display">@</strong>
+                    <span id="profile-sync-state" class="tourney-hint"></span>
+                </div>
+                <button type="button" id="btn-profile-manage" class="btn btn-back">Profil</button>
+            </div>
+        </div>
+
+        <div class="menu-grid">
+            <button type="button" class="menu-tile tile-host" id="btn-host-mode">
+                <span class="menu-tile-media" aria-hidden="true"></span>
+                <span class="menu-tile-shade"></span>
+                <span class="menu-tile-body">
+                    <span class="menu-tile-ico" aria-hidden="true"></span>
+                    <span class="menu-tile-kicker">Flerspiller</span>
+                    <span class="menu-tile-title">Opprett spill</span>
+                    <span class="menu-tile-sub">Host en turnering</span>
+                </span>
+            </button>
+
+            <div class="menu-tile tile-join">
+                <span class="menu-tile-media" aria-hidden="true"></span>
+                <span class="menu-tile-shade"></span>
+                <div class="menu-tile-body">
+                    <span class="menu-tile-ico" aria-hidden="true"></span>
+                    <span class="menu-tile-kicker">Flerspiller</span>
+                    <span class="menu-tile-title">Bli med</span>
+                    <span class="menu-tile-sub">Host ID eller den som hoster under</span>
+                    <div class="menu-join-row">
+                        <input type="text" id="join-code-input" class="input-text" placeholder="Host ID" autocomplete="off">
+                        <button type="button" class="btn btn-green" id="btn-join-mode">Kjør</button>
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="menu-tile tile-sandbox" id="btn-sandbox-mode">
+                <span class="menu-tile-media" aria-hidden="true"></span>
+                <span class="menu-tile-shade"></span>
+                <span class="menu-tile-body">
+                    <span class="menu-tile-ico" aria-hidden="true"></span>
+                    <span class="menu-tile-kicker">Alene</span>
+                    <span class="menu-tile-title">Sandbox</span>
+                    <span class="menu-tile-sub">Kjør fritt</span>
+                </span>
+            </button>
+
+            <button type="button" class="menu-tile tile-split" id="btn-splitscreen-mode">
+                <span class="menu-tile-media" aria-hidden="true"></span>
+                <span class="menu-tile-shade"></span>
+                <span class="menu-tile-body">
+                    <span class="menu-tile-ico" aria-hidden="true"></span>
+                    <span class="menu-tile-kicker">Lokalt</span>
+                    <span class="menu-tile-title">Split-screen</span>
+                    <span class="menu-tile-sub">2–4 på samme maskin</span>
+                </span>
+            </button>
+        </div>
+
+        <div class="menu-social">
+            <div id="friends-panel" class="friends-panel menu-card">
+                <h3>Venner</h3>
+                <p id="friends-hint" class="tourney-hint">Laster…</p>
+                <div class="friends-search">
+                    <input type="text" id="friend-search-input" class="input-text" placeholder="Søk @gamer-tag" maxlength="16" autocomplete="off">
+                    <button type="button" class="btn" id="btn-friend-search">Søk</button>
+                </div>
+                <p id="friend-search-msg" class="tourney-hint"></p>
+                <ul id="friend-search-results" class="presence-list"></ul>
+                <div id="friend-incoming-wrap" style="display: none;">
+                    <h4 id="friend-incoming-head">Forespørsler</h4>
+                    <ul id="friend-incoming" class="presence-list"></ul>
+                </div>
+                <h4>Dine venner</h4>
+                <ul id="friend-list" class="presence-list"></ul>
+                <div id="friend-outgoing-wrap" style="display: none;">
+                    <h4>Sendt</h4>
+                    <ul id="friend-outgoing" class="presence-list"></ul>
+                </div>
+            </div>
+
+            <div id="presence-panel" class="presence-panel menu-card">
+                <h3>Pålogget nå</h3>
+                <p id="presence-hint" class="tourney-hint">Laster…</p>
+                <ul id="presence-list" class="presence-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="splitscreen-setup" class="lobby-box menu-screen menu-screen-wide" style="display: none;">
+        <p class="menu-kicker">Lokalt</p>
+        <h2 class="menu-screen-title">Split-screen</h2>
+        <label class="menu-field-label" for="ss-player-count">Antall spillere</label>
+        <select id="ss-player-count" class="input-text">
             <option value="2" selected>2 Spillere</option>
             <option value="3">3 Spillere</option>
             <option value="4">4 Spillere</option>
         </select>
         
-        <div id="ss-cards-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-            <!-- Genereres av JS -->
-        </div>
+        <div id="ss-cards-container" class="ss-cards"></div>
         
-        <div style="margin-top: 20px; border-top: 1px solid #444; padding-top: 15px;">
-            <label style="color: #aaa; font-size: 12px;">Antall runder:</label>
-            <input type="number" id="ss-laps" class="input-text" value="3" min="1" max="50" style="width: 60px; display: inline-block; margin-left: 10px; text-align: center;">
+        <div class="menu-inline-field">
+            <label class="menu-field-label" for="ss-laps">Antall runder</label>
+            <input type="number" id="ss-laps" class="input-text" value="3" min="1" max="50">
         </div>
 
-        <button class="btn btn-green" id="btn-start-splitscreen" style="margin-top: 20px;">Start Løp</button>
-        <button class="btn" id="btn-cancel-splitscreen" style="background: #e74c3c;">Avbryt</button>
+        <div class="lobby-actions">
+            <button class="btn btn-green" id="btn-start-splitscreen">Start løp</button>
+            <button class="btn btn-back" id="btn-cancel-splitscreen">← Tilbake</button>
+        </div>
     </div>
 
-    <div class="lobby-box" id="host-ui">
-        <p style="color: #2ecc71; font-weight: bold; margin-bottom: 10px;">Lobby Opprettet!</p>
-        <p style="font-size: 12px; color: #aaa;">Din Host ID:</p>
-        <input type="text" id="my-host-id" class="input-text" readonly style="text-align: center; font-weight: bold; font-family: monospace; margin-bottom: 10px;">
-        <button class="btn" id="btn-share-link">Kopier Del-lenke</button>
-        
-        <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 15px;">
-            <label style="color: #aaa; font-size: 12px;">Antall runder:</label>
-            <input type="number" id="host-laps" class="input-text" value="3" min="1" max="50" style="width: 60px; display: inline-block; margin-left: 10px; text-align: center;">
+    <div class="lobby-box menu-screen" id="host-ui">
+        <p class="menu-kicker">Flerspiller</p>
+        <h2 class="menu-screen-title">Lobby</h2>
+        <p class="menu-status-ok">Lobby opprettet</p>
+        <label class="menu-field-label" for="my-host-id">Din Host ID</label>
+        <input type="text" id="my-host-id" class="input-text" readonly>
+        <button class="btn" id="btn-share-link">Kopier del-lenke</button>
+
+        <div class="tournament-config">
+            <h3>Turnering</h3>
+            <div class="tourney-grid">
+                <label class="tourney-field">
+                    <span>Runder per bane</span>
+                    <input type="number" id="host-laps" class="input-text" value="3" min="1" max="50">
+                </label>
+                <label class="tourney-field">
+                    <span>Antall baner</span>
+                    <input type="number" id="host-track-count" class="input-text" value="3" min="1" max="10">
+                </label>
+            </div>
+            <p class="tourney-hint">Velg banene i den rekkefølgen de skal kjøres:</p>
+            <div id="host-track-slots"></div>
         </div>
 
-        <p id="player-count" style="margin-top: 15px; font-size: 12px; color: #3498db;">Spillere i lobby: 1</p>
-        <button class="btn btn-green" id="btn-enter-game" style="margin-top: 15px;">Gå til pit (Start Session)</button>
+        <p id="player-count" class="menu-player-count">Spillere i lobby: 1</p>
+        <ul id="host-player-list" class="lobby-player-list"></ul>
+        <p class="tourney-hint">Spillere velger navn, bil og farge i panelet under. Dette låses når turneringen starter.</p>
+        <div class="lobby-actions">
+            <button class="btn btn-green" id="btn-enter-game">Start turnering</button>
+            <button type="button" class="btn btn-back" id="btn-host-back">← Tilbake</button>
+        </div>
+    </div>
+
+    <div class="lobby-box menu-screen" id="joiner-ui">
+        <p class="menu-kicker">Flerspiller</p>
+        <h2 class="menu-screen-title">Tilkoblet</h2>
+        <p class="menu-status-ok">Klar i lobbyen</p>
+        <div id="joiner-tourney-summary" class="tourney-summary">Venter på vertens oppsett…</div>
+        <p class="menu-player-count">Spillere i lobby</p>
+        <ul id="joiner-player-list" class="lobby-player-list"></ul>
+        <p class="tourney-hint">Velg navn, bil og farge i panelet under. Det kan ikke endres etter start.</p>
+        <p id="joiner-wait-msg" class="tourney-hint">Venter på at verten starter turneringen…</p>
+        <div class="lobby-actions">
+            <button type="button" class="btn btn-back" id="btn-joiner-back">← Tilbake</button>
+        </div>
     </div>
     
     <div id="status-msg" style="margin-top: 20px; color: #e74c3c; font-size: 12px;"></div>
@@ -74,6 +270,7 @@
     <div id="recording-indicator" style="display: none; position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: #e74c3c; color: white; padding: 5px 15px; border-radius: 5px; font-weight: bold; z-index: 100; border: 2px solid #c0392b;">🔴 OPPTAK PÅGÅR</div>
     <canvas id="gameCanvas"></canvas>
     
+    <button type="button" id="btn-ingame-back" class="btn btn-back">← Lobby</button>
     <button id="btn-hamburger">☰</button>
     <button id="btn-ingame-menu">⚙️ Meny</button>
 
@@ -86,9 +283,31 @@
         <div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div>
     </div>
 
+    <!-- BETWEEN-ROUND STANDINGS -->
+    <div id="standings-overlay">
+        <div class="standings-title">Bane fullført!</div>
+        <div class="standings-subtitle" id="standings-round-label"></div>
+        <table class="standings-table">
+            <thead>
+                <tr>
+                    <th>Plass</th>
+                    <th>Spiller</th>
+                    <th>Beste tid</th>
+                    <th>Poeng</th>
+                    <th>Totalt</th>
+                </tr>
+            </thead>
+            <tbody id="standings-body"></tbody>
+        </table>
+        <p class="standings-legend">Gull 3p · Sølv 2p · Bronse 1p</p>
+        <p id="standings-wait">Venter på at verten fortsetter…</p>
+        <button id="btn-next-track" class="btn btn-green">Neste bane</button>
+        <button type="button" id="btn-standings-back" class="btn btn-back" style="max-width: 280px; margin-top: 10px;">← Tilbake til lobby</button>
+    </div>
+
     <!-- PODIUM OVERLAY -->
     <div id="podium-overlay">
-        <div class="podium-title">Løp Fullført!</div>
+        <div class="podium-title" id="podium-title">Løp Fullført!</div>
         <div class="podium-container">
             <div class="podium-step">
                 <div class="podium-name" id="podium-2">🥈 -</div>
@@ -104,6 +323,7 @@
             </div>
         </div>
         <button id="btn-close-podium" class="btn btn-green" style="max-width: 250px; margin-top: 40px; font-size: 18px; padding: 15px;">Lukk Podium</button>
+        <button type="button" id="btn-podium-back" class="btn btn-back" style="max-width: 250px; margin-top: 10px;">← Tilbake til lobby</button>
     </div>
 
     <div id="host-actions">
@@ -178,6 +398,7 @@
         <div class="modal-content">
             <h2 style="color: #fff; margin-bottom: 20px;">Spillmeny</h2>
             
+            <p id="loadout-locked-note" class="tourney-hint" style="display:none; color:#f1c40f; margin-bottom: 12px;">Bil, farge og navn er låst i turneringen.</p>
             <label style="color: #aaa; font-size: 12px; display: block; text-align: left;">Bytt Kjøretøy:</label>
             <select id="ingame-preset-selector" class="input-text" style="margin-top: 5px; margin-bottom: 10px;">
                 <optgroup label="Standard / Elbiler">

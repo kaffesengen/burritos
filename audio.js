@@ -11,6 +11,15 @@ class AudioManager {
         this.noiseBuffer = null;
         
         this.lastLog = 0;
+        this.menuTrack = null;
+        this.menuWanted = false;
+        this.menuFade = null;
+        this.menuVolume = 0.38;
+        this.uiSounds = null;
+        this.uiBuffers = { hover: null, click: null };
+        this.uiLoad = null;
+        this.menuUnlockArmed = false;
+        this.menuRetry = null;
     }
 
     init() {
@@ -30,6 +39,145 @@ class AudioManager {
                 console.error("[AUDIO DEBUG] AudioContext blokkert.", e);
             });
         }
+        this.syncMenuMusic();
+    }
+
+    ensureMenuTrack() {
+        if (this.menuTrack) return this.menuTrack;
+        let a = document.getElementById('menu-music');
+        if (!a) {
+            a = new Audio('assets/audio/menu_music_02.mp3');
+            a.preload = 'auto';
+        }
+        a.loop = true;
+        a.playsInline = true;
+        a.volume = this.menuVolume;
+        this.menuTrack = a;
+        return a;
+    }
+
+    lobbyVisible() {
+        let lobby = document.getElementById('lobby');
+        if (!lobby) return false;
+        return window.getComputedStyle(lobby).display !== 'none';
+    }
+
+    fadeMenuTo(target, done) {
+        if (this.menuFade) { clearInterval(this.menuFade); this.menuFade = null; }
+        let a = this.menuTrack;
+        if (!a) { if (done) done(); return; }
+        let step = target > a.volume ? 0.04 : -0.06;
+        this.menuFade = setInterval(() => {
+            let next = a.volume + step;
+            if ((step > 0 && next >= target) || (step < 0 && next <= target)) {
+                a.volume = Math.max(0, Math.min(1, target));
+                clearInterval(this.menuFade);
+                this.menuFade = null;
+                if (done) done();
+                return;
+            }
+            a.volume = next;
+        }, 40);
+    }
+
+    playMenuMusic() {
+        this.menuWanted = true;
+        let a = this.ensureMenuTrack();
+        a.volume = this.menuVolume;
+        let p = a.play();
+        if (p && p.then) {
+            p.then(() => this.clearMenuUnlock()).catch(() => this.armMenuUnlock());
+        }
+    }
+
+    clearMenuUnlock() {
+        this.menuUnlockArmed = false;
+        if (this.menuRetry) { clearInterval(this.menuRetry); this.menuRetry = null; }
+    }
+
+    armMenuUnlock() {
+        if (this.menuUnlockArmed) return;
+        this.menuUnlockArmed = true;
+        let tryPlay = () => {
+            if (!this.menuWanted) return;
+            this.ensureMenuTrack().play().then(() => this.clearMenuUnlock()).catch(() => {});
+        };
+        ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart', 'click'].forEach(ev => {
+            window.addEventListener(ev, tryPlay, { passive: true });
+        });
+        this.menuRetry = setInterval(tryPlay, 200);
+    }
+
+    stopMenuMusic() {
+        this.menuWanted = false;
+        if (!this.menuTrack) return;
+        this.fadeMenuTo(0, () => {
+            if (!this.menuWanted && this.menuTrack) this.menuTrack.pause();
+        });
+    }
+
+    syncMenuMusic() {
+        if (this.lobbyVisible()) this.playMenuMusic();
+        else this.stopMenuMusic();
+    }
+
+    loadUiBuffers() {
+        if (this.uiLoad) return this.uiLoad;
+        if (!this.ready) this.init();
+        if (!this.ctx) return Promise.resolve();
+        this.uiLoad = Promise.all(['hover', 'click'].map(async name => {
+            let res = await fetch('assets/audio/' + name + '.wav');
+            let raw = await res.arrayBuffer();
+            this.uiBuffers[name] = await this.ctx.decodeAudioData(raw.slice(0));
+        })).catch(() => {});
+        return this.uiLoad;
+    }
+
+    playUi(kind) {
+        if (!this.ready) this.init();
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+        let buffer = this.uiBuffers[kind];
+        if (buffer && this.ctx) {
+            let src = this.ctx.createBufferSource();
+            let gain = this.ctx.createGain();
+            src.buffer = buffer;
+            gain.gain.value = kind === 'click' ? 0.7 : 0.55;
+            src.connect(gain);
+            gain.connect(this.ctx.destination);
+            src.start(0);
+            return;
+        }
+        this.loadUiBuffers();
+        if (!this.uiSounds) {
+            this.uiSounds = {
+                hover: new Audio('assets/audio/hover.wav'),
+                click: new Audio('assets/audio/click.wav')
+            };
+            this.uiSounds.hover.volume = 0.55;
+            this.uiSounds.click.volume = 0.7;
+        }
+        let a = (kind === 'click' ? this.uiSounds.click : this.uiSounds.hover).cloneNode();
+        a.volume = kind === 'click' ? 0.7 : 0.55;
+        a.play().catch(() => {});
+    }
+
+    bindMenuUiSounds() {
+        let lobby = document.getElementById('lobby');
+        if (!lobby) return;
+        this.loadUiBuffers();
+        lobby.addEventListener('pointerover', e => {
+            if (e.pointerType === 'touch') return;
+            let next = e.target.closest('button, .menu-tile');
+            if (!next || !lobby.contains(next)) return;
+            let from = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('button, .menu-tile') : null;
+            if (next === from) return;
+            this.playUi('hover');
+        });
+        lobby.addEventListener('pointerdown', e => {
+            let btn = e.target.closest('button');
+            if (!btn || !lobby.contains(btn)) return;
+            this.playUi('click');
+        });
     }
 
     makeDistortionCurve(amount) {
@@ -424,3 +572,10 @@ class AudioManager {
     }
 }
 window.audioManager = new AudioManager();
+window.audioManager.bindMenuUiSounds();
+window.audioManager.syncMenuMusic();
+document.addEventListener('visibilitychange', () => {
+    if (!window.audioManager) return;
+    if (document.hidden) window.audioManager.stopMenuMusic();
+    else window.audioManager.syncMenuMusic();
+});
