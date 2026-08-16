@@ -202,7 +202,118 @@ function initLocalPlayer(baseId) {
     localPlayers = [{ id: baseId, gamepad: -1, isKeyboard: true }];
 }
 
+function playerHasOpenConnection(pid) {
+    return !!(connections[pid] && connections[pid].open);
+}
+
+function shouldDropRemotePlayer(p, now, hasOpenConn) {
+    if (!p || p.isAI) return false;
+    if (hasOpenConn) return false;
+    return (now - (p.lastSeen || 0)) > 8000;
+}
+
+function touchPlayerSeen(pid) {
+    if (players[pid]) players[pid].lastSeen = performance.now();
+}
+
+function ensureConnectedPlayers() {
+    Object.keys(connections).forEach(pid => {
+        if (!playerHasOpenConnection(pid)) return;
+        if (!players[pid]) players[pid] = createPlayerRecord(pid, 'jaguar', 'Gjest');
+        players[pid].lastSeen = performance.now();
+    });
+}
+
+function snapshotPlayers() {
+    let out = {};
+    for (let pid in players) {
+        let p = players[pid];
+        if (!p || !isFinite(p.x) || !isFinite(p.y)) continue;
+        out[pid] = {
+            x: p.x, y: p.y, a: p.angle, s: p.steer || 0,
+            fS: p.frontSpinSeverity || 0, rS: p.rearSpinSeverity || 0,
+            presetId: p.presetId, c: p.color, g: p.gear, rpm: p.rpm,
+            v: p.speedKmh || 0, f: p.fuel, b: !!p.appliesBrake, n: p.name,
+            l: p.lap || 0, bl: p.bestLap === Infinity ? null : p.bestLap,
+            lL: p.lastLap || 0, fin: !!p.finished, cLT: p.currentLapTime || 0,
+            tT: p.totalTime || 0, tp: p.tourneyPoints || 0
+        };
+    }
+    return out;
+}
+
+function applyPlayerSnapshot(netPlayers, mode) {
+    if (!netPlayers) return;
+    for (let pid in netPlayers) {
+        let pData = netPlayers[pid];
+        if (!pData) continue;
+        if (!players[pid]) players[pid] = createPlayerRecord(pid, pData.presetId, pData.n, pData.c);
+        let p = players[pid];
+        if (pData.x !== null && isFinite(pData.x)) {
+            p.targetX = pData.x;
+            if (mode === 'snap') { p.x = pData.x; p.prevX = pData.x; }
+        }
+        if (pData.y !== null && isFinite(pData.y)) {
+            p.targetY = pData.y;
+            if (mode === 'snap') { p.y = pData.y; p.prevY = pData.y; }
+        }
+        if (pData.a !== null && isFinite(pData.a)) {
+            p.targetAngle = pData.a;
+            if (mode === 'snap') { p.angle = pData.a; }
+        }
+        if (mode === 'snap') { p.vx = 0; p.vy = 0; p.yawRate = 0; }
+        p.steer = pData.s || 0;
+        p.frontSpinSeverity = pData.fS || 0;
+        p.rearSpinSeverity = pData.rS || 0;
+        p.gear = pData.g || 0;
+        p.rpm = pData.rpm || 1000;
+        p.speedKmh = pData.v || 0;
+        if (pData.f !== undefined) p.fuel = pData.f;
+        p.appliesBrake = !!pData.b;
+        p.lap = pData.l || 0;
+        p.bestLap = pData.bl || Infinity;
+        p.lastLap = pData.lL || 0;
+        p.finished = !!pData.fin;
+        p.currentLapTime = pData.cLT || 0;
+        p.totalTime = pData.tT || 0;
+        p.lastSeen = performance.now();
+        if (pData.tp !== undefined) p.tourneyPoints = pData.tp;
+        let isLocal = localPlayers.some(lp => lp.id === pid);
+        if (!isLocal || tournament.loadoutLocked) {
+            p.presetId = pData.presetId || p.presetId || 'jaguar';
+            p.maxFuel = vehiclePresets[p.presetId]?.fuelCap || 100;
+            p.color = pData.c || p.color || '#3498db';
+            p.name = pData.n || p.name || 'Gjest';
+        }
+    }
+}
+
+function pruneMissingRemotes(netPlayers) {
+    if (!netPlayers || !Object.keys(netPlayers).length) return;
+    for (let pid in players) {
+        let isLocal = localPlayers.some(lp => lp.id === pid);
+        if (!isLocal && !netPlayers[pid]) delete players[pid];
+    }
+}
+
+function placeFieldOnGrid() {
+    ensureConnectedPlayers();
+    assignGridPositions();
+}
+
+function startRacePayload() {
+    return {
+        type: 'start',
+        laps: totalLaps,
+        rs: raceState,
+        tournament: serializeTournament(),
+        trackId: activeTrackId,
+        players: snapshotPlayers()
+    };
+}
+
 function assignGridPositions() {
+    ensureConnectedPlayers();
     let ids = Object.keys(players); let t = getTrack();
     ids.forEach((pid, index) => {
         let row = Math.floor(index / 2); let col = index % 2 === 0 ? 1 : -1; 
@@ -504,7 +615,7 @@ function startTournamentSession() {
     switchToTrack(trackList[0]);
     let tSel = document.getElementById('track-selector');
     if (tSel) tSel.style.display = 'none';
-    broadcastAll({ type: 'start', laps: totalLaps, rs: raceState, tournament: serializeTournament(), trackId: activeTrackId });
+    broadcastAll(startRacePayload());
 }
 
 function applyLocalProfileToSelf() {
@@ -554,7 +665,13 @@ function advanceTournamentTrack() {
     hideStandings();
     hidePodium();
     switchToTrack(tournament.tracks[tournament.currentRound]);
-    broadcastAll({ type: 'nextTrack', trackId: activeTrackId, laps: tournament.laps, tournament: serializeTournament() });
+    broadcastAll({
+        type: 'nextTrack',
+        trackId: activeTrackId,
+        laps: tournament.laps,
+        tournament: serializeTournament(),
+        players: snapshotPlayers()
+    });
 }
 
 function returnToLobbyKeepSession() {
@@ -651,7 +768,7 @@ function enterGame() {
     if(isHost) { 
         let sbCtrl = document.getElementById('sandbox-controls'); if(sbCtrl) sbCtrl.style.display = 'block'; 
         let hActions = document.getElementById('host-actions'); if(hActions) hActions.style.display = 'flex';
-        assignGridPositions(); 
+        placeFieldOnGrid();
     }
     resize(); 
     if (gameLoopId) cancelAnimationFrame(gameLoopId);
@@ -924,11 +1041,12 @@ if (btnHost) {
                     let incomingColor = data.color;
                     if (!players[conn.peer]) {
                         players[conn.peer] = createPlayerRecord(conn.peer, incomingPreset, incomingName, incomingColor);
+                        touchPlayerSeen(conn.peer);
                         let t = getTrack();
                         if (gameActive) {
-                            if (raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; players[conn.peer].gear = 1; } else { assignGridPositions(); }
+                            if (raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; players[conn.peer].gear = 1; } else { placeFieldOnGrid(); }
                             conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer, tournament: serializeTournament() });
-                            conn.send({ type: 'start', laps: totalLaps, rs: raceState, tournament: serializeTournament(), trackId: activeTrackId });
+                            conn.send(startRacePayload());
                             if (tournament.phase === 'standings') {
                                 conn.send({ type: 'tournamentStandings', tournament: serializeTournament(), rows: tournament.lastStandings, isLast: isLastTournamentRound() });
                             } else if (tournament.phase === 'podium') {
@@ -945,20 +1063,23 @@ if (btnHost) {
                             });
                             broadcastLobbyState();
                         }
-                    } else if (!tournament.loadoutLocked) {
-                        applyProfileToPlayer(conn.peer, incomingName, incomingPreset, incomingColor);
-                        if (!gameActive) broadcastLobbyState();
+                    } else {
+                        touchPlayerSeen(conn.peer);
+                        if (!tournament.loadoutLocked) {
+                            applyProfileToPlayer(conn.peer, incomingName, incomingPreset, incomingColor);
+                            if (!gameActive) broadcastLobbyState();
+                        }
                     }
                     let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: ${Object.keys(players).length}`;
                     renderLobbyPlayers();
                 } else if (data.type === 'inputs' || data.type === 'inputs_local') {
                     let pid = data.id || conn.peer;
-                    if (!players[pid] && !tournament.loadoutLocked) {
+                    if (!players[pid] && !players[conn.peer]) {
                         players[conn.peer] = createPlayerRecord(conn.peer, 'jaguar', "Gjest");
                         let t = getTrack();
-                        if (gameActive && raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; players[conn.peer].gear = 1; } else if (gameActive) { assignGridPositions(); }
+                        if (gameActive && raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; players[conn.peer].gear = 1; } else if (gameActive) { placeFieldOnGrid(); }
                         conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer, tournament: serializeTournament() });
-                        if (gameActive) conn.send({ type: 'start', laps: totalLaps, rs: raceState, tournament: serializeTournament(), trackId: activeTrackId });
+                        if (gameActive) conn.send(startRacePayload());
                     }
                     if (players[pid] || players[conn.peer]) {
                         let target = players[pid] || players[conn.peer];
@@ -1045,7 +1166,7 @@ if (btnStart) {
     btnStart.addEventListener('click', () => {
         if(!isHost || raceState > 0) return;
         if (tournament.active && (tournament.phase === 'standings' || tournament.phase === 'podium')) return;
-        assignGridPositions(); 
+        placeFieldOnGrid();
         if (tournament.active) {
             totalLaps = tournament.laps;
             tournament.phase = 'racing';
@@ -1055,7 +1176,7 @@ if (btnStart) {
         }
         
         let count = 5; raceState = count;
-        Object.values(connections).forEach(c => { try { c.send({ type: 'state', laps: totalLaps, raceState: raceState, players: {} }); } catch(e){} }); 
+        Object.values(connections).forEach(c => { try { c.send({ type: 'state', laps: totalLaps, raceState: raceState, players: snapshotPlayers() }); } catch(e){} }); 
         let int = setInterval(() => {
             count--; raceState = count;
             if(count === 0) { 
@@ -1094,7 +1215,19 @@ function initJoiner(hostId) {
                 if (data.type === 'init') { 
                     joined = true; activeTrackId = data.trackId || 'standard'; generateEnvironment(); 
                     if(data.laps) totalLaps = data.laps;
-                    if(data.yourId) { myId = data.yourId; localPlayers[0].id = myId; if(!players[myId]) { let prof = collectLocalProfile(); players[myId] = createPlayerRecord(myId, prof.preset, prof.name, prof.color); } }
+                    if(data.yourId) {
+                        if (data.yourId !== myId && players[myId] && !players[data.yourId]) {
+                            players[data.yourId] = players[myId];
+                            players[data.yourId].id = data.yourId;
+                            delete players[myId];
+                        }
+                        myId = data.yourId;
+                        if (localPlayers[0]) localPlayers[0].id = myId;
+                        if (!players[myId]) {
+                            let prof = collectLocalProfile();
+                            players[myId] = createPlayerRecord(myId, prof.preset, prof.name, prof.color);
+                        }
+                    }
                     if (data.tournament) {
                         if (data.tournament.active) applyTournamentFromNet(data.tournament);
                         else renderJoinerSummary(data.tournament);
@@ -1112,6 +1245,7 @@ function initJoiner(hostId) {
                     joined = true; if(data.laps) totalLaps = data.laps; 
                     if (data.tournament) applyTournamentFromNet(data.tournament);
                     if (data.trackId) { activeTrackId = data.trackId; generateEnvironment(); }
+                    if (data.players) applyPlayerSnapshot(data.players, 'snap');
                     if(data.rs === 0) { raceState = 0; raceStartTime = performance.now() - 1000; } 
                     let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
                     enterGame(); 
@@ -1121,6 +1255,7 @@ function initJoiner(hostId) {
                     if (data.laps) totalLaps = data.laps;
                     hideStandings(); hidePodium();
                     switchToTrack(data.trackId || activeTrackId);
+                    if (data.players) applyPlayerSnapshot(data.players, 'snap');
                 }
                 else if (data.type === 'tournamentStandings') {
                     if (data.tournament) applyTournamentFromNet(data.tournament);
@@ -1144,27 +1279,8 @@ function initJoiner(hostId) {
                         if (data.tournament.laps) tournament.laps = data.tournament.laps;
                     }
                     
-                    for (let pid in data.players) {
-                        let pData = data.players[pid];
-                        if (!players[pid]) players[pid] = createPlayerRecord(pid, pData.presetId, pData.n, pData.c);
-                        let p = players[pid];
-                        
-                        if (pData.x !== null && isFinite(pData.x)) p.targetX = pData.x; 
-                        if (pData.y !== null && isFinite(pData.y)) p.targetY = pData.y; 
-                        if (pData.a !== null && isFinite(pData.a)) p.targetAngle = pData.a; 
-                        
-                        p.steer = pData.s || 0; p.frontSpinSeverity = pData.fS || 0; p.rearSpinSeverity = pData.rS || 0; 
-                        p.gear = pData.g || 1; p.rpm = pData.rpm || 1000; p.speedKmh = pData.v || 0; p.fuel = pData.f || 100;
-                        p.appliesBrake = !!pData.b; p.lap = pData.l || 0; p.bestLap = pData.bl || Infinity; p.lastLap = pData.lL || 0; p.finished = !!pData.fin; p.currentLapTime = pData.cLT || 0; p.totalTime = pData.tT || 0; p.lastSeen = performance.now();
-                        if (pData.tp !== undefined) p.tourneyPoints = pData.tp;
-                        
-                        let isLocal = localPlayers.some(lp => lp.id === pid);
-                        if (!isLocal || tournament.loadoutLocked) {
-                            p.presetId = pData.presetId || 'jaguar'; p.maxFuel = vehiclePresets[p.presetId]?.fuelCap || 100;
-                            p.color = pData.c || '#3498db'; p.name = pData.n || "Gjest";
-                        }
-                    }
-                    for (let pid in players) { let isLocal = localPlayers.some(lp => lp.id === pid); if(!isLocal && !data.players[pid]) delete players[pid]; }
+                    applyPlayerSnapshot(data.players, 'lerp');
+                    pruneMissingRemotes(data.players);
                 }
             });
         });
@@ -1489,7 +1605,7 @@ function update() {
         for (let pid of pkeys) {
             let p = players[pid]; 
             let isLocal = localPlayers.some(lp => lp.id === pid);
-            if (!isLocal && now - p.lastSeen > 3000) { delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: ${Object.keys(connections).length + 1}`; continue; }
+            if (shouldDropRemotePlayer(p, now, playerHasOpenConnection(pid))) { delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: ${Object.keys(connections).length + 1}`; continue; }
             if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.vx) || !isFinite(p.angle) || !isFinite(p.rpm)) { p.x = track.startX; p.y = track.startY; p.vx=0; p.vy=0; p.angle=track.startAngle; p.yawRate=0; p.rpm=1000; p.speedKmh=0; p.prevThrottle = 0; }
 
             let preset = vehiclePresets[p.presetId] || vehiclePresets['jaguar']; 
