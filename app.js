@@ -134,6 +134,23 @@ let raceState = -1, totalLaps = 3, raceStartTime = 0;
 let gameLoopId = null;
 let isRecording = false; let recordedWaypoints = [];
 
+const TOURNAMENT_POINTS = [3, 2, 1];
+const DEFAULT_TOURNEY_TRACKS = ['standard', 'gokart', 'mini1', 'spa', 'monaco', 'suzuka', 'mini10', 'drift', 'silverstone', 'monza'];
+
+function freshTournament() {
+    return {
+        active: false,
+        tracks: ['standard'],
+        currentRound: 0,
+        laps: 3,
+        loadoutLocked: false,
+        scores: {},
+        phase: 'idle',
+        lastStandings: []
+    };
+}
+let tournament = freshTournament();
+
 let lastGamepadCount = 0;
 function checkGamepadDefault() {
     let gps = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -176,7 +193,7 @@ function createPlayerRecord(id, presetId, name, colorCode) {
         frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0, fuel: cap, maxFuel: cap,
         lastSeen: performance.now(), clutchDump: 0, prevThrottle: 0,
         lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, lastLap: 0, totalTime: 0, finished: false,
-        manualGear: false, shiftTimer: 0
+        manualGear: false, shiftTimer: 0, tourneyPoints: 0
     };
 }
 
@@ -202,6 +219,366 @@ function assignGridPositions() {
         players[pid].fuel = vehiclePresets[players[pid].presetId]?.fuelCap || 100;
         players[pid].gear = 0; players[pid].rpm = 1000; players[pid].clutchDump = 0; players[pid].prevThrottle = 0; players[pid].shiftTimer = 0;
     });
+}
+
+function getTrackLabel(id) {
+    let sel = document.getElementById('track-selector');
+    if (sel) {
+        for (let opt of sel.options) {
+            if (opt.value === id) return opt.text;
+        }
+    }
+    return id;
+}
+
+function collectLocalProfile() {
+    return {
+        name: ((document.getElementById('player-name')?.value || 'Gjest').trim() || 'Gjest').substring(0, 15),
+        preset: document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar',
+        color: document.getElementById('ingame-car-color')?.value || document.getElementById('car-color')?.value || '#3498db'
+    };
+}
+
+function applyProfileToPlayer(pid, name, preset, color) {
+    if (!players[pid]) return;
+    if (typeof name === 'string' && name.trim()) players[pid].name = name.trim().substring(0, 15);
+    if (preset && vehiclePresets[preset]) {
+        players[pid].presetId = preset;
+        players[pid].maxFuel = vehiclePresets[preset].fuelCap || 100;
+    }
+    if (color) players[pid].color = color;
+}
+
+function broadcastAll(msg) {
+    Object.values(connections).forEach(c => { try { c.send(msg); } catch(e){} });
+}
+
+function serializeTournament() {
+    return {
+        active: tournament.active,
+        tracks: tournament.tracks.slice(),
+        currentRound: tournament.currentRound,
+        laps: tournament.laps,
+        loadoutLocked: tournament.loadoutLocked,
+        phase: tournament.phase,
+        scores: tournament.scores,
+        lastStandings: tournament.lastStandings
+    };
+}
+
+function applyTournamentFromNet(t) {
+    if (!t) return;
+    tournament.active = !!t.active;
+    if (Array.isArray(t.tracks) && t.tracks.length) tournament.tracks = t.tracks;
+    if (t.currentRound !== undefined) tournament.currentRound = t.currentRound;
+    if (t.laps) tournament.laps = t.laps;
+    if (t.phase) tournament.phase = t.phase;
+    if (t.scores) {
+        tournament.scores = t.scores;
+        for (let pid in t.scores) {
+            if (players[pid]) players[pid].tourneyPoints = t.scores[pid].points || 0;
+        }
+    }
+    if (t.lastStandings) tournament.lastStandings = t.lastStandings;
+    setLoadoutLocked(!!t.loadoutLocked);
+}
+
+function setLoadoutLocked(locked) {
+    tournament.loadoutLocked = locked;
+    ['preset-selector', 'ingame-preset-selector', 'car-color', 'ingame-car-color', 'player-name'].forEach(id => {
+        let el = document.getElementById(id);
+        if (el) el.disabled = locked;
+    });
+    let note = document.getElementById('loadout-locked-note');
+    if (note) note.style.display = locked ? 'block' : 'none';
+}
+
+function isLastTournamentRound() {
+    return tournament.active && tournament.currentRound >= tournament.tracks.length - 1;
+}
+
+function readTournamentTracks() {
+    let countEl = document.getElementById('host-track-count');
+    let count = Math.max(1, Math.min(10, parseInt(countEl?.value) || 1));
+    let list = [];
+    for (let i = 0; i < count; i++) {
+        let sel = document.getElementById('host-track-slot-' + i);
+        list.push((sel?.value || DEFAULT_TOURNEY_TRACKS[i] || 'standard').toLowerCase());
+    }
+    return list;
+}
+
+function renderTrackSlots() {
+    let countEl = document.getElementById('host-track-count');
+    let container = document.getElementById('host-track-slots');
+    if (!countEl || !container) return;
+    let count = Math.max(1, Math.min(10, parseInt(countEl.value) || 1));
+    if (String(count) !== countEl.value) countEl.value = String(count);
+    let prev = [];
+    for (let i = 0; i < 10; i++) {
+        let sel = document.getElementById('host-track-slot-' + i);
+        prev[i] = sel ? sel.value : (DEFAULT_TOURNEY_TRACKS[i] || 'standard');
+    }
+    let options = document.getElementById('track-selector')?.innerHTML || '';
+    let html = '';
+    for (let i = 0; i < count; i++) {
+        html += `<div class="track-slot-row"><span>${i + 1}.</span><select id="host-track-slot-${i}" class="input-text">${options}</select></div>`;
+    }
+    container.innerHTML = html;
+    for (let i = 0; i < count; i++) {
+        let sel = document.getElementById('host-track-slot-' + i);
+        if (!sel) continue;
+        let desired = prev[i] || DEFAULT_TOURNEY_TRACKS[i] || 'standard';
+        if ([...sel.options].some(o => o.value === desired)) sel.value = desired;
+        sel.addEventListener('change', broadcastLobbyState);
+    }
+    broadcastLobbyState();
+}
+
+function lobbyPlayerPayload() {
+    return Object.values(players).map(p => ({ id: p.id, n: p.name, c: p.color, presetId: p.presetId }));
+}
+
+function renderLobbyPlayers(list) {
+    let rows = list || lobbyPlayerPayload();
+    let html = rows.map(p => {
+        let name = p.n || p.name || 'Gjest';
+        let color = p.c || p.color || '#3498db';
+        return `<li><span class="lobby-dot" style="background:${color}"></span>${name}</li>`;
+    }).join('');
+    ['host-player-list', 'joiner-player-list'].forEach(id => {
+        let el = document.getElementById(id);
+        if (el) el.innerHTML = html || '<li style="color:#666;">Ingen spillere ennå</li>';
+    });
+}
+
+function renderJoinerSummary(cfg) {
+    let el = document.getElementById('joiner-tourney-summary');
+    if (!el) return;
+    let trackList = cfg?.tracks || [];
+    let laps = cfg?.laps || 3;
+    if (!trackList.length) {
+        el.innerHTML = 'Venter på vertens oppsett…';
+        return;
+    }
+    let list = trackList.map((id, i) => `${i + 1}. ${getTrackLabel(id)}`).join('<br>');
+    el.innerHTML = `<strong>${trackList.length} baner</strong> · ${laps} runde${laps === 1 ? '' : 'r'} per bane<br>${list}`;
+}
+
+function broadcastLobbyState() {
+    if (!isHost) return;
+    renderLobbyPlayers();
+    let pc = document.getElementById('player-count');
+    if (pc) pc.innerText = `Spillere i lobby: ${Object.keys(players).length}`;
+    broadcastAll({
+        type: 'lobby',
+        tracks: readTournamentTracks(),
+        laps: parseInt(document.getElementById('host-laps')?.value) || 3,
+        players: lobbyPlayerPayload()
+    });
+}
+
+function hideStandings() {
+    let el = document.getElementById('standings-overlay');
+    if (el) el.style.display = 'none';
+}
+
+function hidePodium() {
+    let el = document.getElementById('podium-overlay');
+    if (el) { el.style.display = 'none'; el.classList.remove('celebrate'); }
+}
+
+function showStandingsOverlay(rows, isLast) {
+    let overlay = document.getElementById('standings-overlay');
+    let body = document.getElementById('standings-body');
+    let label = document.getElementById('standings-round-label');
+    let wait = document.getElementById('standings-wait');
+    let btn = document.getElementById('btn-next-track');
+    if (!overlay || !body) return;
+    hidePodium();
+    let trackId = tournament.tracks[tournament.currentRound] || activeTrackId;
+    if (label) {
+        label.innerText = `Bane ${tournament.currentRound + 1}/${Math.max(1, tournament.tracks.length)} — ${getTrackLabel(trackId)}`;
+    }
+    body.innerHTML = (rows || []).map(r => {
+        let medal = r.place === 1 ? '🥇' : r.place === 2 ? '🥈' : r.place === 3 ? '🥉' : r.place;
+        let cls = r.place <= 3 ? ` class="place-${r.place}"` : '';
+        return `<tr${cls}><td>${medal}</td><td>${r.name}</td><td>${formatTime(r.bestLap)}</td><td>+${r.roundPoints}</td><td>${r.totalPoints}p</td></tr>`;
+    }).join('');
+    if (btn) {
+        btn.style.display = isHost ? 'block' : 'none';
+        btn.innerText = isLast ? 'Se podium' : 'Neste bane';
+    }
+    if (wait) wait.style.display = isHost ? 'none' : 'block';
+    overlay.style.display = 'flex';
+}
+
+function showRacePodium(names, title, closeLabel) {
+    hideStandings();
+    let pUI = document.getElementById('podium-overlay');
+    if (!pUI) return;
+    let tEl = document.getElementById('podium-title');
+    if (tEl) tEl.innerText = title || 'Løp Fullført!';
+    let cEl = document.getElementById('btn-close-podium');
+    if (cEl) cEl.innerText = closeLabel || 'Lukk Podium';
+    document.getElementById('podium-1').innerText = "🥇 " + (names[0] || '-');
+    document.getElementById('podium-2').innerText = "🥈 " + (names[1] || '-');
+    document.getElementById('podium-3').innerText = "🥉 " + (names[2] || '-');
+    pUI.style.display = 'flex';
+    pUI.classList.add('celebrate');
+    if (window.audioManager) { window.audioManager.playBeep(600, 0.2); setTimeout(() => window.audioManager.playBeep(800, 0.4), 200); }
+}
+
+function awardRoundPoints(lbArr) {
+    tournament.lastStandings = lbArr.map((row, i) => {
+        let gained = TOURNAMENT_POINTS[i] || 0;
+        if (!tournament.scores[row.id]) tournament.scores[row.id] = { points: 0, name: row.n };
+        tournament.scores[row.id].points += gained;
+        tournament.scores[row.id].name = row.n;
+        if (players[row.id]) players[row.id].tourneyPoints = tournament.scores[row.id].points;
+        return {
+            id: row.id,
+            place: i + 1,
+            name: row.n,
+            bestLap: row.b,
+            roundPoints: gained,
+            totalPoints: tournament.scores[row.id].points
+        };
+    });
+    return tournament.lastStandings;
+}
+
+function getTournamentRanking() {
+    return Object.values(players).map(p => ({
+        id: p.id,
+        n: p.name,
+        points: (tournament.scores[p.id] && tournament.scores[p.id].points) || p.tourneyPoints || 0
+    })).sort((a, b) => b.points - a.points || a.n.localeCompare(b.n));
+}
+
+function switchToTrack(trackId) {
+    activeTrackId = (trackId || 'standard').toLowerCase();
+    let tSel = document.getElementById('track-selector');
+    if (tSel && [...tSel.options].some(o => o.value === activeTrackId)) tSel.value = activeTrackId;
+    generateEnvironment();
+    assignGridPositions();
+    raceState = -1;
+    if (typeof skidmarks !== 'undefined' && Array.isArray(skidmarks)) skidmarks.length = 0;
+    window.finishTimer = null;
+    window.podiumClosed = false;
+}
+
+function startTournamentSession() {
+    let trackList = readTournamentTracks().filter(id => id);
+    if (!trackList.length) trackList = ['standard'];
+    let laps = parseInt(document.getElementById('host-laps')?.value) || 3;
+    tournament = freshTournament();
+    tournament.active = true;
+    tournament.tracks = trackList;
+    tournament.currentRound = 0;
+    tournament.laps = laps;
+    tournament.phase = 'pit';
+    totalLaps = laps;
+    Object.values(players).forEach(p => {
+        p.tourneyPoints = 0;
+        tournament.scores[p.id] = { points: 0, name: p.name };
+    });
+    setLoadoutLocked(false);
+    applyLocalProfileToSelf();
+    setLoadoutLocked(true);
+    switchToTrack(trackList[0]);
+    let tSel = document.getElementById('track-selector');
+    if (tSel) tSel.style.display = 'none';
+    broadcastAll({ type: 'start', laps: totalLaps, rs: raceState, tournament: serializeTournament(), trackId: activeTrackId });
+}
+
+function applyLocalProfileToSelf() {
+    if (!myId || !players[myId] || tournament.loadoutLocked) return;
+    let prof = collectLocalProfile();
+    applyProfileToPlayer(myId, prof.name, prof.preset, prof.color);
+}
+
+function emitLocalProfile() {
+    if (tournament.loadoutLocked) return;
+    applyLocalProfileToSelf();
+    if (isHost) {
+        broadcastLobbyState();
+    } else if (hostConnection && hostConnection.open) {
+        let prof = collectLocalProfile();
+        try { hostConnection.send({ type: 'profile', name: prof.name, preset: prof.preset, color: prof.color }); } catch(e){}
+    }
+}
+
+function handleTournamentRaceEnd(lbArr) {
+    if (!tournament.active || !isHost) return;
+    if (tournament.phase === 'standings' || tournament.phase === 'podium') return;
+    let rows = awardRoundPoints(lbArr);
+    let last = isLastTournamentRound();
+    tournament.phase = 'standings';
+    showStandingsOverlay(rows, last);
+    broadcastAll({ type: 'tournamentStandings', tournament: serializeTournament(), rows: rows, isLast: last });
+}
+
+function showTournamentPodium() {
+    tournament.phase = 'podium';
+    hideStandings();
+    let rank = getTournamentRanking();
+    let names = rank.map(r => `${r.n} (${r.points}p)`);
+    showRacePodium(names, 'Turnering Fullført!', 'Tilbake til lobby');
+    if (isHost) broadcastAll({ type: 'tournamentPodium', tournament: serializeTournament(), names: names });
+}
+
+function advanceTournamentTrack() {
+    if (!isHost || !tournament.active) return;
+    if (isLastTournamentRound()) {
+        showTournamentPodium();
+        return;
+    }
+    tournament.currentRound++;
+    tournament.phase = 'pit';
+    hideStandings();
+    hidePodium();
+    switchToTrack(tournament.tracks[tournament.currentRound]);
+    broadcastAll({ type: 'nextTrack', trackId: activeTrackId, laps: tournament.laps, tournament: serializeTournament() });
+}
+
+function returnToLobbyKeepSession() {
+    gameActive = false;
+    if (gameLoopId) cancelAnimationFrame(gameLoopId);
+    raceState = -1;
+    window.finishTimer = null;
+    window.podiumClosed = false;
+
+    Object.keys(players).forEach(pid => {
+        if (players[pid].isAI) delete players[pid];
+    });
+
+    hideStandings();
+    hidePodium();
+    setLoadoutLocked(false);
+    tournament = freshTournament();
+
+    let tSel = document.getElementById('track-selector');
+    if (tSel) tSel.style.display = '';
+
+    document.getElementById('canvas-container').style.display = 'none';
+    document.getElementById('ingame-modal').style.display = 'none';
+    let ss = document.getElementById('splitscreen-setup'); if (ss) ss.style.display = 'none';
+    document.getElementById('lobby').style.display = 'flex';
+    document.getElementById('host-actions').style.display = 'none';
+    document.getElementById('sandbox-controls').style.display = 'none';
+
+    if (isHost) {
+        document.getElementById('mode-selection').style.display = 'none';
+        document.getElementById('host-ui').style.display = 'block';
+        let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
+        broadcastAll({ type: 'returnLobby' });
+        broadcastLobbyState();
+    } else {
+        document.getElementById('mode-selection').style.display = 'none';
+        document.getElementById('host-ui').style.display = 'none';
+        let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'block';
+    }
 }
 
 const statusMsg = document.getElementById('status-msg');
@@ -329,8 +706,20 @@ if (exitBtn) exitBtn.addEventListener('click', exitToMenu);
 let btnClosePodium = document.getElementById('btn-close-podium');
 if (btnClosePodium) {
     btnClosePodium.addEventListener('click', () => {
-        document.getElementById('podium-overlay').style.display = 'none';
+        hidePodium();
         window.podiumClosed = true;
+        if (tournament.active && tournament.phase === 'podium') {
+            if (isHost) returnToLobbyKeepSession();
+            else returnToLobbyKeepSession();
+        }
+    });
+}
+
+let btnNextTrack = document.getElementById('btn-next-track');
+if (btnNextTrack) {
+    btnNextTrack.addEventListener('click', () => {
+        if (!isHost || !tournament.active) return;
+        advanceTournamentTrack();
     });
 }
 
@@ -338,6 +727,19 @@ let lP = document.getElementById('preset-selector'), gP = document.getElementByI
 if (lP && gP) { lP.addEventListener('change', e => gP.value = e.target.value); gP.addEventListener('change', e => lP.value = e.target.value); }
 let lC = document.getElementById('car-color'), gC = document.getElementById('ingame-car-color');
 if (lC && gC) { lC.addEventListener('input', e => gC.value = e.target.value); gC.addEventListener('input', e => lC.value = e.target.value); }
+
+['player-name', 'preset-selector', 'ingame-preset-selector', 'car-color', 'ingame-car-color'].forEach(id => {
+    let el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', emitLocalProfile);
+    el.addEventListener('change', emitLocalProfile);
+});
+
+let hostTrackCount = document.getElementById('host-track-count');
+if (hostTrackCount) hostTrackCount.addEventListener('change', renderTrackSlots);
+let hostLapsEl = document.getElementById('host-laps');
+if (hostLapsEl) hostLapsEl.addEventListener('change', broadcastLobbyState);
+if (hostLapsEl) hostLapsEl.addEventListener('input', broadcastLobbyState);
 
 let inputSelector = document.getElementById('input-selector');
 if (inputSelector) {
@@ -356,6 +758,12 @@ function exitToMenu() {
     localPlayers = [];
     isSplitScreen = false;
     raceState = -1;
+    hideStandings();
+    hidePodium();
+    setLoadoutLocked(false);
+    tournament = freshTournament();
+    let tSel = document.getElementById('track-selector');
+    if (tSel) tSel.style.display = '';
     
     document.getElementById('canvas-container').style.display = 'none';
     document.getElementById('ingame-modal').style.display = 'none';
@@ -364,10 +772,11 @@ function exitToMenu() {
     document.getElementById('lobby').style.display = 'flex';
     document.getElementById('mode-selection').style.display = 'block';
     document.getElementById('host-ui').style.display = 'none';
+    let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
     document.getElementById('host-actions').style.display = 'none';
     document.getElementById('sandbox-controls').style.display = 'none';
     
-    let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: 1`;
+    let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: 1`;
     showMsg('');
 }
 
@@ -397,6 +806,7 @@ if (btnHost) {
     btnHost.addEventListener('click', () => {
         let mSel = document.getElementById('mode-selection'); if(mSel) mSel.style.display = 'none'; 
         let hUi = document.getElementById('host-ui'); if(hUi) hUi.style.display = 'block'; 
+        renderTrackSlots();
         showMsg('Oppretter Host...');
         peer = new Peer();
         peer.on('open', id => {
@@ -405,38 +815,75 @@ if (btnHost) {
             showMsg('');
             let pName = document.getElementById('player-name')?.value || "Host";
             let selPreset = document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar';
-            players[myId] = createPlayerRecord(myId, selPreset, pName);
+            let selColor = document.getElementById('ingame-car-color')?.value || document.getElementById('car-color')?.value || '#3498db';
+            players[myId] = createPlayerRecord(myId, selPreset, pName, selColor);
+            renderTrackSlots();
+            broadcastLobbyState();
         });
         peer.on('connection', conn => {
             connections[conn.peer] = conn; 
-            let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: ${Object.keys(connections).length + 1}`;
+            let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: ${Object.keys(connections).length + 1}`;
             conn.on('data', data => {
-                if (data.type === 'join') {
+                if (data.type === 'join' || data.type === 'profile') {
+                    let incomingName = data.name;
+                    let incomingPreset = data.preset;
+                    let incomingColor = data.color;
                     if (!players[conn.peer]) {
-                        players[conn.peer] = createPlayerRecord(conn.peer, data.preset, data.name, data.color);
+                        players[conn.peer] = createPlayerRecord(conn.peer, incomingPreset, incomingName, incomingColor);
                         let t = getTrack();
                         if (gameActive) {
                             if (raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; players[conn.peer].gear = 1; } else { assignGridPositions(); }
-                            conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
-                            conn.send({ type: 'start', laps: totalLaps, rs: raceState }); 
+                            conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer, tournament: serializeTournament() });
+                            conn.send({ type: 'start', laps: totalLaps, rs: raceState, tournament: serializeTournament(), trackId: activeTrackId });
+                            if (tournament.phase === 'standings') {
+                                conn.send({ type: 'tournamentStandings', tournament: serializeTournament(), rows: tournament.lastStandings, isLast: isLastTournamentRound() });
+                            } else if (tournament.phase === 'podium') {
+                                let rank = getTournamentRanking();
+                                conn.send({ type: 'tournamentPodium', tournament: serializeTournament(), names: rank.map(r => `${r.n} (${r.points}p)`) });
+                            }
                         } else {
-                            let hl = document.getElementById('host-laps');
-                            conn.send({ type: 'init', trackId: activeTrackId, laps: hl ? parseInt(hl.value) : 3, yourId: conn.peer });
+                            conn.send({
+                                type: 'init',
+                                trackId: activeTrackId,
+                                laps: parseInt(document.getElementById('host-laps')?.value) || 3,
+                                yourId: conn.peer,
+                                tournament: { tracks: readTournamentTracks(), laps: parseInt(document.getElementById('host-laps')?.value) || 3, active: false }
+                            });
+                            broadcastLobbyState();
                         }
+                    } else if (!tournament.loadoutLocked) {
+                        applyProfileToPlayer(conn.peer, incomingName, incomingPreset, incomingColor);
+                        if (!gameActive) broadcastLobbyState();
                     }
-                } else if (data.type === 'inputs') {
-                    if (!players[conn.peer]) {
+                    let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: ${Object.keys(players).length}`;
+                    renderLobbyPlayers();
+                } else if (data.type === 'inputs' || data.type === 'inputs_local') {
+                    let pid = data.id || conn.peer;
+                    if (!players[pid] && !tournament.loadoutLocked) {
                         players[conn.peer] = createPlayerRecord(conn.peer, 'jaguar', "Gjest");
                         let t = getTrack();
                         if (gameActive && raceState === 0) { players[conn.peer].x = t.pit.x; players[conn.peer].y = t.pit.y; players[conn.peer].gear = 1; } else if (gameActive) { assignGridPositions(); }
-                        conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer });
-                        if (gameActive) conn.send({ type: 'start', laps: totalLaps, rs: raceState });
+                        conn.send({ type: 'init', trackId: activeTrackId, laps: totalLaps, yourId: conn.peer, tournament: serializeTournament() });
+                        if (gameActive) conn.send({ type: 'start', laps: totalLaps, rs: raceState, tournament: serializeTournament(), trackId: activeTrackId });
                     }
-                    players[conn.peer].inputs = data.inputs; players[conn.peer].lastSeen = performance.now();
-                } else if (data.type === 'changeCar') { if (players[conn.peer]) { players[conn.peer].presetId = data.preset; players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100; } } 
-                else if (data.type === 'changeColor') { if (players[conn.peer]) { players[conn.peer].color = data.color; } }
+                    if (players[pid] || players[conn.peer]) {
+                        let target = players[pid] || players[conn.peer];
+                        target.inputs = data.inputs; target.lastSeen = performance.now();
+                    }
+                } else if (data.type === 'changeCar') {
+                    if (players[conn.peer] && !tournament.loadoutLocked) {
+                        players[conn.peer].presetId = data.preset;
+                        players[conn.peer].maxFuel = vehiclePresets[data.preset]?.fuelCap || 100;
+                        if (!gameActive) broadcastLobbyState();
+                    }
+                } else if (data.type === 'changeColor') {
+                    if (players[conn.peer] && !tournament.loadoutLocked) {
+                        players[conn.peer].color = data.color;
+                        if (!gameActive) broadcastLobbyState();
+                    }
+                }
             });
-            conn.on('close', () => { delete connections[conn.peer]; delete players[conn.peer]; let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: ${Object.keys(connections).length + 1}`; });
+            conn.on('close', () => { delete connections[conn.peer]; delete players[conn.peer]; let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: ${Object.keys(players).length}`; if (!gameActive) broadcastLobbyState(); });
         });
     });
 }
@@ -452,8 +899,7 @@ if (btnShare) {
 let btnEnter = document.getElementById('btn-enter-game');
 if (btnEnter) { 
     btnEnter.addEventListener('click', () => { 
-        let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3; 
-        Object.values(connections).forEach(c => { try { c.send({ type: 'start', laps: totalLaps, rs: raceState }); } catch(e){} }); 
+        startTournamentSession();
         let hActions = document.getElementById('host-actions');
         if (hActions) hActions.style.display = 'flex';
         enterGame(); 
@@ -463,7 +909,8 @@ if (btnEnter) {
 let trackSel = document.getElementById('track-selector');
 if (trackSel) {
     trackSel.addEventListener('change', (e) => {
-        if(!isHost) return; 
+        if(!isHost) return;
+        if (tournament.active) return;
         activeTrackId = (e.target.value || 'standard').toLowerCase(); 
         generateEnvironment(); assignGridPositions(); raceState = -1; 
         Object.values(connections).forEach(c => { try { c.send({ type: 'init', trackId: activeTrackId, laps: totalLaps }); } catch(e){} });
@@ -503,9 +950,15 @@ let btnStart = document.getElementById('btn-start-race');
 if (btnStart) {
     btnStart.addEventListener('click', () => {
         if(!isHost || raceState > 0) return;
+        if (tournament.active && (tournament.phase === 'standings' || tournament.phase === 'podium')) return;
         assignGridPositions(); 
-        let hl = isSplitScreen ? document.getElementById('ss-laps') : document.getElementById('host-laps'); 
-        totalLaps = hl ? parseInt(hl.value) : 3;
+        if (tournament.active) {
+            totalLaps = tournament.laps;
+            tournament.phase = 'racing';
+        } else {
+            let hl = isSplitScreen ? document.getElementById('ss-laps') : document.getElementById('host-laps'); 
+            totalLaps = hl ? parseInt(hl.value) : 3;
+        }
         
         let count = 5; raceState = count;
         Object.values(connections).forEach(c => { try { c.send({ type: 'state', laps: totalLaps, raceState: raceState, players: {} }); } catch(e){} }); 
@@ -521,7 +974,8 @@ if (btnStart) {
 }
 
 function initJoiner(hostId) {
-    let mSel = document.getElementById('mode-selection'); if (mSel) mSel.style.display = 'none'; 
+    let mSel = document.getElementById('mode-selection'); if (mSel) mSel.style.display = 'none';
+    let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'block';
     showMsg('Kobler til...');
     peer = new Peer();
     peer.on('open', id => {
@@ -534,22 +988,65 @@ function initJoiner(hostId) {
             players[myId] = createPlayerRecord(myId, selPreset, pName, selColor);
             
             let joined = false;
-            let handshakeLoop = setInterval(() => { if (joined || !hostConnection.open) { clearInterval(handshakeLoop); return; } hostConnection.send({ type: 'join', preset: selPreset, name: pName, color: selColor }); }, 500);
+            let handshakeLoop = setInterval(() => {
+                if (joined || !hostConnection.open) { clearInterval(handshakeLoop); return; }
+                let prof = collectLocalProfile();
+                hostConnection.send({ type: 'join', preset: prof.preset, name: prof.name, color: prof.color });
+            }, 500);
 
             hostConnection.on('data', data => {
                 if (data.type === 'init') { 
                     joined = true; activeTrackId = data.trackId || 'standard'; generateEnvironment(); 
                     if(data.laps) totalLaps = data.laps;
-                    if(data.yourId) { myId = data.yourId; localPlayers[0].id = myId; if(!players[myId]) players[myId] = createPlayerRecord(myId, selPreset, pName, selColor); }
+                    if(data.yourId) { myId = data.yourId; localPlayers[0].id = myId; if(!players[myId]) { let prof = collectLocalProfile(); players[myId] = createPlayerRecord(myId, prof.preset, prof.name, prof.color); } }
+                    if (data.tournament) {
+                        if (data.tournament.active) applyTournamentFromNet(data.tournament);
+                        else renderJoinerSummary(data.tournament);
+                    }
+                    let jUi = document.getElementById('joiner-ui'); if (jUi && !gameActive) jUi.style.display = 'block';
                 } 
+                else if (data.type === 'lobby') {
+                    joined = true;
+                    renderJoinerSummary(data);
+                    renderLobbyPlayers(data.players);
+                    let jUi = document.getElementById('joiner-ui'); if (jUi && !gameActive) jUi.style.display = 'block';
+                    showMsg('');
+                }
                 else if (data.type === 'start') { 
                     joined = true; if(data.laps) totalLaps = data.laps; 
+                    if (data.tournament) applyTournamentFromNet(data.tournament);
+                    if (data.trackId) { activeTrackId = data.trackId; generateEnvironment(); }
                     if(data.rs === 0) { raceState = 0; raceStartTime = performance.now() - 1000; } 
+                    let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
                     enterGame(); 
                 } 
+                else if (data.type === 'nextTrack') {
+                    if (data.tournament) applyTournamentFromNet(data.tournament);
+                    if (data.laps) totalLaps = data.laps;
+                    hideStandings(); hidePodium();
+                    switchToTrack(data.trackId || activeTrackId);
+                }
+                else if (data.type === 'tournamentStandings') {
+                    if (data.tournament) applyTournamentFromNet(data.tournament);
+                    showStandingsOverlay(data.rows || [], !!data.isLast);
+                }
+                else if (data.type === 'tournamentPodium') {
+                    if (data.tournament) applyTournamentFromNet(data.tournament);
+                    tournament.phase = 'podium';
+                    showRacePodium(data.names || [], 'Turnering Fullført!', 'Tilbake til lobby');
+                }
+                else if (data.type === 'returnLobby') {
+                    returnToLobbyKeepSession();
+                }
                 else if (data.type === 'state') {
                     if(data.laps) totalLaps = data.laps; if(data.raceState !== undefined) raceState = data.raceState;
                     if(data.settings) serverSettings = data.settings;
+                    if (data.tournament) {
+                        tournament.active = !!data.tournament.active;
+                        if (data.tournament.tracks) tournament.tracks = data.tournament.tracks;
+                        if (data.tournament.currentRound !== undefined) tournament.currentRound = data.tournament.currentRound;
+                        if (data.tournament.laps) tournament.laps = data.tournament.laps;
+                    }
                     
                     for (let pid in data.players) {
                         let pData = data.players[pid];
@@ -563,9 +1060,10 @@ function initJoiner(hostId) {
                         p.steer = pData.s || 0; p.frontSpinSeverity = pData.fS || 0; p.rearSpinSeverity = pData.rS || 0; 
                         p.gear = pData.g || 1; p.rpm = pData.rpm || 1000; p.speedKmh = pData.v || 0; p.fuel = pData.f || 100;
                         p.appliesBrake = !!pData.b; p.lap = pData.l || 0; p.bestLap = pData.bl || Infinity; p.lastLap = pData.lL || 0; p.finished = !!pData.fin; p.currentLapTime = pData.cLT || 0; p.totalTime = pData.tT || 0; p.lastSeen = performance.now();
+                        if (pData.tp !== undefined) p.tourneyPoints = pData.tp;
                         
                         let isLocal = localPlayers.some(lp => lp.id === pid);
-                        if (!isLocal) {
+                        if (!isLocal || tournament.loadoutLocked) {
                             p.presetId = pData.presetId || 'jaguar'; p.maxFuel = vehiclePresets[p.presetId]?.fuelCap || 100;
                             p.color = pData.c || '#3498db'; p.name = pData.n || "Gjest";
                         }
@@ -703,8 +1201,9 @@ let lastNetUpdate = 0; let lastInputSend = 0; let lastInputString = "";
 function formatTime(ms) { if(ms === Infinity || !isFinite(ms)) return "-.--"; let total = Math.floor(ms/10); let min = Math.floor(total/6000); let sec = Math.floor((total%6000)/100); let hund = total%100; return `${min>0?min+':':''}${sec.toString().padStart(min>0?2:1,'0')}.${hund.toString().padStart(2,'0')}`; }
 
 function drawHUD(ctx, p, vx, vy, vw, vh, playerIndex) {
+    let extra = tournament.active ? 18 : 0;
     ctx.fillStyle = 'rgba(0,0,0,0.8)';
-    ctx.beginPath(); ctx.roundRect(vx + 10, vy + 10, 180, 75, 6); ctx.fill(); ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(vx + 10, vy + 10, 180, 75 + extra, 6); ctx.fill(); ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.stroke();
     
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 12px monospace';
@@ -723,11 +1222,15 @@ function drawHUD(ctx, p, vx, vy, vw, vh, playerIndex) {
     
     ctx.fillStyle = '#3498db'; ctx.fillText(`Gir: ${gear} | RPM: ${rpm}`, vx + 18, vy + 46);
     ctx.fillStyle = '#f1c40f'; ctx.fillText(`Runde: ${lapStr} | ${timeStr}`, vx + 18, vy + 64);
+    if (tournament.active) {
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillText(`Bane ${tournament.currentRound + 1}/${Math.max(1, tournament.tracks.length)} | ${p.tourneyPoints || 0}p`, vx + 18, vy + 82);
+    }
     
     let fuelPct = (p.fuel || 0) / (p.maxFuel || 100);
-    ctx.fillStyle = '#333'; ctx.fillRect(vx + 18, vy + 72, 164, 4);
+    ctx.fillStyle = '#333'; ctx.fillRect(vx + 18, vy + 72 + extra, 164, 4);
     ctx.fillStyle = fuelPct < 0.2 ? '#e74c3c' : '#f1c40f'; 
-    ctx.fillRect(vx + 18, vy + 72, 164 * fuelPct, 4);
+    ctx.fillRect(vx + 18, vy + 72 + extra, 164 * fuelPct, 4);
     
     ctx.fillStyle = 'rgba(0,0,0,0.8)';
     ctx.beginPath(); ctx.roundRect(vx + vw - 45, vy + 10, 35, 35, 6); ctx.fill(); ctx.stroke();
@@ -862,7 +1365,7 @@ function update() {
 
         p.inputs = fin;
         
-        if (!isSplitScreen && lp.id === myId) {
+        if (!isSplitScreen && lp.id === myId && !tournament.loadoutLocked) {
             let pSel = document.getElementById('ingame-preset-selector') || document.getElementById('preset-selector');
             if (pSel && pSel.value && p.presetId !== pSel.value) { p.presetId = pSel.value; p.maxFuel = vehiclePresets[pSel.value]?.fuelCap || 100; if (!isHost && hostConnection && hostConnection.open) { try { hostConnection.send({ type: 'changeCar', preset: pSel.value }); } catch(e){} } }
             let cSel = document.getElementById('ingame-car-color') || document.getElementById('car-color');
@@ -889,7 +1392,7 @@ function update() {
         for (let pid of pkeys) {
             let p = players[pid]; 
             let isLocal = localPlayers.some(lp => lp.id === pid);
-            if (!isLocal && now - p.lastSeen > 3000) { delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere: ${Object.keys(connections).length + 1}`; continue; }
+            if (!isLocal && now - p.lastSeen > 3000) { delete players[pid]; if (connections[pid]) { connections[pid].close(); delete connections[pid]; } let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: ${Object.keys(connections).length + 1}`; continue; }
             if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.vx) || !isFinite(p.angle) || !isFinite(p.rpm)) { p.x = track.startX; p.y = track.startY; p.vx=0; p.vy=0; p.angle=track.startAngle; p.yawRate=0; p.rpm=1000; p.speedKmh=0; p.prevThrottle = 0; }
 
             let preset = vehiclePresets[p.presetId] || vehiclePresets['jaguar']; 
@@ -1162,7 +1665,7 @@ function update() {
 
             p.frontSpinSeverity = Math.abs(-vSlipF * MeffF) > gripF * dt ? Math.min(1.0, (Math.abs(-vSlipF * MeffF)-gripF * dt)/(gripF * dt)) : 0; p.rearSpinSeverity = Math.abs(-vSlipR * MeffR) > gripR * dt ? Math.min(1.0, (Math.abs(-vSlipR * MeffR)-gripR * dt)/(gripR * dt)) : 0; if (Math.abs(fLongR)/maxGrip > 0.95) p.rearSpinSeverity = 1.0; if (Math.abs(fLongF)/maxGrip > 0.95) p.frontSpinSeverity = 1.0; 
 
-            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, c: p.color, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake, n: p.name, l: p.lap, bl: p.bestLap === Infinity ? null : p.bestLap, lL: p.lastLap, fin: p.finished, cLT: p.currentLapTime, tT: p.totalTime };
+            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, c: p.color, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake, n: p.name, l: p.lap, bl: p.bestLap === Infinity ? null : p.bestLap, lL: p.lastLap, fin: p.finished, cLT: p.currentLapTime, tT: p.totalTime, tp: p.tourneyPoints || 0 };
         }
 
         for(let i=0; i<pkeys.length; i++) {
@@ -1186,6 +1689,7 @@ function update() {
         
         if (now - lastNetUpdate > 40) {
             let stateMsg = { type: 'state', raceState: raceState, laps: totalLaps, settings: serverSettings, players: outState.players };
+            if (tournament.active) stateMsg.tournament = { active: true, tracks: tournament.tracks, currentRound: tournament.currentRound, laps: tournament.laps, phase: tournament.phase };
             Object.values(connections).forEach(c => { try { c.send(stateMsg); } catch(e){} });
             lastNetUpdate = now;
         }
@@ -1245,15 +1749,24 @@ function update() {
         } else { displayArr = lbArr.slice(0, 3); }
     }
 
+    let lbTitle = document.querySelector('#leaderboard h3');
+    if (lbTitle) {
+        lbTitle.innerText = tournament.active
+            ? `TURNERING ${tournament.currentRound + 1}/${Math.max(1, tournament.tracks.length)}`
+            : 'LEADERBOARD';
+    }
+
     let lbHTML = ""; 
     displayArr.forEach(p => {
         let actualRank = lbArr.findIndex(x => x.id === p.id) + 1;
         let bestStr = p.b === Infinity || !p.b ? "-.--" : formatTime(p.b);
         let lastStr = p.last === 0 || !p.last ? "-.--" : formatTime(p.last);
+        let pts = players[p.id] ? (players[p.id].tourneyPoints || 0) : 0;
         let rowStyle = p.isMe ? 'color:#2ecc71; font-weight:bold;' : (p.fin ? 'color:#f1c40f;' : '');
+        let ptsStr = tournament.active ? ` | ${pts}p` : '';
         lbHTML += `<li style="${rowStyle}">
             <span class="lb-name">${actualRank}. ${p.n}</span>
-            <span class="lb-times">B: ${bestStr} | S: ${lastStr}</span>
+            <span class="lb-times">B: ${bestStr} | S: ${lastStr}${ptsStr}</span>
         </li>`;
     });
     let lbL = document.getElementById('lb-list'); if(lbL) lbL.innerHTML = lbHTML;
@@ -1263,20 +1776,26 @@ function update() {
     if(raceState === 0 && allFinished) {
         if(!window.finishTimer) window.finishTimer = performance.now();
         if(performance.now() - window.finishTimer > 2500 && !window.podiumClosed) {
-            let pUI = document.getElementById('podium-overlay');
-            if(pUI && pUI.style.display !== 'flex') {
-                pUI.style.display = 'flex'; pUI.classList.add('celebrate');
-                document.getElementById('podium-1').innerText = "🥇 " + (lbArr[0] ? lbArr[0].n : '-');
-                document.getElementById('podium-2').innerText = "🥈 " + (lbArr[1] ? lbArr[1].n : '-');
-                document.getElementById('podium-3').innerText = "🥉 " + (lbArr[2] ? lbArr[2].n : '-');
-                if(window.audioManager) { window.audioManager.playBeep(600, 0.2); setTimeout(()=>window.audioManager.playBeep(800, 0.4), 200); }
+            if (tournament.active) {
+                if (isHost) handleTournamentRaceEnd(lbArr);
+            } else {
+                let pUI = document.getElementById('podium-overlay');
+                if(pUI && pUI.style.display !== 'flex') {
+                    showRacePodium([
+                        lbArr[0] ? lbArr[0].n : '-',
+                        lbArr[1] ? lbArr[1].n : '-',
+                        lbArr[2] ? lbArr[2].n : '-'
+                    ], 'Løp Fullført!', 'Lukk Podium');
+                }
             }
         }
     } else {
         if (raceState !== 0) {
             window.finishTimer = null; window.podiumClosed = false;
-            let pUI = document.getElementById('podium-overlay');
-            if(pUI) { pUI.style.display = 'none'; pUI.classList.remove('celebrate'); }
+            if (!tournament.active || (tournament.phase !== 'standings' && tournament.phase !== 'podium')) {
+                hidePodium();
+                hideStandings();
+            }
         }
     }
 

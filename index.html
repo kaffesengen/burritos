@@ -57,14 +57,34 @@
         <p style="font-size: 12px; color: #aaa;">Din Host ID:</p>
         <input type="text" id="my-host-id" class="input-text" readonly style="text-align: center; font-weight: bold; font-family: monospace; margin-bottom: 10px;">
         <button class="btn" id="btn-share-link">Kopier Del-lenke</button>
-        
-        <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 15px;">
-            <label style="color: #aaa; font-size: 12px;">Antall runder:</label>
-            <input type="number" id="host-laps" class="input-text" value="3" min="1" max="50" style="width: 60px; display: inline-block; margin-left: 10px; text-align: center;">
+
+        <div class="tournament-config">
+            <h3>Turnering</h3>
+            <div class="tourney-row">
+                <label>Runder per bane:</label>
+                <input type="number" id="host-laps" class="input-text" value="3" min="1" max="50">
+            </div>
+            <div class="tourney-row">
+                <label>Antall baner:</label>
+                <input type="number" id="host-track-count" class="input-text" value="3" min="1" max="10">
+            </div>
+            <p class="tourney-hint">Velg banene i den rekkefølgen de skal kjøres:</p>
+            <div id="host-track-slots"></div>
         </div>
 
         <p id="player-count" style="margin-top: 15px; font-size: 12px; color: #3498db;">Spillere i lobby: 1</p>
-        <button class="btn btn-green" id="btn-enter-game" style="margin-top: 15px;">Gå til pit (Start Session)</button>
+        <ul id="host-player-list" class="lobby-player-list"></ul>
+        <p class="tourney-hint">Spillere velger navn, bil og farge i panelet under. Dette låses når turneringen starter.</p>
+        <button class="btn btn-green" id="btn-enter-game" style="margin-top: 15px;">Start turnering</button>
+    </div>
+
+    <div class="lobby-box" id="joiner-ui">
+        <p style="color: #2ecc71; font-weight: bold; margin-bottom: 10px;">Tilkoblet turnering</p>
+        <div id="joiner-tourney-summary" class="tourney-summary">Venter på vertens oppsett…</div>
+        <p style="margin-top: 12px; font-size: 12px; color: #3498db;">Spillere i lobby</p>
+        <ul id="joiner-player-list" class="lobby-player-list"></ul>
+        <p class="tourney-hint">Velg navn, bil og farge i panelet under. Det kan ikke endres etter start.</p>
+        <p id="joiner-wait-msg" style="margin-top: 12px; color: #aaa; font-size: 13px;">Venter på at verten starter turneringen…</p>
     </div>
     
     <div id="status-msg" style="margin-top: 20px; color: #e74c3c; font-size: 12px;"></div>
@@ -86,9 +106,30 @@
         <div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div><div class="light"></div>
     </div>
 
+    <!-- BETWEEN-ROUND STANDINGS -->
+    <div id="standings-overlay">
+        <div class="standings-title">Bane fullført!</div>
+        <div class="standings-subtitle" id="standings-round-label"></div>
+        <table class="standings-table">
+            <thead>
+                <tr>
+                    <th>Plass</th>
+                    <th>Spiller</th>
+                    <th>Beste tid</th>
+                    <th>Poeng</th>
+                    <th>Totalt</th>
+                </tr>
+            </thead>
+            <tbody id="standings-body"></tbody>
+        </table>
+        <p class="standings-legend">Gull 3p · Sølv 2p · Bronse 1p</p>
+        <p id="standings-wait">Venter på at verten fortsetter…</p>
+        <button id="btn-next-track" class="btn btn-green">Neste bane</button>
+    </div>
+
     <!-- PODIUM OVERLAY -->
     <div id="podium-overlay">
-        <div class="podium-title">Løp Fullført!</div>
+        <div class="podium-title" id="podium-title">Løp Fullført!</div>
         <div class="podium-container">
             <div class="podium-step">
                 <div class="podium-name" id="podium-2">🥈 -</div>
@@ -178,6 +219,7 @@
         <div class="modal-content">
             <h2 style="color: #fff; margin-bottom: 20px;">Spillmeny</h2>
             
+            <p id="loadout-locked-note" class="tourney-hint" style="display:none; color:#f1c40f; margin-bottom: 12px;">Bil, farge og navn er låst i turneringen.</p>
             <label style="color: #aaa; font-size: 12px; display: block; text-align: left;">Bytt Kjøretøy:</label>
             <select id="ingame-preset-selector" class="input-text" style="margin-top: 5px; margin-bottom: 10px;">
                 <optgroup label="Standard / Elbiler">
