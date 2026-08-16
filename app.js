@@ -572,17 +572,48 @@ function returnToLobbyKeepSession() {
         document.getElementById('mode-selection').style.display = 'none';
         document.getElementById('host-ui').style.display = 'block';
         let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
+        setLobbyBackVisible(true);
         broadcastAll({ type: 'returnLobby' });
         broadcastLobbyState();
     } else {
         document.getElementById('mode-selection').style.display = 'none';
         document.getElementById('host-ui').style.display = 'none';
         let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'block';
+        setLobbyBackVisible(true);
     }
 }
 
 const statusMsg = document.getElementById('status-msg');
 function showMsg(msg) { if (statusMsg) statusMsg.innerText = msg; }
+
+function setLobbyBackVisible(visible) {
+    let btn = document.getElementById('btn-lobby-back');
+    if (btn) btn.style.display = visible ? 'block' : 'none';
+}
+
+function leaveLobbyScreen() {
+    if (gameActive) {
+        exitToMenu();
+        return;
+    }
+    if (hostConnection) { hostConnection.close(); hostConnection = null; }
+    for (let id in connections) { connections[id].close(); delete connections[id]; }
+    if (peer) { peer.destroy(); peer = null; }
+    for (let id in players) delete players[id];
+    localPlayers = [];
+    isSplitScreen = false;
+    isHost = true;
+    myId = null;
+    setLoadoutLocked(false);
+    tournament = freshTournament();
+    let ss = document.getElementById('splitscreen-setup'); if (ss) ss.style.display = 'none';
+    document.getElementById('host-ui').style.display = 'none';
+    let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
+    document.getElementById('mode-selection').style.display = 'block';
+    setLobbyBackVisible(false);
+    let pc = document.getElementById('player-count'); if (pc) pc.innerText = 'Spillere i lobby: 1';
+    showMsg('');
+}
 
 function enterGame() {
     if (gameActive) return; 
@@ -643,6 +674,7 @@ if (btnSSMode) {
     btnSSMode.addEventListener('click', () => {
         document.getElementById('mode-selection').style.display = 'none';
         document.getElementById('splitscreen-setup').style.display = 'block';
+        setLobbyBackVisible(true);
         renderSplitScreenCards();
     });
 }
@@ -651,10 +683,7 @@ if (ssCount) ssCount.addEventListener('change', renderSplitScreenCards);
 
 let btnCancelSS = document.getElementById('btn-cancel-splitscreen');
 if (btnCancelSS) {
-    btnCancelSS.addEventListener('click', () => {
-        document.getElementById('splitscreen-setup').style.display = 'none';
-        document.getElementById('mode-selection').style.display = 'block';
-    });
+    btnCancelSS.addEventListener('click', leaveLobbyScreen);
 }
 
 let btnStartSS = document.getElementById('btn-start-splitscreen');
@@ -702,6 +731,29 @@ if (hamBtn && modal) hamBtn.addEventListener('click', () => modal.style.display 
 if (menuBtn && modal) menuBtn.addEventListener('click', () => modal.style.display = 'flex');
 if (resumeBtn && modal) resumeBtn.addEventListener('click', () => modal.style.display = 'none');
 if (exitBtn) exitBtn.addEventListener('click', exitToMenu);
+
+let btnIngameBack = document.getElementById('btn-ingame-back');
+if (btnIngameBack) btnIngameBack.addEventListener('click', exitToMenu);
+
+['btn-lobby-back', 'btn-host-back', 'btn-joiner-back'].forEach(id => {
+    let el = document.getElementById(id);
+    if (el) el.addEventListener('click', leaveLobbyScreen);
+});
+
+let btnStandingsBack = document.getElementById('btn-standings-back');
+if (btnStandingsBack) {
+    btnStandingsBack.addEventListener('click', () => {
+        if (isHost && tournament.active) returnToLobbyKeepSession();
+        else exitToMenu();
+    });
+}
+let btnPodiumBack = document.getElementById('btn-podium-back');
+if (btnPodiumBack) {
+    btnPodiumBack.addEventListener('click', () => {
+        if (tournament.active) returnToLobbyKeepSession();
+        else exitToMenu();
+    });
+}
 
 let btnClosePodium = document.getElementById('btn-close-podium');
 if (btnClosePodium) {
@@ -775,6 +827,7 @@ function exitToMenu() {
     let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
     document.getElementById('host-actions').style.display = 'none';
     document.getElementById('sandbox-controls').style.display = 'none';
+    setLobbyBackVisible(false);
     
     let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: 1`;
     showMsg('');
@@ -806,6 +859,7 @@ if (btnHost) {
     btnHost.addEventListener('click', () => {
         let mSel = document.getElementById('mode-selection'); if(mSel) mSel.style.display = 'none'; 
         let hUi = document.getElementById('host-ui'); if(hUi) hUi.style.display = 'block'; 
+        setLobbyBackVisible(true);
         renderTrackSlots();
         showMsg('Oppretter Host...');
         peer = new Peer();
@@ -976,6 +1030,7 @@ if (btnStart) {
 function initJoiner(hostId) {
     let mSel = document.getElementById('mode-selection'); if (mSel) mSel.style.display = 'none';
     let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'block';
+    setLobbyBackVisible(true);
     showMsg('Kobler til...');
     peer = new Peer();
     peer.on('open', id => {
@@ -1202,8 +1257,9 @@ function formatTime(ms) { if(ms === Infinity || !isFinite(ms)) return "-.--"; le
 
 function drawHUD(ctx, p, vx, vy, vw, vh, playerIndex) {
     let extra = tournament.active ? 18 : 0;
+    let top = vy + (playerIndex === 0 ? 46 : 10);
     ctx.fillStyle = 'rgba(0,0,0,0.8)';
-    ctx.beginPath(); ctx.roundRect(vx + 10, vy + 10, 180, 75 + extra, 6); ctx.fill(); ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(vx + 10, top, 180, 75 + extra, 6); ctx.fill(); ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.stroke();
     
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 12px monospace';
@@ -1217,20 +1273,20 @@ function drawHUD(ctx, p, vx, vy, vw, vh, playerIndex) {
     let evanState = p.inputs?.smartAssist ? 'PÅ' : 'AV';
     let evanColor = p.inputs?.smartAssist ? '#2ecc71' : '#e74c3c';
     
-    ctx.fillStyle = '#2ecc71'; ctx.fillText(`Fart: ${speed} km/t`, vx + 18, vy + 28);
-    ctx.fillStyle = evanColor; ctx.fillText(`Evan: ${evanState}`, vx + 120, vy + 28);
+    ctx.fillStyle = '#2ecc71'; ctx.fillText(`Fart: ${speed} km/t`, vx + 18, top + 18);
+    ctx.fillStyle = evanColor; ctx.fillText(`Evan: ${evanState}`, vx + 120, top + 18);
     
-    ctx.fillStyle = '#3498db'; ctx.fillText(`Gir: ${gear} | RPM: ${rpm}`, vx + 18, vy + 46);
-    ctx.fillStyle = '#f1c40f'; ctx.fillText(`Runde: ${lapStr} | ${timeStr}`, vx + 18, vy + 64);
+    ctx.fillStyle = '#3498db'; ctx.fillText(`Gir: ${gear} | RPM: ${rpm}`, vx + 18, top + 36);
+    ctx.fillStyle = '#f1c40f'; ctx.fillText(`Runde: ${lapStr} | ${timeStr}`, vx + 18, top + 54);
     if (tournament.active) {
         ctx.fillStyle = '#f1c40f';
-        ctx.fillText(`Bane ${tournament.currentRound + 1}/${Math.max(1, tournament.tracks.length)} | ${p.tourneyPoints || 0}p`, vx + 18, vy + 82);
+        ctx.fillText(`Bane ${tournament.currentRound + 1}/${Math.max(1, tournament.tracks.length)} | ${p.tourneyPoints || 0}p`, vx + 18, top + 72);
     }
     
     let fuelPct = (p.fuel || 0) / (p.maxFuel || 100);
-    ctx.fillStyle = '#333'; ctx.fillRect(vx + 18, vy + 72 + extra, 164, 4);
+    ctx.fillStyle = '#333'; ctx.fillRect(vx + 18, top + 62 + extra, 164, 4);
     ctx.fillStyle = fuelPct < 0.2 ? '#e74c3c' : '#f1c40f'; 
-    ctx.fillRect(vx + 18, vy + 72 + extra, 164 * fuelPct, 4);
+    ctx.fillRect(vx + 18, top + 62 + extra, 164 * fuelPct, 4);
     
     ctx.fillStyle = 'rgba(0,0,0,0.8)';
     ctx.beginPath(); ctx.roundRect(vx + vw - 45, vy + 10, 35, 35, 6); ctx.fill(); ctx.stroke();

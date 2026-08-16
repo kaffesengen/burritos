@@ -1,34 +1,53 @@
 * { box-sizing: border-box; touch-action: none; margin: 0; padding: 0; }
+html { color-scheme: dark; }
 body { font-family: sans-serif; background: #121212; color: #eee; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; user-select: none; }
 
 #canvas-container { flex: 1; position: relative; background: #2d4c1e; display: none; overflow: hidden; width: 100%; height: 100%; }
 canvas { display: block; width: 100%; height: 100%; }
 
-#lobby { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #181818; z-index: 100; text-align: center; padding: 20px; overflow-y: auto; }
-#lobby h1 { margin-bottom: 20px; color: #3498db; }
-.lobby-box { background: #222; border: 1px solid #444; padding: 20px; border-radius: 8px; margin-bottom: 20px; width: 100%; max-width: 400px; }
-#host-ui { display: none; max-width: 460px; }
-#joiner-ui { display: none; max-width: 460px; }
+#lobby { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; background: #181818; z-index: 100; text-align: center; padding: 16px 16px 28px; overflow-y: auto; }
+#lobby h1 { margin: 8px 0 16px; color: #3498db; flex-shrink: 0; }
+.lobby-box { background: #222; border: 1px solid #444; padding: 20px; border-radius: 8px; margin-bottom: 16px; width: 100%; max-width: 400px; flex-shrink: 0; }
+#host-ui { display: none; max-width: 480px; }
+#joiner-ui { display: none; max-width: 480px; }
 
-.tournament-config { margin-top: 15px; border-top: 1px solid #444; padding-top: 15px; text-align: left; }
-.tournament-config h3 { color: #f1c40f; font-size: 14px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; text-align: center; }
-.tourney-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-.tourney-row label { color: #aaa; font-size: 12px; }
-.tourney-row .input-text { width: 70px; margin-top: 0; text-align: center; }
-.tourney-hint { color: #888; font-size: 11px; margin: 8px 0; line-height: 1.4; }
-.track-slot-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.track-slot-row span { color: #f1c40f; font-weight: bold; width: 18px; font-size: 12px; }
-.track-slot-row select { margin-top: 0; padding: 6px; font-size: 12px; }
-.lobby-player-list { list-style: none; margin: 8px 0 0; text-align: left; }
-.lobby-player-list li { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; color: #ddd; border-bottom: 1px dotted #333; }
+.field { text-align: left; margin-bottom: 16px; }
+.field label { display: block; color: #aaa; font-size: 12px; margin-bottom: 6px; }
+
+.tournament-config { margin-top: 16px; border-top: 1px solid #444; padding-top: 16px; text-align: left; }
+.tournament-config h3 { color: #f1c40f; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; text-align: center; }
+.tourney-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.tourney-field { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.tourney-field span { color: #aaa; font-size: 12px; }
+.tourney-field .input-text { width: 100%; margin-top: 0; text-align: center; }
+.tourney-hint { color: #888; font-size: 11px; margin: 8px 0 10px; line-height: 1.45; }
+.track-slot-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.track-slot-row span { color: #f1c40f; font-weight: bold; width: 18px; font-size: 12px; flex-shrink: 0; }
+.track-slot-row select { margin-top: 0; padding: 8px; font-size: 13px; }
+.lobby-player-list { list-style: none; margin: 6px 0 10px; text-align: left; }
+.lobby-player-list li { display: flex; align-items: center; gap: 8px; padding: 7px 0; font-size: 13px; color: #ddd; border-bottom: 1px dotted #333; }
 .lobby-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #000; flex-shrink: 0; }
-.tourney-summary { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 10px; font-size: 12px; color: #ccc; text-align: left; line-height: 1.5; }
+.tourney-summary { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #ccc; text-align: left; line-height: 1.5; }
 .tourney-summary strong { color: #f1c40f; }
+.lobby-actions { margin-top: 12px; }
 
 .btn { background: #3498db; color: #fff; border: none; padding: 10px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 5px; }
 .btn:active { background: #2980b9; }
 .btn-green { background: #2ecc71; }
 .btn-green:active { background: #27ae60; }
+.btn-back { background: #2a2a2a; border: 1px solid #555; color: #ddd; }
+.btn-back:active { background: #3a3a3a; }
+.btn-red { background: #e74c3c; }
+.btn-red:active { background: #c0392b; }
+#btn-lobby-back { display: none; width: auto; min-width: 140px; margin: 0 auto 4px; padding: 8px 16px; flex-shrink: 0; }
+#btn-ingame-back { position: absolute; top: 10px; left: 10px; z-index: 50; width: auto; padding: 8px 12px; font-size: 14px; margin: 0; }
+.input-text { width: 100%; padding: 10px; background: #111; color: #fff; border: 1px solid #555; border-radius: 4px; margin-top: 10px; }
+input[type=text].input-text, input[type=number].input-text, select.input-text {
+    background: #111;
+    color: #fff;
+    -webkit-appearance: none;
+    appearance: none;
+}
 select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 
 #btn-ingame-menu { position: absolute; top: 10px; right: 10px; z-index: 50; padding: 8px 12px; background: #333; color: #fff; border: 1px solid #555; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 14px; }
@@ -90,6 +109,7 @@ input[type=range] { cursor: pointer; }
 .standings-legend { color: #777; font-size: 12px; margin: 12px 0 6px; }
 #standings-wait { display: none; color: #aaa; margin-top: 16px; font-size: 14px; }
 #btn-next-track { display: none; max-width: 280px; margin-top: 22px; font-size: 18px; padding: 14px; }
+#btn-standings-back { display: block; max-width: 280px; margin-top: 10px; }
 
 /* --- PODIUM --- */
 #podium-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 25, 0.95); z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; }

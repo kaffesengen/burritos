@@ -15,11 +15,14 @@
 <body>
 
 <div id="lobby">
+    <button type="button" id="btn-lobby-back" class="btn btn-back">← Tilbake</button>
     <h1>Avansert Fysikkmotor</h1>
     
     <div class="lobby-box" id="mode-selection">
-        <label style="color: #aaa; font-size: 12px;">Ditt Førernavn:</label>
-        <input type="text" id="player-name" class="input-text" placeholder="Skriv inn navn" value="" maxlength="15" style="margin-bottom: 20px; text-align: center; font-weight: bold; font-size: 16px;">
+        <div class="field">
+            <label for="player-name">Ditt Førernavn:</label>
+            <input type="text" id="player-name" class="input-text" placeholder="Skriv inn navn" value="" maxlength="15" style="margin-top: 0; text-align: center; font-weight: bold; font-size: 16px;">
+        </div>
 
         <button class="btn" id="btn-sandbox-mode" style="background: #8e44ad; margin-bottom: 10px;">Spill Alene (Sandbox)</button>
         <button class="btn" id="btn-splitscreen-mode" style="background: #e67e22; margin-bottom: 20px;">Lokal Split-Screen</button>
@@ -49,7 +52,7 @@
         </div>
 
         <button class="btn btn-green" id="btn-start-splitscreen" style="margin-top: 20px;">Start Løp</button>
-        <button class="btn" id="btn-cancel-splitscreen" style="background: #e74c3c;">Avbryt</button>
+        <button class="btn btn-back" id="btn-cancel-splitscreen">← Tilbake</button>
     </div>
 
     <div class="lobby-box" id="host-ui">
@@ -60,13 +63,15 @@
 
         <div class="tournament-config">
             <h3>Turnering</h3>
-            <div class="tourney-row">
-                <label>Runder per bane:</label>
-                <input type="number" id="host-laps" class="input-text" value="3" min="1" max="50">
-            </div>
-            <div class="tourney-row">
-                <label>Antall baner:</label>
-                <input type="number" id="host-track-count" class="input-text" value="3" min="1" max="10">
+            <div class="tourney-grid">
+                <label class="tourney-field">
+                    <span>Runder per bane</span>
+                    <input type="number" id="host-laps" class="input-text" value="3" min="1" max="50">
+                </label>
+                <label class="tourney-field">
+                    <span>Antall baner</span>
+                    <input type="number" id="host-track-count" class="input-text" value="3" min="1" max="10">
+                </label>
             </div>
             <p class="tourney-hint">Velg banene i den rekkefølgen de skal kjøres:</p>
             <div id="host-track-slots"></div>
@@ -75,7 +80,10 @@
         <p id="player-count" style="margin-top: 15px; font-size: 12px; color: #3498db;">Spillere i lobby: 1</p>
         <ul id="host-player-list" class="lobby-player-list"></ul>
         <p class="tourney-hint">Spillere velger navn, bil og farge i panelet under. Dette låses når turneringen starter.</p>
-        <button class="btn btn-green" id="btn-enter-game" style="margin-top: 15px;">Start turnering</button>
+        <div class="lobby-actions">
+            <button class="btn btn-green" id="btn-enter-game">Start turnering</button>
+            <button type="button" class="btn btn-back" id="btn-host-back">← Tilbake</button>
+        </div>
     </div>
 
     <div class="lobby-box" id="joiner-ui">
@@ -85,6 +93,9 @@
         <ul id="joiner-player-list" class="lobby-player-list"></ul>
         <p class="tourney-hint">Velg navn, bil og farge i panelet under. Det kan ikke endres etter start.</p>
         <p id="joiner-wait-msg" style="margin-top: 12px; color: #aaa; font-size: 13px;">Venter på at verten starter turneringen…</p>
+        <div class="lobby-actions">
+            <button type="button" class="btn btn-back" id="btn-joiner-back">← Tilbake</button>
+        </div>
     </div>
     
     <div id="status-msg" style="margin-top: 20px; color: #e74c3c; font-size: 12px;"></div>
@@ -94,6 +105,7 @@
     <div id="recording-indicator" style="display: none; position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: #e74c3c; color: white; padding: 5px 15px; border-radius: 5px; font-weight: bold; z-index: 100; border: 2px solid #c0392b;">🔴 OPPTAK PÅGÅR</div>
     <canvas id="gameCanvas"></canvas>
     
+    <button type="button" id="btn-ingame-back" class="btn btn-back">← Lobby</button>
     <button id="btn-hamburger">☰</button>
     <button id="btn-ingame-menu">⚙️ Meny</button>
 
@@ -125,6 +137,7 @@
         <p class="standings-legend">Gull 3p · Sølv 2p · Bronse 1p</p>
         <p id="standings-wait">Venter på at verten fortsetter…</p>
         <button id="btn-next-track" class="btn btn-green">Neste bane</button>
+        <button type="button" id="btn-standings-back" class="btn btn-back" style="max-width: 280px; margin-top: 10px;">← Tilbake til lobby</button>
     </div>
 
     <!-- PODIUM OVERLAY -->
@@ -145,6 +158,7 @@
             </div>
         </div>
         <button id="btn-close-podium" class="btn btn-green" style="max-width: 250px; margin-top: 40px; font-size: 18px; padding: 15px;">Lukk Podium</button>
+        <button type="button" id="btn-podium-back" class="btn btn-back" style="max-width: 250px; margin-top: 10px;">← Tilbake til lobby</button>
     </div>
 
     <div id="host-actions">
