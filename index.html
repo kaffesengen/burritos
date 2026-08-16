@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js" defer></script>
     <script src="profile.js" defer></script>
+    <script src="presence.js" defer></script>
     <script src="ai.js" defer></script>
     <script src="waypoints.js" defer></script>
     <script src="audio.js" defer></script>
@@ -95,6 +96,12 @@
         <div style="margin: 20px 0; color: #777;">— ELLER —</div>
         <input type="text" id="join-code-input" class="input-text" placeholder="Skriv inn Host ID">
         <button class="btn" id="btn-join-mode">Bli Med</button>
+
+        <div id="presence-panel" class="presence-panel">
+            <h3>Pålogget nå</h3>
+            <p id="presence-hint" class="tourney-hint">Laster…</p>
+            <ul id="presence-list" class="presence-list"></ul>
+        </div>
     </div>
 
     <div id="splitscreen-setup" class="lobby-box" style="display: none; max-width: 800px; width: 100%;">

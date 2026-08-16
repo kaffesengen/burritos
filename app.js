@@ -588,6 +588,7 @@ function returnToLobbyKeepSession() {
         document.getElementById('host-ui').style.display = 'block';
         let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
         setLobbyBackVisible(true);
+        if (window.setGamePresence && myId && myId !== 'sandbox') setGamePresence('hosting', myId);
         broadcastAll({ type: 'returnLobby' });
         broadcastLobbyState();
     } else {
@@ -595,6 +596,7 @@ function returnToLobbyKeepSession() {
         document.getElementById('host-ui').style.display = 'none';
         let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'block';
         setLobbyBackVisible(true);
+        if (typeof setGamePresence === 'function') setGamePresence('online');
     }
 }
 
@@ -653,6 +655,11 @@ function enterGame() {
     resize(); 
     if (gameLoopId) cancelAnimationFrame(gameLoopId);
     gameLoopId = requestAnimationFrame(update);
+    if (window.setGamePresence) {
+        if (isSplitScreen || myId === 'sandbox') setGamePresence('in_game', null);
+        else if (isHost && myId) setGamePresence('in_game', myId);
+        else setGamePresence('in_game', null);
+    }
 }
 
 function renderSplitScreenCards() {
@@ -902,6 +909,7 @@ if (btnHost) {
             players[myId] = createPlayerRecord(myId, selPreset, pName, selColor);
             renderTrackSlots();
             broadcastLobbyState();
+            if (window.setGamePresence) setGamePresence('hosting', id);
         });
         peer.on('connection', conn => {
             connections[conn.peer] = conn; 

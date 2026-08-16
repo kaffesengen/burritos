@@ -154,6 +154,7 @@ window.playerProfile = {
     },
 
     logout() {
+        if (window.playerPresence) window.playerPresence.clear();
         this.data = null;
         this.showingRecovery = false;
         this.saveLocal();
@@ -199,6 +200,7 @@ window.playerProfile = {
         if (codeShow) codeShow.textContent = this.data.secret || '—';
         this.syncNameField();
         this.showBox('mode-selection');
+        if (window.playerPresence) window.playerPresence.onVisibleMenu();
     },
 
     fillServerFields() {
