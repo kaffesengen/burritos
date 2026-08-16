@@ -30,7 +30,7 @@ if (!fs.existsSync(envPath)) {
 
 const env = parseEnv(fs.readFileSync(envPath, 'utf8'));
 const url = String(env.SUPABASE_URL || '').trim();
-const anonKey = String(env.SUPABASE_ANON_KEY || '').trim();
+const anonKey = String(env.SUPABASE_ANON_KEY || env.SUPABASE_PUBLISHABLE_KEY || '').trim();
 
 if (!url || !url.startsWith('https://') || url.includes('xxxx.supabase.co')) {
     console.error('SUPABASE_URL i .env.local ser ikke ut som et ekte prosjekt.');
