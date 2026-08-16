@@ -319,6 +319,26 @@ function pruneMissingRemotes(netPlayers) {
     }
 }
 
+function gridSlot(index, t) {
+    let row = Math.floor(index / 2);
+    let col = index % 2 === 0 ? 1 : -1;
+    let spacing = 200, lateral = 40;
+    return {
+        x: t.startX - Math.cos(t.startAngle) * (row * spacing + 60) + Math.sin(t.startAngle) * (col * lateral),
+        y: t.startY - Math.sin(t.startAngle) * (row * spacing + 60) - Math.cos(t.startAngle) * (col * lateral),
+        angle: t.startAngle
+    };
+}
+
+function gridOrderIds() {
+    return Object.keys(players).sort((a, b) => {
+        if (a === myId) return -1;
+        if (b === myId) return 1;
+        if (!!players[a].isAI !== !!players[b].isAI) return players[a].isAI ? 1 : -1;
+        return String(a).localeCompare(String(b));
+    });
+}
+
 function placeFieldOnGrid() {
     ensureConnectedPlayers();
     assignGridPositions();
@@ -337,21 +357,38 @@ function startRacePayload() {
 
 function assignGridPositions() {
     ensureConnectedPlayers();
-    let ids = Object.keys(players); let t = getTrack();
+    let ids = gridOrderIds();
+    let t = getTrack();
     ids.forEach((pid, index) => {
-        let row = Math.floor(index / 2); let col = index % 2 === 0 ? 1 : -1; 
-        
-        // Avstand i lengderetning økt til 200. Bredde tilbake til 40.
-        let spacing = 200, lateral = 40; 
-        
-        players[pid].x = t.startX - Math.cos(t.startAngle) * (row * spacing + 60) + Math.sin(t.startAngle) * (col * lateral);
-        players[pid].y = t.startY - Math.sin(t.startAngle) * (row * spacing + 60) - Math.cos(t.startAngle) * (col * lateral);
-        players[pid].angle = t.startAngle; players[pid].vx = 0; players[pid].vy = 0; players[pid].yawRate = 0;
-        players[pid].lap = 0; players[pid].cp = false; players[pid].finished = false; players[pid].totalTime = 0; 
-        players[pid].lapStartTime = performance.now(); players[pid].currentLapTime = 0; players[pid].bestLap = Infinity; players[pid].lastLap = 0;
-        players[pid].targetX = players[pid].x; players[pid].targetY = players[pid].y; players[pid].targetAngle = players[pid].angle;
-        players[pid].fuel = vehiclePresets[players[pid].presetId]?.fuelCap || 100;
-        players[pid].gear = 0; players[pid].rpm = 1000; players[pid].clutchDump = 0; players[pid].prevThrottle = 0; players[pid].shiftTimer = 0;
+        let p = players[pid];
+        if (!p) return;
+        let slot = gridSlot(index, t);
+        p.x = slot.x;
+        p.y = slot.y;
+        p.prevX = slot.x;
+        p.prevY = slot.y;
+        p.angle = slot.angle;
+        p.vx = 0;
+        p.vy = 0;
+        p.yawRate = 0;
+        p.lap = 0;
+        p.cp = false;
+        p.finished = false;
+        p.totalTime = 0;
+        p.lapStartTime = performance.now();
+        p.currentLapTime = 0;
+        p.bestLap = Infinity;
+        p.lastLap = 0;
+        p.targetX = slot.x;
+        p.targetY = slot.y;
+        p.targetAngle = slot.angle;
+        p.fuel = vehiclePresets[p.presetId]?.fuelCap || 100;
+        p.gear = 0;
+        p.rpm = 1000;
+        p.clutchDump = 0;
+        p.prevThrottle = 0;
+        p.shiftTimer = 0;
+        p.gridLockUntil = performance.now() + 500;
     });
 }
 
@@ -828,7 +865,10 @@ function enterGame() {
         placeFieldOnGrid();
     }
     resize();
-    requestAnimationFrame(resize);
+    requestAnimationFrame(() => {
+        resize();
+        if (isHost && raceState < 0) placeFieldOnGrid();
+    });
     if (gameLoopId) cancelAnimationFrame(gameLoopId);
     gameLoopId = requestAnimationFrame(update);
     if (window.setGamePresence) {
@@ -1713,7 +1753,7 @@ function update() {
             let surfaceMu = preset.grip * serverSettings.grip; let rollingResistance = preset.roll;
             if (onCurbs) surfaceMu *= 0.85; else if (onSand) { surfaceMu *= 0.4; rollingResistance = 0.35; } else if (!onAsphalt) { surfaceMu *= 0.55; rollingResistance = 0.15; }
 
-            if (!inBounds && dt > 0) {
+            if (!inBounds && dt > 0 && now >= (p.gridLockUntil || 0)) {
                 p.x = p.prevX; p.y = p.prevY; let nx = 0, ny = 0;
                 for (let r = 20; r <= 80; r += 20) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); if (ctx.isPointInStroke(track.path, p.x + r, p.y)) nx += 1; if (ctx.isPointInStroke(track.path, p.x - r, p.y)) nx -= 1; if (ctx.isPointInStroke(track.path, p.x, p.y + r)) ny += 1; if (ctx.isPointInStroke(track.path, p.x, p.y - r)) ny -= 1; ctx.restore(); if (nx !== 0 || ny !== 0) break; }
                 let nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = -Math.sign(p.vx); ny = -Math.sign(p.vy); nLen = Math.hypot(nx, ny); if (nLen === 0) { nx = 1; ny = 0; nLen = 1; } }
@@ -2149,14 +2189,10 @@ function update() {
         ctx.save(); ctx.translate(track.startX, track.startY); ctx.rotate(track.startAngle);
         let cbW = 10; ctx.fillStyle = '#fff'; for(let r=-8; r<8; r++) { for(let c=0; c<4; c++) { if((r+c)%2===0) ctx.fillRect(-c*cbW, r*cbW, cbW, cbW); } }
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
-        for(let idx=0; idx<Object.keys(players).length; idx++) { 
-            let row = Math.floor(idx / 2); let col = idx % 2 === 0 ? 1 : -1; 
-            
-            // Variablene her MÅ matche tallene i assignGridPositions
-            let spacing = 200, lateral = 40; 
-            
-            let gx = -(row * spacing + 60); let gy = (col * lateral); 
-            ctx.beginPath(); ctx.moveTo(gx + 20, gy - 12); ctx.lineTo(gx - 20, gy - 12); ctx.lineTo(gx - 20, gy + 12); ctx.lineTo(gx + 20, gy + 12); ctx.stroke(); 
+        for (let idx = 0; idx < Object.keys(players).length; idx++) {
+            let row = Math.floor(idx / 2); let col = idx % 2 === 0 ? 1 : -1;
+            let gx = -(row * 200 + 60); let gy = (col * 40);
+            ctx.beginPath(); ctx.moveTo(gx + 20, gy - 12); ctx.lineTo(gx - 20, gy - 12); ctx.lineTo(gx - 20, gy + 12); ctx.lineTo(gx + 20, gy + 12); ctx.stroke();
         }
         ctx.restore();
 
