@@ -129,7 +129,10 @@ window.playerPresence = {
         }
 
         let me = (playerProfile.getTag() || '').toLowerCase();
-        let others = this.mergeRows(rows).filter(r => (r.gamer_tag || '').toLowerCase() !== me);
+        let others = this.mergeRows(rows).filter(r => {
+            let tag = (r.gamer_tag || '').toLowerCase();
+            return tag && tag !== me && !(window.isNoiseGamerTag && window.isNoiseGamerTag(r.gamer_tag));
+        });
 
         if (hint) {
             let dirState = window.playerDirectory ? playerDirectory.state : 'idle';

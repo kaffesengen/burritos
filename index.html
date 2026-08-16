@@ -22,6 +22,7 @@
     <script src="waypoints.js" defer></script>
     <script src="audio.js" defer></script>
     <script src="vehicles.js" defer></script>
+    <script src="vehicle-garage.js" defer></script>
     <script src="app.js" defer></script>
 </head>
 <body>
@@ -242,7 +243,7 @@
 
         <p id="player-count" class="menu-player-count">Spillere i lobby: 1</p>
         <ul id="host-player-list" class="lobby-player-list"></ul>
-        <p class="tourney-hint">Spillere velger navn, bil og farge i panelet under. Dette låses når turneringen starter.</p>
+        <p class="tourney-hint">Velg bil i garasjen under. Dette låses når turneringen starter.</p>
         <div class="lobby-actions">
             <button class="btn btn-green" id="btn-enter-game">Start turnering</button>
             <button type="button" class="btn btn-back" id="btn-host-back">← Tilbake</button>
@@ -256,7 +257,7 @@
         <div id="joiner-tourney-summary" class="tourney-summary">Venter på vertens oppsett…</div>
         <p class="menu-player-count">Spillere i lobby</p>
         <ul id="joiner-player-list" class="lobby-player-list"></ul>
-        <p class="tourney-hint">Velg navn, bil og farge i panelet under. Det kan ikke endres etter start.</p>
+        <p class="tourney-hint">Velg bil i garasjen under. Det kan ikke endres etter start.</p>
         <p id="joiner-wait-msg" class="tourney-hint">Venter på at verten starter turneringen…</p>
         <div class="lobby-actions">
             <button type="button" class="btn btn-back" id="btn-joiner-back">← Tilbake</button>
@@ -264,6 +265,21 @@
     </div>
     
     <div id="status-msg" style="margin-top: 20px; color: #e74c3c; font-size: 12px;"></div>
+
+    <div id="vehicle-garage" class="vehicle-garage" style="display: none;">
+        <div class="garage-head">
+            <div>
+                <p class="menu-kicker">Garasje</p>
+                <h3>Velg kjøretøy</h3>
+            </div>
+            <label class="garage-color">
+                <span>Farge</span>
+                <input type="color" id="garage-color" value="#3498db">
+            </label>
+        </div>
+        <div id="vehicle-garage-grid" class="garage-grid"></div>
+        <div id="vehicle-garage-footer" class="garage-footer"></div>
+    </div>
 </div>
 
 <div id="canvas-container">
@@ -458,7 +474,7 @@
     </div>
 </div>
 
-<div id="ui-panel">
+<div id="ui-panel" style="display: none;">
     <div class="control">
         <label>Bytt Kjøretøy:</label>
         <select id="preset-selector">

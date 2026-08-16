@@ -1,5 +1,12 @@
 const LOBBY_DIR_ID = 'burritos-dir-v1';
 
+window.isNoiseGamerTag = function (tag) {
+    let t = String(tag || '').trim().replace(/^@/, '').toLowerCase();
+    if (!t) return false;
+    if (t === 'menytest' || t === 'henytest') return true;
+    return t.length <= 16 && /test$/.test(t);
+};
+
 window.playerDirectory = {
     hubPeer: null,
     clientPeer: null,
@@ -16,7 +23,7 @@ window.playerDirectory = {
 
     myEntry() {
         let tag = window.playerProfile && window.playerProfile.getTag ? window.playerProfile.getTag() : '';
-        if (!tag) return null;
+        if (!tag || window.isNoiseGamerTag(tag)) return null;
         return {
             gamer_tag: tag,
             status: (window.playerPresence && window.playerPresence.status) || 'online',
@@ -39,7 +46,7 @@ window.playerDirectory = {
         let me = ((window.playerProfile && window.playerProfile.getTag()) || '').toLowerCase();
         return this.roster.filter(r => {
             let tag = (r.gamer_tag || '').toLowerCase();
-            return tag !== me && tag.indexOf(q) !== -1;
+            return tag !== me && tag.indexOf(q) !== -1 && !window.isNoiseGamerTag(r.gamer_tag);
         });
     },
 
@@ -169,6 +176,7 @@ window.playerDirectory = {
 
     upsert(player, connId) {
         if (!player || !player.gamer_tag) return;
+        if (window.isNoiseGamerTag(player.gamer_tag)) return;
         let tag = String(player.gamer_tag);
         let next = {
             gamer_tag: tag,

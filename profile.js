@@ -229,6 +229,7 @@ window.playerProfile = {
         if (codeShow) codeShow.textContent = this.data.secret || '—';
         this.syncNameField();
         this.showBox('mode-selection');
+        if (window.vehicleGarage) window.vehicleGarage.setVisible(false);
         if (window.playerDirectory) window.playerDirectory.start();
         if (window.playerPresence) window.playerPresence.onVisibleMenu();
         if (window.playerFriends) window.playerFriends.onVisibleMenu();

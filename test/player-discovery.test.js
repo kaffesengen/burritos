@@ -3,11 +3,11 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
-function loadDirectory() {
+function loadDirectorySandbox(tag) {
     const code = fs.readFileSync(path.join(__dirname, '..', 'directory.js'), 'utf8');
     const windowObj = {
         addEventListener() {},
-        playerProfile: { getTag: () => 'Kaffesengen' }
+        playerProfile: { getTag: () => tag || 'Kaffesengen' }
     };
     const sandbox = {
         window: windowObj,
@@ -20,7 +20,11 @@ function loadDirectory() {
     };
     vm.createContext(sandbox);
     vm.runInContext(code, sandbox);
-    return sandbox.window.playerDirectory;
+    return sandbox.window;
+}
+
+function loadDirectory() {
+    return loadDirectorySandbox().playerDirectory;
 }
 
 function loadPresence() {
@@ -59,6 +63,19 @@ assert.strictEqual(dir.find('@Firez')[0].gamer_tag, 'Firez');
 assert.strictEqual(dir.find('xyz').length, 0);
 assert.strictEqual(dir.find('kaffe').length, 0);
 
+const noiseWin = loadDirectorySandbox();
+assert.strictEqual(noiseWin.isNoiseGamerTag('MenyTest'), true);
+assert.strictEqual(noiseWin.isNoiseGamerTag('@HenyTest'), true);
+assert.strictEqual(noiseWin.isNoiseGamerTag('Firez'), false);
+assert.strictEqual(noiseWin.isNoiseGamerTag('Kaffesengen'), false);
+noiseWin.playerDirectory.upsert({ gamer_tag: 'MenyTest', status: 'hosting', peer_id: 'x' }, 'c-test');
+noiseWin.playerDirectory.upsert({ gamer_tag: 'Firez', status: 'online' }, 'c-ok');
+assert.strictEqual(noiseWin.playerDirectory.roster.some(r => r.gamer_tag === 'MenyTest'), false);
+assert.strictEqual(noiseWin.playerDirectory.roster.some(r => r.gamer_tag === 'Firez'), true);
+noiseWin.playerDirectory.roster.push({ gamer_tag: 'MenyTest', status: 'hosting', peer_id: 'old' });
+assert.strictEqual(noiseWin.playerDirectory.find('meny').length, 0);
+assert.strictEqual(loadDirectorySandbox('MenyTest').playerDirectory.myEntry(), null);
+
 dir.roster = [];
 dir.upsert({ gamer_tag: 'Firez', status: 'online', peer_id: 'p1' }, 'c1');
 dir.upsert({ gamer_tag: 'firez', status: 'hosting', peer_id: 'p2' }, 'c1');
@@ -77,6 +94,16 @@ const firez = merged.find(r => r.gamer_tag.toLowerCase() === 'firez');
 assert.ok(firez);
 assert.strictEqual(firez.status, 'hosting');
 assert.strictEqual(firez.peer_id, 'host-1');
+
+const visible = presence.mergeRows([
+    { gamer_tag: 'Firez', status: 'online' },
+    { gamer_tag: 'MenyTest', status: 'hosting', peer_id: 'test-host' }
+]).filter(r => {
+    let tag = (r.gamer_tag || '').toLowerCase();
+    return tag && tag !== 'kaffesengen' && !(noiseWin.isNoiseGamerTag && noiseWin.isNoiseGamerTag(r.gamer_tag));
+});
+assert.strictEqual(visible.length, 1);
+assert.strictEqual(visible[0].gamer_tag, 'Firez');
 
 class MockConn {
     constructor(peerId) {

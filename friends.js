@@ -164,10 +164,12 @@ window.playerFriends = {
     mergeSearch(remoteRows, liveRows) {
         let byTag = {};
         (remoteRows || []).forEach(r => {
-            if (r && r.gamer_tag) byTag[r.gamer_tag.toLowerCase()] = r;
+            if (r && r.gamer_tag && !(window.isNoiseGamerTag && window.isNoiseGamerTag(r.gamer_tag))) {
+                byTag[r.gamer_tag.toLowerCase()] = r;
+            }
         });
         (liveRows || []).forEach(r => {
-            if (!r || !r.gamer_tag) return;
+            if (!r || !r.gamer_tag || (window.isNoiseGamerTag && window.isNoiseGamerTag(r.gamer_tag))) return;
             let key = r.gamer_tag.toLowerCase();
             if (!byTag[key]) byTag[key] = { gamer_tag: r.gamer_tag, relation: 'none', status: r.status, peer_id: r.peer_id };
             else {
