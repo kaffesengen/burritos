@@ -6,6 +6,9 @@
     <title>Avansert Fysikkmotor</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js" defer></script>
+    <script src="profile.js" defer></script>
     <script src="ai.js" defer></script>
     <script src="waypoints.js" defer></script>
     <script src="audio.js" defer></script>
@@ -18,10 +21,71 @@
     <button type="button" id="btn-lobby-back" class="btn btn-back">← Tilbake</button>
     <h1>Avansert Fysikkmotor</h1>
     
-    <div class="lobby-box" id="mode-selection">
+    <div class="lobby-box" id="profile-setup" style="display: none;">
+        <h2 class="profile-heading">Opprett profil</h2>
+        <p class="tourney-hint">Velg en gamer-tag. Den brukes som navnet ditt i alle spill, og kan ikke byttes i en pågående turnering.</p>
         <div class="field">
-            <label for="player-name">Ditt Førernavn:</label>
-            <input type="text" id="player-name" class="input-text" placeholder="Skriv inn navn" value="" maxlength="15" style="margin-top: 0; text-align: center; font-weight: bold; font-size: 16px;">
+            <label for="profile-tag-input">Gamer-tag</label>
+            <input type="text" id="profile-tag-input" class="input-text" placeholder="f.eks. Joar" maxlength="15" autocomplete="username" style="margin-top: 0; text-align: center; font-weight: bold; font-size: 16px;">
+        </div>
+        <button type="button" class="btn btn-green" id="btn-profile-create">Opprett profil</button>
+        <p id="profile-setup-error" class="profile-error"></p>
+
+        <div class="profile-or">— Har du allerede profil? —</div>
+        <div class="field">
+            <label for="profile-login-tag">Gamer-tag</label>
+            <input type="text" id="profile-login-tag" class="input-text" maxlength="15" style="margin-top: 0;">
+        </div>
+        <div class="field">
+            <label for="profile-login-code">Gjenopprettingskode</label>
+            <input type="text" id="profile-login-code" class="input-text" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="24" autocomplete="off" style="margin-top: 0; text-align: center; letter-spacing: 1px;">
+        </div>
+        <button type="button" class="btn" id="btn-profile-login">Logg inn</button>
+        <p id="profile-login-error" class="profile-error"></p>
+
+        <details class="profile-server">
+            <summary>Valgfritt: unik tag på tvers av venner</summary>
+            <p class="tourney-hint">Opprett et Supabase-prosjekt, kjør <code>supabase-schema.sql</code> i SQL Editor, og lim inn URL + anon-nøkkel. Uten dette gjelder taggen bare på denne enheten.</p>
+            <div class="field">
+                <label for="sb-url">Supabase URL</label>
+                <input type="text" id="sb-url" class="input-text" placeholder="https://xxxx.supabase.co" style="margin-top: 0;">
+            </div>
+            <div class="field">
+                <label for="sb-key">Anon public key</label>
+                <input type="text" id="sb-key" class="input-text" placeholder="eyJ..." style="margin-top: 0;">
+            </div>
+            <button type="button" class="btn btn-back" id="btn-save-supabase">Lagre server</button>
+            <p id="profile-server-msg" class="tourney-hint"></p>
+        </details>
+    </div>
+
+    <div class="lobby-box" id="profile-recovery" style="display: none;">
+        <h2 class="profile-heading">Lagre gjenopprettingskoden</h2>
+        <p class="tourney-hint">Denne koden er den eneste måten å hente profilen på en ny enhet. Vi viser den bare nå.</p>
+        <div id="profile-recovery-code" class="recovery-code"></div>
+        <button type="button" class="btn" id="btn-copy-recovery">Kopier kode</button>
+        <button type="button" class="btn btn-green" id="btn-recovery-done">Jeg har lagret koden</button>
+    </div>
+
+    <div class="lobby-box" id="profile-manage" style="display: none;">
+        <h2 class="profile-heading">Profil</h2>
+        <p id="profile-manage-tag" class="profile-tag-big">@</p>
+        <p id="profile-manage-sync" class="tourney-hint"></p>
+        <p class="tourney-hint">Gjenopprettingskode for denne enheten:</p>
+        <div id="profile-manage-code" class="recovery-code"></div>
+        <button type="button" class="btn btn-red" id="btn-profile-logout">Logg ut på denne enheten</button>
+        <p class="tourney-hint">Utlogging sletter ikke taggen på serveren. Du trenger koden for å logge inn igjen.</p>
+    </div>
+
+    <div class="lobby-box" id="mode-selection" style="display: none;">
+        <input type="hidden" id="player-name" value="" maxlength="15">
+        <div class="profile-badge">
+            <div class="profile-badge-text">
+                <span class="profile-label">Gamer-tag</span>
+                <strong id="profile-tag-display">@</strong>
+                <span id="profile-sync-state" class="tourney-hint"></span>
+            </div>
+            <button type="button" id="btn-profile-manage" class="btn btn-back">Profil</button>
         </div>
 
         <button class="btn" id="btn-sandbox-mode" style="background: #8e44ad; margin-bottom: 10px;">Spill Alene (Sandbox)</button>

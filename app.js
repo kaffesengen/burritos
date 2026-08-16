@@ -231,9 +231,24 @@ function getTrackLabel(id) {
     return id;
 }
 
+function getPlayerName(fallback) {
+    let tag = window.playerProfile && window.playerProfile.getTag ? window.playerProfile.getTag() : '';
+    if (tag) return tag;
+    let field = (document.getElementById('player-name')?.value || '').trim();
+    if (field) return field.substring(0, 15);
+    return fallback || 'Gjest';
+}
+
+function requireProfile() {
+    if (window.playerProfile && window.playerProfile.isReady()) return true;
+    if (window.playerProfile) window.playerProfile.render();
+    showMsg('Opprett en profil med gamer-tag først.');
+    return false;
+}
+
 function collectLocalProfile() {
     return {
-        name: ((document.getElementById('player-name')?.value || 'Gjest').trim() || 'Gjest').substring(0, 15),
+        name: getPlayerName('Gjest'),
         preset: document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar',
         color: document.getElementById('ingame-car-color')?.value || document.getElementById('car-color')?.value || '#3498db'
     };
@@ -596,6 +611,11 @@ function leaveLobbyScreen() {
         exitToMenu();
         return;
     }
+    let manage = document.getElementById('profile-manage');
+    if (manage && manage.style.display === 'block') {
+        if (window.playerProfile) window.playerProfile.render();
+        return;
+    }
     if (hostConnection) { hostConnection.close(); hostConnection = null; }
     for (let id in connections) { connections[id].close(); delete connections[id]; }
     if (peer) { peer.destroy(); peer = null; }
@@ -609,10 +629,13 @@ function leaveLobbyScreen() {
     let ss = document.getElementById('splitscreen-setup'); if (ss) ss.style.display = 'none';
     document.getElementById('host-ui').style.display = 'none';
     let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
-    document.getElementById('mode-selection').style.display = 'block';
-    setLobbyBackVisible(false);
     let pc = document.getElementById('player-count'); if (pc) pc.innerText = 'Spillere i lobby: 1';
     showMsg('');
+    if (window.playerProfile) window.playerProfile.render();
+    else {
+        document.getElementById('mode-selection').style.display = 'block';
+        setLobbyBackVisible(false);
+    }
 }
 
 function enterGame() {
@@ -672,6 +695,7 @@ function renderSplitScreenCards() {
 let btnSSMode = document.getElementById('btn-splitscreen-mode');
 if (btnSSMode) {
     btnSSMode.addEventListener('click', () => {
+        if (!requireProfile()) return;
         document.getElementById('mode-selection').style.display = 'none';
         document.getElementById('splitscreen-setup').style.display = 'block';
         setLobbyBackVisible(true);
@@ -822,15 +846,18 @@ function exitToMenu() {
     document.getElementById('podium-overlay').style.display = 'none';
     document.getElementById('splitscreen-setup').style.display = 'none';
     document.getElementById('lobby').style.display = 'flex';
-    document.getElementById('mode-selection').style.display = 'block';
     document.getElementById('host-ui').style.display = 'none';
     let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
     document.getElementById('host-actions').style.display = 'none';
     document.getElementById('sandbox-controls').style.display = 'none';
-    setLobbyBackVisible(false);
     
     let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: 1`;
     showMsg('');
+    if (window.playerProfile) window.playerProfile.render();
+    else {
+        document.getElementById('mode-selection').style.display = 'block';
+        setLobbyBackVisible(false);
+    }
 }
 
 ['grip', 'power', 'mass', 'steering', 'caster'].forEach(id => {
@@ -841,8 +868,9 @@ function exitToMenu() {
 let btnSb = document.getElementById('btn-sandbox-mode');
 if (btnSb) {
     btnSb.addEventListener('click', () => {
+        if (!requireProfile()) return;
         myId = 'sandbox'; isHost = true; initLocalPlayer(myId);
-        let pName = document.getElementById('player-name')?.value || "Meg";
+        let pName = getPlayerName("Meg");
         let selPreset = document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar';
         players[myId] = createPlayerRecord(myId, selPreset, pName);
         let hl = document.getElementById('host-laps'); totalLaps = hl ? parseInt(hl.value) : 3;
@@ -857,6 +885,7 @@ if (btnSb) {
 let btnHost = document.getElementById('btn-host-mode');
 if (btnHost) {
     btnHost.addEventListener('click', () => {
+        if (!requireProfile()) return;
         let mSel = document.getElementById('mode-selection'); if(mSel) mSel.style.display = 'none'; 
         let hUi = document.getElementById('host-ui'); if(hUi) hUi.style.display = 'block'; 
         setLobbyBackVisible(true);
@@ -867,7 +896,7 @@ if (btnHost) {
             myId = id; isHost = true; initLocalPlayer(myId);
             let hostInput = document.getElementById('my-host-id'); if(hostInput) hostInput.value = id; 
             showMsg('');
-            let pName = document.getElementById('player-name')?.value || "Host";
+            let pName = getPlayerName("Host");
             let selPreset = document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar';
             let selColor = document.getElementById('ingame-car-color')?.value || document.getElementById('car-color')?.value || '#3498db';
             players[myId] = createPlayerRecord(myId, selPreset, pName, selColor);
@@ -1028,6 +1057,7 @@ if (btnStart) {
 }
 
 function initJoiner(hostId) {
+    if (!requireProfile()) return;
     let mSel = document.getElementById('mode-selection'); if (mSel) mSel.style.display = 'none';
     let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'block';
     setLobbyBackVisible(true);
@@ -1037,7 +1067,7 @@ function initJoiner(hostId) {
         myId = id; isHost = false; initLocalPlayer(myId); hostConnection = peer.connect(hostId);
         hostConnection.on('open', () => {
             showMsg('Tilkoblet! Venter på host...');
-            let pName = document.getElementById('player-name')?.value || "Spiller";
+            let pName = getPlayerName("Spiller");
             let selPreset = document.getElementById('ingame-preset-selector')?.value || document.getElementById('preset-selector')?.value || 'jaguar';
             let selColor = document.getElementById('ingame-car-color')?.value || document.getElementById('car-color')?.value || '#3498db';
             players[myId] = createPlayerRecord(myId, selPreset, pName, selColor);

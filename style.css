@@ -14,6 +14,20 @@ canvas { display: block; width: 100%; height: 100%; }
 .field { text-align: left; margin-bottom: 16px; }
 .field label { display: block; color: #aaa; font-size: 12px; margin-bottom: 6px; }
 
+.profile-heading { color: #fff; font-size: 20px; margin-bottom: 10px; }
+.profile-error { color: #e74c3c; font-size: 12px; min-height: 16px; margin-top: 8px; }
+.profile-or { color: #777; margin: 22px 0 14px; font-size: 12px; }
+.profile-server { margin-top: 22px; text-align: left; border-top: 1px solid #333; padding-top: 12px; }
+.profile-server summary { color: #aaa; font-size: 12px; cursor: pointer; margin-bottom: 10px; }
+.profile-server code { color: #f1c40f; }
+.recovery-code { background: #111; border: 1px dashed #555; border-radius: 6px; padding: 14px 10px; font-family: monospace; font-size: 16px; letter-spacing: 1px; color: #f1c40f; margin: 12px 0; word-break: break-all; }
+.profile-tag-big { color: #f1c40f; font-size: 28px; font-weight: 800; margin: 8px 0 12px; }
+.profile-badge { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 12px; margin-bottom: 16px; text-align: left; }
+.profile-badge-text { min-width: 0; }
+.profile-label { display: block; color: #888; font-size: 11px; margin-bottom: 2px; }
+#profile-tag-display { display: block; color: #f1c40f; font-size: 20px; }
+#btn-profile-manage { width: auto; margin-top: 0; padding: 8px 12px; flex-shrink: 0; }
+
 .tournament-config { margin-top: 16px; border-top: 1px solid #444; padding-top: 16px; text-align: left; }
 .tournament-config h3 { color: #f1c40f; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; text-align: center; }
 .tourney-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
