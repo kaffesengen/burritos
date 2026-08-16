@@ -331,6 +331,8 @@ button.menu-tile {
 .menu-inline-field .menu-field-label { margin: 0; }
 .menu-inline-field .input-text { width: 88px; margin-top: 0; text-align: center; }
 .menu-player-count { margin-top: 18px; font-size: 13px; color: var(--menu-cyan); font-weight: 600; }
+.menu-screen .input-text { margin-top: 0; }
+#my-host-id { text-align: center; font-family: ui-monospace, monospace; font-weight: 700; letter-spacing: 0.04em; }
 #lobby .menu-screen .btn {
     font-family: "Barlow Condensed", sans-serif;
     text-transform: uppercase;
