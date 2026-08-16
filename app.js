@@ -598,6 +598,7 @@ function returnToLobbyKeepSession() {
         setLobbyBackVisible(true);
         if (typeof setGamePresence === 'function') setGamePresence('online');
     }
+    if (window.audioManager) window.audioManager.syncMenuMusic();
 }
 
 const statusMsg = document.getElementById('status-msg');
@@ -660,6 +661,7 @@ function enterGame() {
         else if (isHost && myId) setGamePresence('in_game', myId);
         else setGamePresence('in_game', null);
     }
+    if (window.audioManager) window.audioManager.syncMenuMusic();
 }
 
 function renderSplitScreenCards() {
@@ -865,6 +867,7 @@ function exitToMenu() {
         document.getElementById('mode-selection').style.display = 'block';
         setLobbyBackVisible(false);
     }
+    if (window.audioManager) window.audioManager.syncMenuMusic();
 }
 
 ['grip', 'power', 'mass', 'steering', 'caster'].forEach(id => {

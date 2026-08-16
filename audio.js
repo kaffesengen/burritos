@@ -11,6 +11,10 @@ class AudioManager {
         this.noiseBuffer = null;
         
         this.lastLog = 0;
+        this.menuTrack = null;
+        this.menuWanted = false;
+        this.menuFade = null;
+        this.menuVolume = 0.38;
     }
 
     init() {
@@ -30,6 +34,61 @@ class AudioManager {
                 console.error("[AUDIO DEBUG] AudioContext blokkert.", e);
             });
         }
+        this.syncMenuMusic();
+    }
+
+    ensureMenuTrack() {
+        if (this.menuTrack) return this.menuTrack;
+        let a = new Audio('assets/audio/menu_music_02.mp3');
+        a.loop = true;
+        a.preload = 'auto';
+        a.volume = 0;
+        this.menuTrack = a;
+        return a;
+    }
+
+    lobbyVisible() {
+        let lobby = document.getElementById('lobby');
+        if (!lobby) return false;
+        return window.getComputedStyle(lobby).display !== 'none';
+    }
+
+    fadeMenuTo(target, done) {
+        if (this.menuFade) { clearInterval(this.menuFade); this.menuFade = null; }
+        let a = this.menuTrack;
+        if (!a) { if (done) done(); return; }
+        let step = target > a.volume ? 0.04 : -0.06;
+        this.menuFade = setInterval(() => {
+            let next = a.volume + step;
+            if ((step > 0 && next >= target) || (step < 0 && next <= target)) {
+                a.volume = Math.max(0, Math.min(1, target));
+                clearInterval(this.menuFade);
+                this.menuFade = null;
+                if (done) done();
+                return;
+            }
+            a.volume = next;
+        }, 40);
+    }
+
+    playMenuMusic() {
+        this.menuWanted = true;
+        let a = this.ensureMenuTrack();
+        a.play().catch(() => {});
+        this.fadeMenuTo(this.menuVolume);
+    }
+
+    stopMenuMusic() {
+        this.menuWanted = false;
+        if (!this.menuTrack) return;
+        this.fadeMenuTo(0, () => {
+            if (!this.menuWanted && this.menuTrack) this.menuTrack.pause();
+        });
+    }
+
+    syncMenuMusic() {
+        if (this.lobbyVisible()) this.playMenuMusic();
+        else this.stopMenuMusic();
     }
 
     makeDistortionCurve(amount) {
@@ -424,3 +483,8 @@ class AudioManager {
     }
 }
 window.audioManager = new AudioManager();
+document.addEventListener('visibilitychange', () => {
+    if (!window.audioManager) return;
+    if (document.hidden) window.audioManager.stopMenuMusic();
+    else window.audioManager.syncMenuMusic();
+});
