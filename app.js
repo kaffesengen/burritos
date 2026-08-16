@@ -827,7 +827,8 @@ function enterGame() {
         let hActions = document.getElementById('host-actions'); if(hActions) hActions.style.display = 'flex';
         placeFieldOnGrid();
     }
-    resize(); 
+    resize();
+    requestAnimationFrame(resize);
     if (gameLoopId) cancelAnimationFrame(gameLoopId);
     gameLoopId = requestAnimationFrame(update);
     if (window.setGamePresence) {
@@ -1173,7 +1174,11 @@ if (btnShare) {
 
 let btnEnter = document.getElementById('btn-enter-game');
 if (btnEnter) { 
-    btnEnter.addEventListener('click', () => { 
+    btnEnter.addEventListener('click', () => {
+        if (!myId || !players[myId]) {
+            showMsg('Venter på Host ID. Prøv igjen om et øyeblikk.');
+            return;
+        }
         startTournamentSession();
         let hActions = document.getElementById('host-actions');
         if (hActions) hActions.style.display = 'flex';
@@ -2092,7 +2097,7 @@ function update() {
     }
 
     ctx.setTransform(1,0,0,1,0,0); 
-    ctx.fillStyle = '#000'; 
+    ctx.fillStyle = '#2d4c1e';
     ctx.fillRect(0,0,canvas.width,canvas.height); 
 
     let cw = canvas.width; let ch = canvas.height;
