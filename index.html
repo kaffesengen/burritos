@@ -15,6 +15,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js" defer></script>
     <script src="profile.js" defer></script>
+    <script src="directory.js" defer></script>
     <script src="presence.js" defer></script>
     <script src="friends.js" defer></script>
     <script src="ai.js" defer></script>
@@ -66,9 +67,8 @@
         <button type="button" class="btn" id="btn-profile-login">Logg inn</button>
         <p id="profile-login-error" class="profile-error"></p>
 
-        <details class="profile-server">
-            <summary>Valgfritt: unik tag på tvers av venner</summary>
-            <p class="tourney-hint">Opprett et Supabase-prosjekt, kjør <code>supabase-schema.sql</code> i SQL Editor, og lim inn URL + anon-nøkkel. Uten dette gjelder taggen bare på denne enheten.</p>
+        <div class="profile-server" id="profile-server-box">
+            <p class="tourney-hint">Profiler, søk og «Pålogget nå» går via Supabase. Hvis feltene under er tomme, må URL og anon-nøkkel fylles inn én gang (samme verdier for alle spillere).</p>
             <div class="field">
                 <label for="sb-url">Supabase URL</label>
                 <input type="text" id="sb-url" class="input-text" placeholder="https://xxxx.supabase.co" style="margin-top: 0;">
@@ -79,7 +79,7 @@
             </div>
             <button type="button" class="btn btn-back" id="btn-save-supabase">Lagre server</button>
             <p id="profile-server-msg" class="tourney-hint"></p>
-        </details>
+        </div>
     </div>
 
     <div class="lobby-box" id="profile-recovery" style="display: none;">
