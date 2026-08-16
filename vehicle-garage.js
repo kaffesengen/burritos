@@ -70,6 +70,18 @@ window.vehicleGarage = {
         });
     },
 
+    carName(id) {
+        let meta = this.catalog.find(c => c.id === id);
+        return meta ? meta.name : id;
+    },
+
+    paintThumbs(root) {
+        if (!root) return;
+        root.querySelectorAll('canvas[data-car]').forEach(canvas => {
+            this.drawPreview(canvas, canvas.getAttribute('data-car'), canvas.getAttribute('data-color') || '#3498db');
+        });
+    },
+
     drawPreview(canvas, id, color) {
         if (!canvas || !window.Vehicles || !window.vehiclePresets) return;
         let pre = vehiclePresets[id];

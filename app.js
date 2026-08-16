@@ -477,16 +477,32 @@ function lobbyPlayerPayload() {
     return Object.values(players).map(p => ({ id: p.id, n: p.name, c: p.color, presetId: p.presetId }));
 }
 
+function escapeLobbyText(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+}
+
 function renderLobbyPlayers(list) {
     let rows = list || lobbyPlayerPayload();
     let html = rows.map(p => {
         let name = p.n || p.name || 'Gjest';
         let color = p.c || p.color || '#3498db';
-        return `<li><span class="lobby-dot" style="background:${color}"></span>${name}</li>`;
+        let preset = p.presetId || 'jaguar';
+        let carName = window.vehicleGarage ? vehicleGarage.carName(preset) : preset;
+        return `<li>
+            <canvas class="lobby-car-thumb" width="88" height="48" data-car="${escapeLobbyText(preset)}" data-color="${escapeLobbyText(color)}"></canvas>
+            <div class="lobby-player-meta">
+                <strong>${escapeLobbyText(name)}</strong>
+                <span>${escapeLobbyText(carName)}</span>
+            </div>
+        </li>`;
     }).join('');
     ['host-player-list', 'joiner-player-list'].forEach(id => {
         let el = document.getElementById(id);
-        if (el) el.innerHTML = html || '<li style="color:#666;">Ingen spillere ennå</li>';
+        if (!el) return;
+        el.innerHTML = html || '<li style="color:#666;">Ingen spillere ennå</li>';
+        if (window.vehicleGarage) vehicleGarage.paintThumbs(el);
     });
 }
 

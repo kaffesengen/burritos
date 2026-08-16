@@ -33,5 +33,7 @@ const mx5 = garage.stats('mx5');
 assert.ok(mx5.accel > f1.accel, 'MX-5 should be slower than F1');
 assert.ok(garage.catalog.length >= 20);
 assert.ok(garage.catalog.every(c => c.id && c.name && c.maker));
+assert.strictEqual(garage.carName('r34'), 'Nissan Skyline R34');
+assert.strictEqual(garage.carName('unknown-car'), 'unknown-car');
 
 console.log('vehicle-garage tests ok', jag.accel, f1.accel, mx5.accel);

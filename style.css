@@ -371,7 +371,18 @@ button.menu-tile {
 .track-slot-row span { color: var(--menu-gold); font-weight: bold; width: 18px; font-size: 12px; flex-shrink: 0; }
 .track-slot-row select { margin-top: 0; padding: 8px; font-size: 13px; }
 .lobby-player-list { list-style: none; margin: 6px 0 10px; text-align: left; }
-.lobby-player-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; color: #ddd; border-bottom: 1px dotted rgba(255,255,255,0.08); }
+.lobby-player-list li { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 13px; color: #ddd; border-bottom: 1px dotted rgba(255,255,255,0.08); }
+.lobby-car-thumb {
+    width: 72px;
+    height: 40px;
+    border-radius: 7px;
+    background: #12141a;
+    border: 1px solid var(--menu-line);
+    flex-shrink: 0;
+}
+.lobby-player-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lobby-player-meta strong { color: #fff; font-size: 14px; line-height: 1.2; }
+.lobby-player-meta span { color: var(--menu-muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lobby-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #000; flex-shrink: 0; }
 .tourney-summary { background: rgba(0, 0, 0, 0.28); border: 1px solid var(--menu-line); border-radius: 10px; padding: 12px; font-size: 12px; color: #ccc; text-align: left; line-height: 1.5; }
 .tourney-summary strong { color: var(--menu-gold); }
