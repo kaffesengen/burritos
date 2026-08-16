@@ -15,6 +15,7 @@ class AudioManager {
         this.menuWanted = false;
         this.menuFade = null;
         this.menuVolume = 0.38;
+        this.uiSounds = null;
     }
 
     init() {
@@ -89,6 +90,50 @@ class AudioManager {
     syncMenuMusic() {
         if (this.lobbyVisible()) this.playMenuMusic();
         else this.stopMenuMusic();
+    }
+
+    ensureUiSounds() {
+        if (this.uiSounds) return this.uiSounds;
+        this.uiSounds = {
+            hover: new Audio('assets/audio/hover.mp3'),
+            click: new Audio('assets/audio/click.mp3')
+        };
+        this.uiSounds.hover.preload = 'auto';
+        this.uiSounds.click.preload = 'auto';
+        this.uiSounds.hover.volume = 0.5;
+        this.uiSounds.click.volume = 0.6;
+        return this.uiSounds;
+    }
+
+    playUi(kind) {
+        this.ensureUiSounds();
+        if (kind === 'click') {
+            let a = this.uiSounds.click.cloneNode();
+            a.volume = this.uiSounds.click.volume;
+            a.play().catch(() => {});
+            return;
+        }
+        let a = this.uiSounds.hover;
+        a.currentTime = 0;
+        a.play().catch(() => {});
+    }
+
+    bindMenuUiSounds() {
+        let lobby = document.getElementById('lobby');
+        if (!lobby) return;
+        lobby.addEventListener('pointerover', e => {
+            if (e.pointerType === 'touch') return;
+            let next = e.target.closest('button, .menu-tile');
+            if (!next || !lobby.contains(next)) return;
+            let from = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('button, .menu-tile') : null;
+            if (next === from) return;
+            this.playUi('hover');
+        });
+        lobby.addEventListener('click', e => {
+            let btn = e.target.closest('button');
+            if (!btn || !lobby.contains(btn)) return;
+            this.playUi('click');
+        });
     }
 
     makeDistortionCurve(amount) {
@@ -483,6 +528,7 @@ class AudioManager {
     }
 }
 window.audioManager = new AudioManager();
+window.audioManager.bindMenuUiSounds();
 document.addEventListener('visibilitychange', () => {
     if (!window.audioManager) return;
     if (document.hidden) window.audioManager.stopMenuMusic();
