@@ -16,6 +16,8 @@ class AudioManager {
         this.menuFade = null;
         this.menuVolume = 0.38;
         this.uiSounds = null;
+        this.uiBuffers = { hover: null, click: null };
+        this.uiLoad = null;
         this.menuUnlockArmed = false;
         this.menuRetry = null;
     }
@@ -119,35 +121,50 @@ class AudioManager {
         else this.stopMenuMusic();
     }
 
-    ensureUiSounds() {
-        if (this.uiSounds) return this.uiSounds;
-        this.uiSounds = {
-            hover: new Audio('assets/audio/hover.mp3'),
-            click: new Audio('assets/audio/click.mp3')
-        };
-        this.uiSounds.hover.preload = 'auto';
-        this.uiSounds.click.preload = 'auto';
-        this.uiSounds.hover.volume = 0.5;
-        this.uiSounds.click.volume = 0.6;
-        return this.uiSounds;
+    loadUiBuffers() {
+        if (this.uiLoad) return this.uiLoad;
+        if (!this.ready) this.init();
+        if (!this.ctx) return Promise.resolve();
+        this.uiLoad = Promise.all(['hover', 'click'].map(async name => {
+            let res = await fetch('assets/audio/' + name + '.wav');
+            let raw = await res.arrayBuffer();
+            this.uiBuffers[name] = await this.ctx.decodeAudioData(raw.slice(0));
+        })).catch(() => {});
+        return this.uiLoad;
     }
 
     playUi(kind) {
-        this.ensureUiSounds();
-        if (kind === 'click') {
-            let a = this.uiSounds.click.cloneNode();
-            a.volume = this.uiSounds.click.volume;
-            a.play().catch(() => {});
+        if (!this.ready) this.init();
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+        let buffer = this.uiBuffers[kind];
+        if (buffer && this.ctx) {
+            let src = this.ctx.createBufferSource();
+            let gain = this.ctx.createGain();
+            src.buffer = buffer;
+            gain.gain.value = kind === 'click' ? 0.7 : 0.55;
+            src.connect(gain);
+            gain.connect(this.ctx.destination);
+            src.start(0);
             return;
         }
-        let a = this.uiSounds.hover;
-        a.currentTime = 0;
+        this.loadUiBuffers();
+        if (!this.uiSounds) {
+            this.uiSounds = {
+                hover: new Audio('assets/audio/hover.wav'),
+                click: new Audio('assets/audio/click.wav')
+            };
+            this.uiSounds.hover.volume = 0.55;
+            this.uiSounds.click.volume = 0.7;
+        }
+        let a = (kind === 'click' ? this.uiSounds.click : this.uiSounds.hover).cloneNode();
+        a.volume = kind === 'click' ? 0.7 : 0.55;
         a.play().catch(() => {});
     }
 
     bindMenuUiSounds() {
         let lobby = document.getElementById('lobby');
         if (!lobby) return;
+        this.loadUiBuffers();
         lobby.addEventListener('pointerover', e => {
             if (e.pointerType === 'touch') return;
             let next = e.target.closest('button, .menu-tile');
@@ -156,7 +173,7 @@ class AudioManager {
             if (next === from) return;
             this.playUi('hover');
         });
-        lobby.addEventListener('click', e => {
+        lobby.addEventListener('pointerdown', e => {
             let btn = e.target.closest('button');
             if (!btn || !lobby.contains(btn)) return;
             this.playUi('click');
@@ -556,6 +573,7 @@ class AudioManager {
 }
 window.audioManager = new AudioManager();
 window.audioManager.bindMenuUiSounds();
+window.audioManager.syncMenuMusic();
 document.addEventListener('visibilitychange', () => {
     if (!window.audioManager) return;
     if (document.hidden) window.audioManager.stopMenuMusic();
