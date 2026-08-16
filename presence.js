@@ -111,6 +111,8 @@ window.playerPresence = {
     },
 
     async refreshList() {
+        let lobby = document.getElementById('lobby');
+        if (lobby && lobby.style.display === 'none') return;
         let list = document.getElementById('presence-list');
         let hint = document.getElementById('presence-hint');
         if (!list) return;
