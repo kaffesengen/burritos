@@ -193,33 +193,36 @@
         </div>
     </div>
 
-    <div id="splitscreen-setup" class="lobby-box" style="display: none; max-width: 800px; width: 100%;">
-        <h2 style="color: #e67e22; margin-bottom: 15px;">Split-Screen Oppsett</h2>
-        <label style="color: #aaa; font-size: 12px;">Antall spillere:</label>
-        <select id="ss-player-count" class="input-text" style="margin-bottom: 15px;">
+    <div id="splitscreen-setup" class="lobby-box menu-screen menu-screen-wide" style="display: none;">
+        <p class="menu-kicker">Lokalt</p>
+        <h2 class="menu-screen-title">Split-screen</h2>
+        <label class="menu-field-label" for="ss-player-count">Antall spillere</label>
+        <select id="ss-player-count" class="input-text">
             <option value="2" selected>2 Spillere</option>
             <option value="3">3 Spillere</option>
             <option value="4">4 Spillere</option>
         </select>
         
-        <div id="ss-cards-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-            <!-- Genereres av JS -->
-        </div>
+        <div id="ss-cards-container" class="ss-cards"></div>
         
-        <div style="margin-top: 20px; border-top: 1px solid #444; padding-top: 15px;">
-            <label style="color: #aaa; font-size: 12px;">Antall runder:</label>
-            <input type="number" id="ss-laps" class="input-text" value="3" min="1" max="50" style="width: 60px; display: inline-block; margin-left: 10px; text-align: center;">
+        <div class="menu-inline-field">
+            <label class="menu-field-label" for="ss-laps">Antall runder</label>
+            <input type="number" id="ss-laps" class="input-text" value="3" min="1" max="50">
         </div>
 
-        <button class="btn btn-green" id="btn-start-splitscreen" style="margin-top: 20px;">Start Løp</button>
-        <button class="btn btn-back" id="btn-cancel-splitscreen">← Tilbake</button>
+        <div class="lobby-actions">
+            <button class="btn btn-green" id="btn-start-splitscreen">Start løp</button>
+            <button class="btn btn-back" id="btn-cancel-splitscreen">← Tilbake</button>
+        </div>
     </div>
 
-    <div class="lobby-box" id="host-ui">
-        <p style="color: #2ecc71; font-weight: bold; margin-bottom: 10px;">Lobby Opprettet!</p>
-        <p style="font-size: 12px; color: #aaa;">Din Host ID:</p>
-        <input type="text" id="my-host-id" class="input-text" readonly style="text-align: center; font-weight: bold; font-family: monospace; margin-bottom: 10px;">
-        <button class="btn" id="btn-share-link">Kopier Del-lenke</button>
+    <div class="lobby-box menu-screen" id="host-ui">
+        <p class="menu-kicker">Flerspiller</p>
+        <h2 class="menu-screen-title">Lobby</h2>
+        <p class="menu-status-ok">Lobby opprettet</p>
+        <label class="menu-field-label" for="my-host-id">Din Host ID</label>
+        <input type="text" id="my-host-id" class="input-text" readonly>
+        <button class="btn" id="btn-share-link">Kopier del-lenke</button>
 
         <div class="tournament-config">
             <h3>Turnering</h3>
@@ -237,7 +240,7 @@
             <div id="host-track-slots"></div>
         </div>
 
-        <p id="player-count" style="margin-top: 15px; font-size: 12px; color: #3498db;">Spillere i lobby: 1</p>
+        <p id="player-count" class="menu-player-count">Spillere i lobby: 1</p>
         <ul id="host-player-list" class="lobby-player-list"></ul>
         <p class="tourney-hint">Spillere velger navn, bil og farge i panelet under. Dette låses når turneringen starter.</p>
         <div class="lobby-actions">
@@ -246,13 +249,15 @@
         </div>
     </div>
 
-    <div class="lobby-box" id="joiner-ui">
-        <p style="color: #2ecc71; font-weight: bold; margin-bottom: 10px;">Tilkoblet turnering</p>
+    <div class="lobby-box menu-screen" id="joiner-ui">
+        <p class="menu-kicker">Flerspiller</p>
+        <h2 class="menu-screen-title">Tilkoblet</h2>
+        <p class="menu-status-ok">Klar i lobbyen</p>
         <div id="joiner-tourney-summary" class="tourney-summary">Venter på vertens oppsett…</div>
-        <p style="margin-top: 12px; font-size: 12px; color: #3498db;">Spillere i lobby</p>
+        <p class="menu-player-count">Spillere i lobby</p>
         <ul id="joiner-player-list" class="lobby-player-list"></ul>
         <p class="tourney-hint">Velg navn, bil og farge i panelet under. Det kan ikke endres etter start.</p>
-        <p id="joiner-wait-msg" style="margin-top: 12px; color: #aaa; font-size: 13px;">Venter på at verten starter turneringen…</p>
+        <p id="joiner-wait-msg" class="tourney-hint">Venter på at verten starter turneringen…</p>
         <div class="lobby-actions">
             <button type="button" class="btn btn-back" id="btn-joiner-back">← Tilbake</button>
         </div>

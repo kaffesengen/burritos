@@ -676,24 +676,24 @@ function renderSplitScreenCards() {
 
     for(let i=1; i<=count; i++) {
         html += `
-        <div class="ss-card" style="background: #1a1a1a; padding: 15px; border-radius: 8px; border: 1px solid #333;">
-            <h3 style="color: #3498db; margin-bottom: 10px;">Spiller ${i}</h3>
-            <label style="font-size: 11px; color: #888;">Input:</label>
-            <select id="ss-in-${i}" class="input-text" style="padding: 5px; margin-top: 2px; margin-bottom: 10px;">
+        <div class="ss-card">
+            <h3>Spiller ${i}</h3>
+            <label class="menu-field-label" for="ss-in-${i}">Input</label>
+            <select id="ss-in-${i}" class="input-text">
                 <option value="kb" ${i===1 ? 'selected' : ''}>Tastatur / Touch</option>
                 <option value="0" ${i===2 ? 'selected' : ''}>Kontroller 1</option>
                 <option value="1" ${i===3 ? 'selected' : ''}>Kontroller 2</option>
                 <option value="2" ${i===4 ? 'selected' : ''}>Kontroller 3</option>
                 <option value="3">Kontroller 4</option>
             </select>
-            <label style="font-size: 11px; color: #888;">Kjøretøy:</label>
-            <select id="ss-car-${i}" class="input-text" style="padding: 5px; margin-top: 2px; margin-bottom: 10px;">
+            <label class="menu-field-label" for="ss-car-${i}">Kjøretøy</label>
+            <select id="ss-car-${i}" class="input-text">
                 ${presetOptions}
             </select>
-            <label style="font-size: 11px; color: #888;">Farge:</label>
-            <input type="color" id="ss-col-${i}" value="${defaultColors[i-1]}" style="width: 100%; height: 30px; border: none; margin-top: 2px; margin-bottom: 10px; cursor: pointer;">
-            <label style="font-size: 11px; color: #888; display: flex; align-items: center; gap: 5px;">
-                <input type="checkbox" id="ss-evan-${i}"> Evan-modus PÅ
+            <label class="menu-field-label" for="ss-col-${i}">Farge</label>
+            <input type="color" id="ss-col-${i}" class="ss-color" value="${defaultColors[i-1]}">
+            <label class="ss-check">
+                <input type="checkbox" id="ss-evan-${i}"> Evan-modus
             </label>
         </div>
         `;

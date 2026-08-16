@@ -76,8 +76,8 @@ canvas { display: block; width: 100%; height: 100%; }
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
     backdrop-filter: blur(10px);
 }
-#host-ui { display: none; max-width: 520px; }
-#joiner-ui { display: none; max-width: 520px; }
+#host-ui { display: none; }
+#joiner-ui { display: none; }
 
 .field { text-align: left; margin-bottom: 16px; }
 .field label { display: block; color: #aaa; font-size: 12px; margin-bottom: 6px; }
@@ -294,22 +294,86 @@ button.menu-tile {
     .menu-join-row .btn { width: 100%; }
 }
 
-.tournament-config { margin-top: 16px; border-top: 1px solid #444; padding-top: 16px; text-align: left; }
-.tournament-config h3 { color: #f1c40f; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; text-align: center; }
+.menu-screen {
+    max-width: 560px;
+    text-align: left;
+    padding: 24px;
+}
+.menu-screen-wide { max-width: 880px; }
+.menu-kicker {
+    font-family: "Barlow Condensed", sans-serif;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 12px;
+    color: var(--menu-gold);
+    font-weight: 700;
+}
+.menu-screen-title {
+    font-family: "Barlow Condensed", sans-serif;
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #fff;
+    margin: 2px 0 16px;
+    line-height: 0.95;
+}
+.menu-status-ok { color: #2ecc71; font-weight: 700; margin: -6px 0 16px; }
+.menu-field-label {
+    display: block;
+    color: var(--menu-muted);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 12px 0 6px;
+}
+.menu-inline-field { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--menu-line); }
+.menu-inline-field .menu-field-label { margin: 0; }
+.menu-inline-field .input-text { width: 88px; margin-top: 0; text-align: center; }
+.menu-player-count { margin-top: 18px; font-size: 13px; color: var(--menu-cyan); font-weight: 600; }
+#lobby .menu-screen .btn {
+    font-family: "Barlow Condensed", sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 16px;
+    padding: 12px 16px;
+}
+#ss-cards-container, .ss-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 16px; }
+.ss-card {
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--menu-line);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: left;
+}
+.ss-card h3 {
+    font-family: "Barlow Condensed", sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--menu-cyan);
+    font-size: 20px;
+    margin-bottom: 4px;
+}
+.ss-card .input-text { margin-top: 0; margin-bottom: 4px; }
+.ss-color { width: 100%; height: 36px; border: 1px solid var(--menu-line); border-radius: 8px; background: #111; cursor: pointer; margin: 0 0 10px; }
+.ss-check { display: flex; align-items: center; gap: 8px; color: var(--menu-muted); font-size: 12px; margin-top: 4px; }
+
+.tournament-config { margin-top: 20px; border-top: 1px solid var(--menu-line); padding-top: 16px; text-align: left; }
+.tournament-config h3 { color: var(--menu-gold); font-family: "Barlow Condensed", sans-serif; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 12px; }
 .tourney-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
 .tourney-field { display: flex; flex-direction: column; gap: 6px; text-align: left; }
-.tourney-field span { color: #aaa; font-size: 12px; }
+.tourney-field span { color: var(--menu-muted); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
 .tourney-field .input-text { width: 100%; margin-top: 0; text-align: center; }
-.tourney-hint { color: #888; font-size: 11px; margin: 8px 0 10px; line-height: 1.45; }
+.tourney-hint { color: var(--menu-muted); font-size: 11px; margin: 8px 0 10px; line-height: 1.45; }
 .track-slot-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.track-slot-row span { color: #f1c40f; font-weight: bold; width: 18px; font-size: 12px; flex-shrink: 0; }
+.track-slot-row span { color: var(--menu-gold); font-weight: bold; width: 18px; font-size: 12px; flex-shrink: 0; }
 .track-slot-row select { margin-top: 0; padding: 8px; font-size: 13px; }
 .lobby-player-list { list-style: none; margin: 6px 0 10px; text-align: left; }
-.lobby-player-list li { display: flex; align-items: center; gap: 8px; padding: 7px 0; font-size: 13px; color: #ddd; border-bottom: 1px dotted #333; }
+.lobby-player-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; color: #ddd; border-bottom: 1px dotted rgba(255,255,255,0.08); }
 .lobby-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #000; flex-shrink: 0; }
-.tourney-summary { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #ccc; text-align: left; line-height: 1.5; }
-.tourney-summary strong { color: #f1c40f; }
-.lobby-actions { margin-top: 12px; }
+.tourney-summary { background: rgba(0, 0, 0, 0.28); border: 1px solid var(--menu-line); border-radius: 10px; padding: 12px; font-size: 12px; color: #ccc; text-align: left; line-height: 1.5; }
+.tourney-summary strong { color: var(--menu-gold); }
+.lobby-actions { margin-top: 16px; }
 
 .btn { background: #3498db; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 5px; letter-spacing: 0.02em; }
 .btn:active { background: #2980b9; }
