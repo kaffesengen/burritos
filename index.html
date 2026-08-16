@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="preload" href="assets/audio/menu_music_02.mp3" as="audio">
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js" defer></script>
@@ -21,6 +22,18 @@
     <script src="app.js" defer></script>
 </head>
 <body>
+<audio id="menu-music" src="assets/audio/menu_music_02.mp3" autoplay loop preload="auto" playsinline></audio>
+<script>
+(function () {
+    var a = document.getElementById('menu-music');
+    if (!a) return;
+    a.volume = 0.38;
+    var play = function () { a.play().catch(function () {}); };
+    play();
+    a.addEventListener('canplay', play);
+    a.addEventListener('canplaythrough', play);
+})();
+</script>
 
 <div id="lobby">
     <button type="button" id="btn-lobby-back" class="btn btn-back">← Tilbake</button>

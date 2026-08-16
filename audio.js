@@ -16,6 +16,8 @@ class AudioManager {
         this.menuFade = null;
         this.menuVolume = 0.38;
         this.uiSounds = null;
+        this.menuUnlockArmed = false;
+        this.menuRetry = null;
     }
 
     init() {
@@ -40,10 +42,14 @@ class AudioManager {
 
     ensureMenuTrack() {
         if (this.menuTrack) return this.menuTrack;
-        let a = new Audio('assets/audio/menu_music_02.mp3');
+        let a = document.getElementById('menu-music');
+        if (!a) {
+            a = new Audio('assets/audio/menu_music_02.mp3');
+            a.preload = 'auto';
+        }
         a.loop = true;
-        a.preload = 'auto';
-        a.volume = 0;
+        a.playsInline = true;
+        a.volume = this.menuVolume;
         this.menuTrack = a;
         return a;
     }
@@ -75,8 +81,29 @@ class AudioManager {
     playMenuMusic() {
         this.menuWanted = true;
         let a = this.ensureMenuTrack();
-        a.play().catch(() => {});
-        this.fadeMenuTo(this.menuVolume);
+        a.volume = this.menuVolume;
+        let p = a.play();
+        if (p && p.then) {
+            p.then(() => this.clearMenuUnlock()).catch(() => this.armMenuUnlock());
+        }
+    }
+
+    clearMenuUnlock() {
+        this.menuUnlockArmed = false;
+        if (this.menuRetry) { clearInterval(this.menuRetry); this.menuRetry = null; }
+    }
+
+    armMenuUnlock() {
+        if (this.menuUnlockArmed) return;
+        this.menuUnlockArmed = true;
+        let tryPlay = () => {
+            if (!this.menuWanted) return;
+            this.ensureMenuTrack().play().then(() => this.clearMenuUnlock()).catch(() => {});
+        };
+        ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart', 'click'].forEach(ev => {
+            window.addEventListener(ev, tryPlay, { passive: true });
+        });
+        this.menuRetry = setInterval(tryPlay, 200);
     }
 
     stopMenuMusic() {
