@@ -267,17 +267,88 @@
     <div id="status-msg" style="margin-top: 20px; color: #e74c3c; font-size: 12px;"></div>
 
     <div id="vehicle-garage" class="vehicle-garage" style="display: none;">
-        <div class="garage-head">
-            <div>
-                <p class="menu-kicker">Garasje</p>
-                <h3>Velg kjøretøy</h3>
+        <div class="garage-orb garage-orb-1" aria-hidden="true"></div>
+        <div class="garage-orb garage-orb-2" aria-hidden="true"></div>
+        <header class="garage-gt-head">
+            <div class="garage-gt-title">
+                <span class="dim">Lobby</span>
+                <span class="sep">|</span>
+                Velg kjøretøy
+            </div>
+            <div class="garage-gt-nav" aria-hidden="true">
+                <span class="garage-gt-key">←</span>
+                <span class="garage-gt-hint">Piltaster · styrespak</span>
+                <span class="garage-gt-key">→</span>
             </div>
             <label class="garage-color">
                 <span>Farge</span>
                 <input type="color" id="garage-color" value="#3498db">
             </label>
+        </header>
+        <div class="garage-gt-main">
+            <div class="garage-gt-grid-wrap">
+                <div id="vehicle-garage-grid" class="garage-gt-grid"></div>
+            </div>
+            <aside class="garage-specs" id="vehicle-garage-specs">
+                <div class="specs-hero anim-target" id="garage-anim-hero">
+                    <div class="hero-logo" id="garage-spec-logo">LOGO</div>
+                    <canvas id="garage-hero-canvas" class="hero-canvas" width="420" height="168"></canvas>
+                    <div class="hero-title" id="garage-spec-title">Kjøretøy</div>
+                    <div class="hero-subtitle" id="garage-spec-year"></div>
+                </div>
+                <div class="stats-bars anim-target" id="garage-anim-stats">
+                    <div class="stat-row">
+                        <div class="stat-label">Toppfart</div>
+                        <div class="stat-bar-container">
+                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-speed"></div></div>
+                            <div class="stat-value" id="garage-val-speed">0.0</div>
+                        </div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Akselerasjon</div>
+                        <div class="stat-bar-container">
+                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-accel"></div></div>
+                            <div class="stat-value" id="garage-val-accel">0.0</div>
+                        </div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Bremsing</div>
+                        <div class="stat-bar-container">
+                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-brake"></div></div>
+                            <div class="stat-value" id="garage-val-brake">0.0</div>
+                        </div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Sving</div>
+                        <div class="stat-bar-container">
+                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-corner"></div></div>
+                            <div class="stat-value" id="garage-val-corner">0.0</div>
+                        </div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Stabilitet</div>
+                        <div class="stat-bar-container">
+                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-stab"></div></div>
+                            <div class="stat-value" id="garage-val-stab">0.0</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="highlights anim-target" id="garage-anim-highlights">
+                    <div class="highlight-box">
+                        <div class="highlight-val" id="garage-hl-power">0 HK</div>
+                        <div class="highlight-label">Effekt</div>
+                    </div>
+                    <div class="highlight-box">
+                        <div class="highlight-val" id="garage-hl-topspeed">0 KM/T</div>
+                        <div class="highlight-label">Toppfart</div>
+                    </div>
+                    <div class="highlight-box">
+                        <div class="highlight-val" id="garage-hl-weight">0 KG</div>
+                        <div class="highlight-label">Vekt</div>
+                    </div>
+                </div>
+            </aside>
         </div>
-        <div id="vehicle-garage-grid" class="garage-grid"></div>
         <div id="vehicle-garage-footer" class="garage-footer"></div>
     </div>
 </div>
