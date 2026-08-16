@@ -1,4 +1,4 @@
-const vehiclePresets = {
+const vehiclePresets = window.vehiclePresets = {
     ai_standard: { power: 450, mass: 1400, drivetrain: 'AWD', grip: 3.10, turn: 4.8, roll: 0.04, w: 20, l: 45, ev: false, type: 'r34', fuelCap: 100, audio: 'turbo', maxRPM: 7000, gears: [0, 3.5, 2.2, 1.6, 1.2, 0.9], finalDrive: 3.8 },
     jaguar: { power: 400, mass: 2200, drivetrain: 'AWD', grip: 1.85, turn: 4.0, roll: 0.05, w: 24, l: 52, ev: true, type: 'jaguar', fuelCap: 100, audio: 'ev', maxRPM: 13000, gears: [0, 9.06], finalDrive: 1.0 },
     gokart: { power: 38.5, mass: 180, drivetrain: 'RWD', grip: 2.52, turn: 0.55, roll: 0.02, w: 14, l: 24, ev: false, type: 'gokart', fuelCap: 10, audio: 'gokart', maxRPM: 14000, gears: [0, 2.30, 1.60, 1.25, 1.05, 0.90, 0.78], finalDrive: 4.3 },
@@ -409,14 +409,26 @@ function applyTournamentFromNet(t) {
     setLoadoutLocked(!!t.loadoutLocked);
 }
 
+function setSandboxHudVisible(on) {
+    let panel = document.getElementById('ui-panel');
+    if (panel) panel.style.display = on ? 'grid' : 'none';
+    let sb = document.getElementById('sandbox-controls');
+    if (sb) sb.style.display = on ? 'block' : 'none';
+}
+
+function setGarageVisible(on) {
+    if (window.vehicleGarage) vehicleGarage.setVisible(on);
+}
+
 function setLoadoutLocked(locked) {
     tournament.loadoutLocked = locked;
-    ['preset-selector', 'ingame-preset-selector', 'car-color', 'ingame-car-color', 'player-name'].forEach(id => {
+    ['preset-selector', 'ingame-preset-selector', 'car-color', 'ingame-car-color', 'player-name', 'garage-color'].forEach(id => {
         let el = document.getElementById(id);
         if (el) el.disabled = locked;
     });
     let note = document.getElementById('loadout-locked-note');
     if (note) note.style.display = locked ? 'block' : 'none';
+    if (window.vehicleGarage) vehicleGarage.setLocked(locked);
 }
 
 function isLastTournamentRound() {
@@ -698,13 +710,14 @@ function returnToLobbyKeepSession() {
     let ss = document.getElementById('splitscreen-setup'); if (ss) ss.style.display = 'none';
     document.getElementById('lobby').style.display = 'flex';
     document.getElementById('host-actions').style.display = 'none';
-    document.getElementById('sandbox-controls').style.display = 'none';
+    setSandboxHudVisible(false);
 
     if (isHost) {
         document.getElementById('mode-selection').style.display = 'none';
         document.getElementById('host-ui').style.display = 'block';
         let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
         setLobbyBackVisible(true);
+        setGarageVisible(true);
         if (window.setGamePresence && myId && myId !== 'sandbox') setGamePresence('hosting', myId);
         broadcastAll({ type: 'returnLobby' });
         broadcastLobbyState();
@@ -713,6 +726,7 @@ function returnToLobbyKeepSession() {
         document.getElementById('host-ui').style.display = 'none';
         let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'block';
         setLobbyBackVisible(true);
+        setGarageVisible(true);
         if (typeof setGamePresence === 'function') setGamePresence('online');
     }
     if (window.audioManager) window.audioManager.syncMenuMusic();
@@ -749,6 +763,8 @@ function leaveLobbyScreen() {
     let ss = document.getElementById('splitscreen-setup'); if (ss) ss.style.display = 'none';
     document.getElementById('host-ui').style.display = 'none';
     let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
+    setGarageVisible(false);
+    setSandboxHudVisible(false);
     let pc = document.getElementById('player-count'); if (pc) pc.innerText = 'Spillere i lobby: 1';
     showMsg('');
     if (window.playerProfile) window.playerProfile.render();
@@ -765,8 +781,9 @@ function enterGame() {
     let cCont = document.getElementById('canvas-container'); if(cCont) cCont.style.display = 'flex';
     
     detectDevice();
+    setGarageVisible(false);
+    setSandboxHudVisible(myId === 'sandbox');
     if(isHost) { 
-        let sbCtrl = document.getElementById('sandbox-controls'); if(sbCtrl) sbCtrl.style.display = 'block'; 
         let hActions = document.getElementById('host-actions'); if(hActions) hActions.style.display = 'flex';
         placeFieldOnGrid();
     }
@@ -825,6 +842,7 @@ if (btnSSMode) {
         document.getElementById('mode-selection').style.display = 'none';
         document.getElementById('splitscreen-setup').style.display = 'block';
         setLobbyBackVisible(true);
+        setGarageVisible(false);
         renderSplitScreenCards();
     });
 }
@@ -975,7 +993,8 @@ function exitToMenu() {
     document.getElementById('host-ui').style.display = 'none';
     let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
     document.getElementById('host-actions').style.display = 'none';
-    document.getElementById('sandbox-controls').style.display = 'none';
+    setSandboxHudVisible(false);
+    setGarageVisible(false);
     
     let pc = document.getElementById('player-count'); if(pc) pc.innerText = `Spillere i lobby: 1`;
     showMsg('');
@@ -1016,6 +1035,7 @@ if (btnHost) {
         let mSel = document.getElementById('mode-selection'); if(mSel) mSel.style.display = 'none'; 
         let hUi = document.getElementById('host-ui'); if(hUi) hUi.style.display = 'block'; 
         setLobbyBackVisible(true);
+        setGarageVisible(true);
         renderTrackSlots();
         showMsg('Oppretter Host...');
         peer = new Peer();
@@ -1193,6 +1213,7 @@ function initJoiner(hostId) {
     let mSel = document.getElementById('mode-selection'); if (mSel) mSel.style.display = 'none';
     let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'block';
     setLobbyBackVisible(true);
+    setGarageVisible(true);
     showMsg('Kobler til...');
     peer = new Peer();
     peer.on('open', id => {
