@@ -20,7 +20,7 @@ html { color-scheme: dark; }
 body { font-family: Barlow, sans-serif; background: var(--menu-bg); color: var(--menu-text); display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; user-select: none; }
 
 #canvas-container { flex: 1; position: relative; background: #2d4c1e; display: none; overflow: hidden; width: 100%; height: 100%; }
-canvas { display: block; width: 100%; height: 100%; }
+#gameCanvas { display: block; width: 100%; height: 100%; }
 
 #lobby {
     flex: 1;

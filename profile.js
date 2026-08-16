@@ -30,7 +30,14 @@ window.playerProfile = {
 
     client() {
         let c = this.getConfig();
-        return window.supabase.createClient(c.url, c.anonKey);
+        if (!c.url || !c.anonKey || !window.supabase) return null;
+        let key = c.url + '|' + c.anonKey;
+        if (this._sb && this._sbKey === key) return this._sb;
+        this._sb = window.supabase.createClient(c.url, c.anonKey, {
+            auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+        });
+        this._sbKey = key;
+        return this._sb;
     },
 
     validateTag(tag) {

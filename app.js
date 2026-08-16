@@ -202,6 +202,29 @@ function initLocalPlayer(baseId) {
     localPlayers = [{ id: baseId, gamepad: -1, isKeyboard: true }];
 }
 
+function ensureLocalDriver() {
+    if (isSplitScreen) return;
+    if (!myId) {
+        let existing = Object.keys(players)[0];
+        if (existing) myId = existing;
+    }
+    if (myId && !localPlayers.length) initLocalPlayer(myId);
+    if (myId && localPlayers[0] && localPlayers[0].id !== myId) localPlayers[0].id = myId;
+    if (myId && !players[myId]) {
+        let prof = typeof collectLocalProfile === 'function'
+            ? collectLocalProfile()
+            : { name: 'Gjest', preset: 'jaguar', color: '#3498db' };
+        players[myId] = createPlayerRecord(myId, prof.preset, prof.name, prof.color);
+    }
+    if (localPlayers[0] && !players[localPlayers[0].id]) {
+        let fallback = (myId && players[myId]) ? myId : Object.keys(players)[0];
+        if (fallback) {
+            localPlayers[0].id = fallback;
+            myId = fallback;
+        }
+    }
+}
+
 function playerHasOpenConnection(pid) {
     return !!(connections[pid] && connections[pid].open);
 }
@@ -799,11 +822,13 @@ function enterGame() {
     detectDevice();
     setGarageVisible(false);
     setSandboxHudVisible(myId === 'sandbox');
+    ensureLocalDriver();
     if(isHost) { 
         let hActions = document.getElementById('host-actions'); if(hActions) hActions.style.display = 'flex';
         placeFieldOnGrid();
     }
-    resize(); 
+    resize();
+    requestAnimationFrame(resize);
     if (gameLoopId) cancelAnimationFrame(gameLoopId);
     gameLoopId = requestAnimationFrame(update);
     if (window.setGamePresence) {
@@ -1149,7 +1174,11 @@ if (btnShare) {
 
 let btnEnter = document.getElementById('btn-enter-game');
 if (btnEnter) { 
-    btnEnter.addEventListener('click', () => { 
+    btnEnter.addEventListener('click', () => {
+        if (!myId || !players[myId]) {
+            showMsg('Venter på Host ID. Prøv igjen om et øyeblikk.');
+            return;
+        }
         startTournamentSession();
         let hActions = document.getElementById('host-actions');
         if (hActions) hActions.style.display = 'flex';
@@ -1492,6 +1521,8 @@ function drawHUD(ctx, p, vx, vy, vw, vh, playerIndex) {
 
 function update() {
     if (!gameActive || !canvas || !ctx) return;
+    try {
+    ensureLocalDriver();
     const now = performance.now(); const dt = Math.max(0.001, Math.min((now - lastTime) / 1000, 0.1)); lastTime = now;
     let track = getTrack();
 
@@ -2066,16 +2097,19 @@ function update() {
     }
 
     ctx.setTransform(1,0,0,1,0,0); 
-    ctx.fillStyle = '#000'; 
+    ctx.fillStyle = '#2d4c1e';
     ctx.fillRect(0,0,canvas.width,canvas.height); 
 
     let cw = canvas.width; let ch = canvas.height;
-    let numViews = isSplitScreen ? localPlayers.length : 1;
+    let views = localPlayers.length ? localPlayers : (myId ? [{ id: myId }] : []);
+    let numViews = isSplitScreen ? Math.max(1, views.length) : 1;
 
     for (let i = 0; i < numViews; i++) {
-        let lp = localPlayers[i];
-        let p = players[lp.id];
-        if (!p) continue;
+        let lp = views[i];
+        let p = (lp && players[lp.id]) || players[myId] || Object.values(players)[0];
+        if (!p) {
+            p = { x: track.startX, y: track.startY, angle: track.startAngle, color: '#3498db', inputs: {}, speedKmh: 0, gear: 0, rpm: 0, lap: 0, currentLapTime: 0, bestLap: Infinity, finished: false, fuel: 100, maxFuel: 100 };
+        }
 
         let vx = 0, vy = 0, vw = cw, vh = ch;
         if (numViews === 2) { vx = i*(cw/2); vw = cw/2; }
@@ -2193,5 +2227,8 @@ function update() {
         }
     }
 
-    gameLoopId = requestAnimationFrame(update);
+    } catch (err) {
+        console.error(err);
+    }
+    if (gameActive) gameLoopId = requestAnimationFrame(update);
 }

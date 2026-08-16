@@ -206,6 +206,8 @@ window.playerFriends = {
     },
 
     async refreshLists() {
+        let lobby = document.getElementById('lobby');
+        if (lobby && lobby.style.display === 'none') return;
         let hint = document.getElementById('friends-hint');
         if (!this.canUse()) {
             if (hint) {
