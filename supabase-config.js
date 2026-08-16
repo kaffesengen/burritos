@@ -1,6 +1,5 @@
-// Fyll inn fra .env.local med: node scripts/sync-supabase-config.js
-// Anon-nøkkelen er ment å ligge i klienten; RLS/RPC beskytter dataene.
+// Generert fra .env.local. Anon-nøkkelen er ment å ligge i klienten.
 window.SUPABASE_CONFIG = {
-    url: '',
-    anonKey: ''
+    url: "https://tzxedxopqsulljrkxsji.supabase.co",
+    anonKey: "sb_publishable_EhCy4OZ-8R-X9SkV2wWEmA_xXpclRHj"
 };
