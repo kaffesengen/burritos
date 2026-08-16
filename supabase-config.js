@@ -1,6 +1,5 @@
-// Fyll inn for unik gamer-tag på tvers av venner.
+// Fyll inn fra .env.local med: node scripts/sync-supabase-config.js
 // Anon-nøkkelen er ment å ligge i klienten; RLS/RPC beskytter dataene.
-// Du kan også lime inn URL + nøkkel i profilskjermen (lagres i denne nettleseren).
 window.SUPABASE_CONFIG = {
     url: '',
     anonKey: ''
