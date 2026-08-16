@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Avansert Fysikkmotor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -21,7 +24,10 @@
 
 <div id="lobby">
     <button type="button" id="btn-lobby-back" class="btn btn-back">← Tilbake</button>
-    <h1>Avansert Fysikkmotor</h1>
+    <header class="menu-wordmark">
+        <p class="menu-wordmark-kicker">Burritos</p>
+        <h1>Avansert Fysikkmotor</h1>
+    </header>
     
     <div class="lobby-box" id="profile-setup" style="display: none;">
         <h2 class="profile-heading">Opprett profil</h2>
@@ -79,50 +85,96 @@
         <p class="tourney-hint">Utlogging sletter ikke taggen på serveren. Du trenger koden for å logge inn igjen.</p>
     </div>
 
-    <div class="lobby-box" id="mode-selection" style="display: none;">
+    <div class="menu-home" id="mode-selection" style="display: none;">
         <input type="hidden" id="player-name" value="" maxlength="15">
-        <div class="profile-badge">
-            <div class="profile-badge-text">
-                <span class="profile-label">Gamer-tag</span>
-                <strong id="profile-tag-display">@</strong>
-                <span id="profile-sync-state" class="tourney-hint"></span>
-            </div>
-            <button type="button" id="btn-profile-manage" class="btn btn-back">Profil</button>
-        </div>
-
-        <button class="btn" id="btn-sandbox-mode" style="background: #8e44ad; margin-bottom: 10px;">Spill Alene (Sandbox)</button>
-        <button class="btn" id="btn-splitscreen-mode" style="background: #e67e22; margin-bottom: 20px;">Lokal Split-Screen</button>
-        
-        <button class="btn btn-green" id="btn-host-mode">Opprett Spill (Host)</button>
-        <div style="margin: 20px 0; color: #777;">— ELLER —</div>
-        <input type="text" id="join-code-input" class="input-text" placeholder="Skriv inn Host ID">
-        <button class="btn" id="btn-join-mode">Bli Med</button>
-
-        <div id="friends-panel" class="friends-panel">
-            <h3>Venner</h3>
-            <p id="friends-hint" class="tourney-hint">Laster…</p>
-            <div class="friends-search">
-                <input type="text" id="friend-search-input" class="input-text" placeholder="Søk @gamer-tag" maxlength="16" autocomplete="off">
-                <button type="button" class="btn" id="btn-friend-search">Søk</button>
-            </div>
-            <p id="friend-search-msg" class="tourney-hint"></p>
-            <ul id="friend-search-results" class="presence-list"></ul>
-            <div id="friend-incoming-wrap" style="display: none;">
-                <h4 id="friend-incoming-head">Forespørsler</h4>
-                <ul id="friend-incoming" class="presence-list"></ul>
-            </div>
-            <h4>Dine venner</h4>
-            <ul id="friend-list" class="presence-list"></ul>
-            <div id="friend-outgoing-wrap" style="display: none;">
-                <h4>Sendt</h4>
-                <ul id="friend-outgoing" class="presence-list"></ul>
+        <div class="menu-top">
+            <div class="profile-badge">
+                <div class="profile-badge-text">
+                    <span class="profile-label">Gamer-tag</span>
+                    <strong id="profile-tag-display">@</strong>
+                    <span id="profile-sync-state" class="tourney-hint"></span>
+                </div>
+                <button type="button" id="btn-profile-manage" class="btn btn-back">Profil</button>
             </div>
         </div>
 
-        <div id="presence-panel" class="presence-panel">
-            <h3>Pålogget nå</h3>
-            <p id="presence-hint" class="tourney-hint">Laster…</p>
-            <ul id="presence-list" class="presence-list"></ul>
+        <div class="menu-grid">
+            <button type="button" class="menu-tile tile-host" id="btn-host-mode">
+                <span class="menu-tile-media" aria-hidden="true"></span>
+                <span class="menu-tile-shade"></span>
+                <span class="menu-tile-body">
+                    <span class="menu-tile-ico" aria-hidden="true"></span>
+                    <span class="menu-tile-kicker">Flerspiller</span>
+                    <span class="menu-tile-title">Opprett spill</span>
+                    <span class="menu-tile-sub">Host en turnering</span>
+                </span>
+            </button>
+
+            <div class="menu-tile tile-join">
+                <span class="menu-tile-media" aria-hidden="true"></span>
+                <span class="menu-tile-shade"></span>
+                <div class="menu-tile-body">
+                    <span class="menu-tile-ico" aria-hidden="true"></span>
+                    <span class="menu-tile-kicker">Flerspiller</span>
+                    <span class="menu-tile-title">Bli med</span>
+                    <span class="menu-tile-sub">Host ID eller den som hoster under</span>
+                    <div class="menu-join-row">
+                        <input type="text" id="join-code-input" class="input-text" placeholder="Host ID" autocomplete="off">
+                        <button type="button" class="btn btn-green" id="btn-join-mode">Kjør</button>
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="menu-tile tile-sandbox" id="btn-sandbox-mode">
+                <span class="menu-tile-media" aria-hidden="true"></span>
+                <span class="menu-tile-shade"></span>
+                <span class="menu-tile-body">
+                    <span class="menu-tile-ico" aria-hidden="true"></span>
+                    <span class="menu-tile-kicker">Alene</span>
+                    <span class="menu-tile-title">Sandbox</span>
+                    <span class="menu-tile-sub">Kjør fritt</span>
+                </span>
+            </button>
+
+            <button type="button" class="menu-tile tile-split" id="btn-splitscreen-mode">
+                <span class="menu-tile-media" aria-hidden="true"></span>
+                <span class="menu-tile-shade"></span>
+                <span class="menu-tile-body">
+                    <span class="menu-tile-ico" aria-hidden="true"></span>
+                    <span class="menu-tile-kicker">Lokalt</span>
+                    <span class="menu-tile-title">Split-screen</span>
+                    <span class="menu-tile-sub">2–4 på samme maskin</span>
+                </span>
+            </button>
+        </div>
+
+        <div class="menu-social">
+            <div id="friends-panel" class="friends-panel menu-card">
+                <h3>Venner</h3>
+                <p id="friends-hint" class="tourney-hint">Laster…</p>
+                <div class="friends-search">
+                    <input type="text" id="friend-search-input" class="input-text" placeholder="Søk @gamer-tag" maxlength="16" autocomplete="off">
+                    <button type="button" class="btn" id="btn-friend-search">Søk</button>
+                </div>
+                <p id="friend-search-msg" class="tourney-hint"></p>
+                <ul id="friend-search-results" class="presence-list"></ul>
+                <div id="friend-incoming-wrap" style="display: none;">
+                    <h4 id="friend-incoming-head">Forespørsler</h4>
+                    <ul id="friend-incoming" class="presence-list"></ul>
+                </div>
+                <h4>Dine venner</h4>
+                <ul id="friend-list" class="presence-list"></ul>
+                <div id="friend-outgoing-wrap" style="display: none;">
+                    <h4>Sendt</h4>
+                    <ul id="friend-outgoing" class="presence-list"></ul>
+                </div>
+            </div>
+
+            <div id="presence-panel" class="presence-panel menu-card">
+                <h3>Pålogget nå</h3>
+                <p id="presence-hint" class="tourney-hint">Laster…</p>
+                <ul id="presence-list" class="presence-list"></ul>
+            </div>
         </div>
     </div>
 
