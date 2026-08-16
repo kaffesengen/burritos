@@ -10,6 +10,7 @@
     <script src="supabase-config.js" defer></script>
     <script src="profile.js" defer></script>
     <script src="presence.js" defer></script>
+    <script src="friends.js" defer></script>
     <script src="ai.js" defer></script>
     <script src="waypoints.js" defer></script>
     <script src="audio.js" defer></script>
@@ -96,6 +97,27 @@
         <div style="margin: 20px 0; color: #777;">— ELLER —</div>
         <input type="text" id="join-code-input" class="input-text" placeholder="Skriv inn Host ID">
         <button class="btn" id="btn-join-mode">Bli Med</button>
+
+        <div id="friends-panel" class="friends-panel">
+            <h3>Venner</h3>
+            <p id="friends-hint" class="tourney-hint">Laster…</p>
+            <div class="friends-search">
+                <input type="text" id="friend-search-input" class="input-text" placeholder="Søk @gamer-tag" maxlength="16" autocomplete="off">
+                <button type="button" class="btn" id="btn-friend-search">Søk</button>
+            </div>
+            <p id="friend-search-msg" class="tourney-hint"></p>
+            <ul id="friend-search-results" class="presence-list"></ul>
+            <div id="friend-incoming-wrap" style="display: none;">
+                <h4 id="friend-incoming-head">Forespørsler</h4>
+                <ul id="friend-incoming" class="presence-list"></ul>
+            </div>
+            <h4>Dine venner</h4>
+            <ul id="friend-list" class="presence-list"></ul>
+            <div id="friend-outgoing-wrap" style="display: none;">
+                <h4>Sendt</h4>
+                <ul id="friend-outgoing" class="presence-list"></ul>
+            </div>
+        </div>
 
         <div id="presence-panel" class="presence-panel">
             <h3>Pålogget nå</h3>

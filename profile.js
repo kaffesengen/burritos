@@ -201,6 +201,7 @@ window.playerProfile = {
         this.syncNameField();
         this.showBox('mode-selection');
         if (window.playerPresence) window.playerPresence.onVisibleMenu();
+        if (window.playerFriends) window.playerFriends.onVisibleMenu();
     },
 
     fillServerFields() {
