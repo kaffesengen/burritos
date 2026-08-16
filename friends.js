@@ -87,8 +87,15 @@ window.playerFriends = {
             let extra = r.relation === 'incoming'
                 ? this.actionBtn(r.gamer_tag, 'decline', 'Avslå', 'back')
                 : '';
-            let main = `<button type="button" class="btn ${btn.disabled ? 'btn-back' : 'btn-green'} friend-act" data-tag="${this.escapeHtml(r.gamer_tag)}" data-action="${btn.action}" ${btn.disabled ? 'disabled' : ''}>${btn.label}</button>`;
-            return this.personRow(r.gamer_tag, null, main + extra);
+            let peerId = window.playerPresence ? playerPresence.safePeerId(r.peer_id) : '';
+            let joinable = !!(peerId && (r.status === 'hosting' || r.status === 'in_game'));
+            if (joinable) {
+                extra += `<button type="button" class="btn btn-green presence-join" data-peer="${this.escapeHtml(peerId)}">Bli med</button>`;
+            }
+            let main = this.canUse()
+                ? `<button type="button" class="btn ${btn.disabled ? 'btn-back' : 'btn-green'} friend-act" data-tag="${this.escapeHtml(r.gamer_tag)}" data-action="${btn.action}" ${btn.disabled ? 'disabled' : ''}>${btn.label}</button>`
+                : '';
+            return this.personRow(r.gamer_tag, r.status || null, main + extra);
         }).join('');
     },
 
@@ -134,6 +141,14 @@ window.playerFriends = {
         if (outWrap) outWrap.style.display = outgoing.length ? '' : 'none';
     },
 
+    unwrap(data) {
+        if (data == null) return null;
+        if (typeof data === 'string') {
+            try { return JSON.parse(data); } catch (e) { return null; }
+        }
+        return data;
+    },
+
     async rpc(name, args) {
         let hash = await this.ensureHash();
         if (!hash) return { ok: false, error: 'invalid' };
@@ -143,7 +158,24 @@ window.playerFriends = {
         }, args);
         let { data, error } = await playerProfile.client().rpc(name, payload);
         if (error) return { ok: false, error: 'rpc' };
-        return data || { ok: false, error: 'rpc' };
+        return this.unwrap(data) || { ok: false, error: 'rpc' };
+    },
+
+    mergeSearch(remoteRows, liveRows) {
+        let byTag = {};
+        (remoteRows || []).forEach(r => {
+            if (r && r.gamer_tag) byTag[r.gamer_tag.toLowerCase()] = r;
+        });
+        (liveRows || []).forEach(r => {
+            if (!r || !r.gamer_tag) return;
+            let key = r.gamer_tag.toLowerCase();
+            if (!byTag[key]) byTag[key] = { gamer_tag: r.gamer_tag, relation: 'none', status: r.status, peer_id: r.peer_id };
+            else {
+                byTag[key].status = r.status || byTag[key].status;
+                byTag[key].peer_id = r.peer_id || byTag[key].peer_id;
+            }
+        });
+        return Object.keys(byTag).map(k => byTag[k]);
     },
 
     async search(raw) {
@@ -153,21 +185,29 @@ window.playerFriends = {
             return;
         }
         this.setMsg('friend-search-msg', 'Søker…');
-        let result = await this.rpc('search_players', { p_query: q });
-        if (!result.ok) {
-            this.setMsg('friend-search-msg', this.errorText(result.error));
+        let remote = [];
+        if (this.canUse()) {
+            let result = await this.rpc('search_players', { p_query: q });
+            if (result && result.ok && Array.isArray(result.results)) remote = result.results;
+        }
+        let live = window.playerDirectory ? playerDirectory.find(q) : [];
+        let rows = this.mergeSearch(remote, live);
+        if (!rows.length) {
+            this.setMsg('friend-search-msg', this.canUse()
+                ? 'Fant ingen med den taggen. De må ha opprettet profil etter at Supabase ble koblet til.'
+                : 'Søk krever at profilen er synket til Supabase.');
+            let list = document.getElementById('friend-search-results');
+            if (list) list.innerHTML = '';
             return;
         }
-        this.renderSearch(Array.isArray(result.results) ? result.results : []);
+        this.renderSearch(rows);
     },
 
     async refreshLists() {
         let hint = document.getElementById('friends-hint');
         if (!this.canUse()) {
             if (hint) {
-                hint.textContent = playerProfile.hasRemote()
-                    ? 'Logg inn med en synket profil for å legge til venner.'
-                    : 'Koble til Supabase for å legge til venner.';
+                hint.textContent = 'Søk krever at profilen er synket til Supabase.';
             }
             this.renderLists({ friends: [], incoming: [], outgoing: [] });
             let empty = document.getElementById('friend-list');
@@ -223,10 +263,24 @@ window.playerFriends = {
             searchInput.addEventListener('keydown', e => {
                 if (e.key === 'Enter') this.search(searchInput.value);
             });
+            searchInput.addEventListener('input', () => {
+                let q = this.normalizeQuery(searchInput.value);
+                if (q.length < 2 || !window.playerDirectory) return;
+                let live = playerDirectory.find(q);
+                if (live.length) this.renderSearch(this.mergeSearch([], live));
+            });
         }
         let panel = document.getElementById('friends-panel');
         if (panel) {
             panel.addEventListener('click', e => {
+                let join = e.target.closest('.presence-join');
+                if (join) {
+                    let peerId = window.playerPresence
+                        ? playerPresence.safePeerId(join.getAttribute('data-peer'))
+                        : '';
+                    if (peerId && typeof initJoiner === 'function') initJoiner(peerId);
+                    return;
+                }
                 let btn = e.target.closest('.friend-act');
                 if (!btn || btn.disabled) return;
                 let tag = this.normalizeQuery(btn.getAttribute('data-tag'));

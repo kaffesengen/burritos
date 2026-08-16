@@ -18,6 +18,7 @@ window.playerPresence = {
     async set(status, peerId) {
         this.status = status || 'online';
         this.peerId = peerId || null;
+        if (window.playerDirectory) playerDirectory.announce();
         await this.push();
         this.ensureHeartbeat();
     },
@@ -71,6 +72,7 @@ window.playerPresence = {
     onVisibleMenu() {
         this.startListPolling();
         this.set('online', null);
+        if (window.playerDirectory) playerDirectory.start();
     },
 
     startListPolling() {
@@ -99,53 +101,60 @@ window.playerPresence = {
         return /^[A-Za-z0-9_-]{3,64}$/.test(id) ? id : '';
     },
 
+    mergeRows(rows) {
+        let byTag = {};
+        (rows || []).forEach(r => {
+            if (!r || !r.gamer_tag) return;
+            byTag[(r.gamer_tag || '').toLowerCase()] = r;
+        });
+        return Object.keys(byTag).map(k => byTag[k]);
+    },
+
     async refreshList() {
         let list = document.getElementById('presence-list');
         let hint = document.getElementById('presence-hint');
         if (!list) return;
 
-        if (!playerProfile.hasRemote()) {
-            if (hint) hint.textContent = 'Koble til Supabase for å se hvem som er online.';
-            list.innerHTML = '';
-            return;
-        }
-        if (!playerProfile.data || !playerProfile.data.remote) {
-            if (hint) hint.textContent = 'Logg inn med en synket profil for å se andre.';
-            list.innerHTML = '';
-            return;
+        let rows = [];
+        if (window.playerDirectory) rows = rows.concat(playerDirectory.roster || []);
+
+        if (playerProfile.hasRemote() && playerProfile.data && playerProfile.data.remote) {
+            try {
+                let { data, error } = await playerProfile.client().rpc('list_online_players');
+                if (!error) {
+                    if (typeof data === 'string') { try { data = JSON.parse(data); } catch (e) { data = []; } }
+                    if (Array.isArray(data)) rows = rows.concat(data);
+                }
+            } catch (e) {}
         }
 
-        try {
-            let { data, error } = await playerProfile.client().rpc('list_online_players');
-            if (error) throw error;
-            let rows = Array.isArray(data) ? data : [];
-            let me = (playerProfile.getTag() || '').toLowerCase();
-            let others = rows.filter(r => (r.gamer_tag || '').toLowerCase() !== me);
+        let me = (playerProfile.getTag() || '').toLowerCase();
+        let others = this.mergeRows(rows).filter(r => (r.gamer_tag || '').toLowerCase() !== me);
 
-            if (hint) {
-                hint.textContent = others.length
-                    ? 'Trykk Bli med på den som hoster — du trenger ikke Host ID.'
-                    : 'Ingen andre er online akkurat nå.';
-            }
-
-            list.innerHTML = others.map(r => {
-                let peerId = this.safePeerId(r.peer_id);
-                let joinable = !!(peerId && (r.status === 'hosting' || r.status === 'in_game'));
-                let joinBtn = joinable
-                    ? `<button type="button" class="btn btn-green presence-join" data-peer="${peerId}">Bli med</button>`
-                    : '';
-                return `<li>
-                    <div class="presence-who">
-                        <strong>@${this.escapeHtml(r.gamer_tag)}</strong>
-                        <span class="presence-status status-${this.escapeHtml(r.status)}">${this.statusLabel(r.status)}</span>
-                    </div>
-                    ${joinBtn}
-                </li>`;
-            }).join('');
-        } catch (e) {
-            if (hint) hint.textContent = 'Kunne ikke hente hvem som er online. Kjør supabase-schema.sql på nytt (steg 2).';
-            list.innerHTML = '';
+        if (hint) {
+            let dirState = window.playerDirectory ? playerDirectory.state : 'idle';
+            if (!playerProfile.getTag()) hint.textContent = 'Opprett en profil for å se andre.';
+            else if (!playerProfile.hasRemote()) hint.textContent = 'Supabase er ikke koblet til, så listen er tom.';
+            else if (!playerProfile.data || !playerProfile.data.remote) hint.textContent = 'Profilen er ikke synket til Supabase ennå.';
+            else if (dirState === 'connecting' && !others.length) hint.textContent = 'Kobler til de andre spillerne…';
+            else if (!others.length) hint.textContent = 'Ingen andre er online akkurat nå.';
+            else hint.textContent = 'Trykk Bli med på den som hoster — du trenger ikke Host ID.';
         }
+
+        list.innerHTML = others.map(r => {
+            let peerId = this.safePeerId(r.peer_id);
+            let joinable = !!(peerId && (r.status === 'hosting' || r.status === 'in_game'));
+            let joinBtn = joinable
+                ? `<button type="button" class="btn btn-green presence-join" data-peer="${peerId}">Bli med</button>`
+                : '';
+            return `<li>
+                <div class="presence-who">
+                    <strong>@${this.escapeHtml(r.gamer_tag)}</strong>
+                    <span class="presence-status status-${this.escapeHtml(r.status)}">${this.statusLabel(r.status)}</span>
+                </div>
+                ${joinBtn}
+            </li>`;
+        }).join('');
     },
 
     bind() {
@@ -166,6 +175,7 @@ window.playerPresence = {
 
     init() {
         this.bind();
+        if (window.playerDirectory) playerDirectory.onChange(() => this.refreshList());
         if (playerProfile && playerProfile.isReady()) this.onVisibleMenu();
     }
 };

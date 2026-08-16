@@ -245,7 +245,13 @@ begin
                     when f.status = 'pending' and f.requester_id = v_me.id then 'outgoing'
                     when f.status = 'pending' and f.addressee_id = v_me.id then 'incoming'
                     else 'none'
-                end
+                end,
+                'status', case
+                    when pr.updated_at is not null and pr.updated_at > now() - interval '40 seconds'
+                    then pr.status
+                    else null
+                end,
+                'peer_id', pr.peer_id
             ) as row_obj,
             (p.gamer_tag_norm = v_q) as exact_match,
             p.gamer_tag
@@ -253,8 +259,9 @@ begin
         left join public.friendships f
             on least(f.requester_id, f.addressee_id) = least(v_me.id, p.id)
            and greatest(f.requester_id, f.addressee_id) = greatest(v_me.id, p.id)
+        left join public.presence pr on pr.user_id = p.id
         where p.id <> v_me.id
-          and starts_with(p.gamer_tag_norm, v_q)
+          and position(v_q in p.gamer_tag_norm) > 0
         order by (p.gamer_tag_norm = v_q) desc, p.gamer_tag
         limit 8
     ) found_rows;

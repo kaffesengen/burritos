@@ -90,6 +90,7 @@ window.playerProfile = {
                 p_tag: display,
                 p_token_hash: hash
             });
+            data = this.unwrapRpc(data);
             if (error) return { ok: false, error: 'Kunne ikke nå serveren. Sjekk Supabase-oppsettet.' };
             if (!data || !data.ok) {
                 if (data && data.error === 'taken') return { ok: false, error: 'Den gamer-tagen er opptatt.' };
@@ -116,6 +117,7 @@ window.playerProfile = {
                 p_tag: tag.trim(),
                 p_token_hash: hash
             });
+            data = this.unwrapRpc(data);
             if (error) return { ok: false, error: 'Kunne ikke nå serveren. Sjekk Supabase-oppsettet.' };
             if (!data || !data.ok) return { ok: false, error: 'Feil gamer-tag eller kode.' };
             this.data = { id: data.id, gamerTag: data.gamer_tag, secret: secret, remote: true };
@@ -126,34 +128,61 @@ window.playerProfile = {
         return { ok: true };
     },
 
+    unwrapRpc(data) {
+        if (data == null) return null;
+        if (typeof data === 'string') {
+            try { return JSON.parse(data); } catch (e) { return null; }
+        }
+        return data;
+    },
+
+    async syncToRemote() {
+        if (!this.hasRemote() || !this.data || !this.data.secret || !this.data.gamerTag) return false;
+        try {
+            let hash = await this.sha256(this.data.secret);
+            let login = await this.client().rpc('login_gamer_tag', {
+                p_tag: this.data.gamerTag,
+                p_token_hash: hash
+            });
+            let data = this.unwrapRpc(login.data);
+            if (data && data.ok) {
+                this.data.id = data.id;
+                this.data.gamerTag = data.gamer_tag;
+                this.data.remote = true;
+                this.saveLocal();
+                return true;
+            }
+            let claim = await this.client().rpc('claim_gamer_tag', {
+                p_tag: this.data.gamerTag,
+                p_token_hash: hash
+            });
+            data = this.unwrapRpc(claim.data);
+            if (data && data.ok) {
+                this.data.id = data.id;
+                this.data.gamerTag = data.gamer_tag;
+                this.data.remote = true;
+                this.saveLocal();
+                return true;
+            }
+            this.data.remote = false;
+            this.saveLocal();
+            return false;
+        } catch (e) {
+            this.data.remote = false;
+            return false;
+        }
+    },
+
     async restore() {
         this.loadLocal();
         if (!this.isReady()) return false;
-        if (this.hasRemote() && this.data.secret) {
-            try {
-                let hash = await this.sha256(this.data.secret);
-                let { data } = await this.client().rpc('login_gamer_tag', {
-                    p_tag: this.data.gamerTag,
-                    p_token_hash: hash
-                });
-                if (data && data.ok) {
-                    this.data.id = data.id;
-                    this.data.gamerTag = data.gamer_tag;
-                    this.data.remote = true;
-                    this.saveLocal();
-                    return true;
-                }
-                this.data.remote = false;
-                this.saveLocal();
-            } catch (e) {
-                this.data.remote = false;
-            }
-        }
+        if (this.hasRemote() && this.data.secret) await this.syncToRemote();
         this.syncNameField();
         return true;
     },
 
     logout() {
+        if (window.playerDirectory) window.playerDirectory.stop();
         if (window.playerPresence) window.playerPresence.clear();
         this.data = null;
         this.showingRecovery = false;
@@ -189,10 +218,10 @@ window.playerProfile = {
         let syncEl = document.getElementById('profile-sync-state');
         if (syncEl) {
             syncEl.textContent = this.data.remote
-                ? 'Unik tag synket til server'
+                ? 'Synket til Supabase'
                 : (this.hasRemote()
-                    ? 'Kun denne enheten (server avviste koden)'
-                    : 'Kun denne enheten — koble til Supabase for unik tag');
+                    ? 'Ikke synket ennå — åpne Profil og lagre, eller logg inn med koden'
+                    : 'Supabase er ikke koblet til');
         }
         let manageSync = document.getElementById('profile-manage-sync');
         if (manageSync) manageSync.textContent = syncEl ? syncEl.textContent : '';
@@ -200,6 +229,7 @@ window.playerProfile = {
         if (codeShow) codeShow.textContent = this.data.secret || '—';
         this.syncNameField();
         this.showBox('mode-selection');
+        if (window.playerDirectory) window.playerDirectory.start();
         if (window.playerPresence) window.playerPresence.onVisibleMenu();
         if (window.playerFriends) window.playerFriends.onVisibleMenu();
     },
@@ -210,6 +240,11 @@ window.playerProfile = {
         let key = document.getElementById('sb-key');
         if (url && !url.value) url.value = c.url;
         if (key && !key.value) key.value = c.anonKey;
+        let box = document.getElementById('profile-server-box');
+        if (box) {
+            let file = window.SUPABASE_CONFIG || {};
+            box.style.display = (file.url && file.anonKey) ? 'none' : '';
+        }
     },
 
     saveServerFromForm() {
@@ -218,6 +253,7 @@ window.playerProfile = {
         if (url && anonKey) localStorage.setItem(SUPABASE_LS_KEY, JSON.stringify({ url, anonKey }));
         else localStorage.removeItem(SUPABASE_LS_KEY);
         this.setError('profile-server-msg', url && anonKey ? 'Server lagret i denne nettleseren.' : 'Server fjernet. Taggen er bare lokal.');
+        if (url && anonKey && this.data) this.syncToRemote().then(() => this.render());
     },
 
     bind() {
@@ -268,8 +304,10 @@ window.playerProfile = {
             let manageSync = document.getElementById('profile-manage-sync');
             if (manageSync) {
                 manageSync.textContent = this.data && this.data.remote
-                    ? 'Unik tag synket til server'
-                    : 'Kun denne enheten — koble til Supabase for unik tag';
+                    ? 'Synket til Supabase'
+                    : (this.hasRemote()
+                        ? 'Ikke synket ennå. Logg ut og inn med gjenopprettingskoden, eller opprett taggen på nytt.'
+                        : 'Supabase er ikke koblet til');
             }
             let codeShow = document.getElementById('profile-manage-code');
             if (codeShow) codeShow.textContent = (this.data && this.data.secret) || '—';
