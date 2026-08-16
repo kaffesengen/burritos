@@ -10,8 +10,8 @@ function loadConfig() {
         return { url: process.env.SUPABASE_URL, anonKey: process.env.SUPABASE_ANON_KEY };
     }
     const src = fs.readFileSync(path.join(root, 'supabase-config.js'), 'utf8');
-    const url = (src.match(/url:\s*'([^']*)'/) || [])[1] || '';
-    const anonKey = (src.match(/anonKey:\s*'([^']*)'/) || [])[1] || '';
+    const url = (src.match(/url:\s*['"]([^'"]*)['"]/) || [])[1] || '';
+    const anonKey = (src.match(/anonKey:\s*['"]([^'"]*)['"]/) || [])[1] || '';
     return { url, anonKey };
 }
 
@@ -32,7 +32,6 @@ async function rpc(cfg, name, args) {
         method: 'POST',
         headers: {
             apikey: cfg.anonKey,
-            Authorization: 'Bearer ' + cfg.anonKey,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(args)
