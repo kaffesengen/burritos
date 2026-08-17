@@ -148,7 +148,8 @@ function freshTournament() {
         loadoutLocked: false,
         scores: {},
         phase: 'idle',
-        lastStandings: []
+        lastStandings: [],
+        podiumNames: null
     };
 }
 let tournament = freshTournament();
@@ -599,7 +600,8 @@ function serializeTournament() {
         loadoutLocked: tournament.loadoutLocked,
         phase: tournament.phase,
         scores: tournament.scores,
-        lastStandings: tournament.lastStandings
+        lastStandings: tournament.lastStandings,
+        podiumNames: tournament.podiumNames || null
     };
 }
 
@@ -617,7 +619,27 @@ function applyTournamentFromNet(t) {
         }
     }
     if (t.lastStandings) tournament.lastStandings = t.lastStandings;
-    setLoadoutLocked(!!t.loadoutLocked);
+    if (t.podiumNames) tournament.podiumNames = t.podiumNames;
+    if (t.loadoutLocked !== undefined) setLoadoutLocked(!!t.loadoutLocked);
+}
+
+function overlayIsOpen(id) {
+    let el = document.getElementById(id);
+    return !!(el && el.style.display === 'flex');
+}
+
+function syncTournamentOverlays() {
+    if (!tournament.active) return;
+    if (tournament.phase === 'standings') {
+        if (!overlayIsOpen('standings-overlay')) {
+            showStandingsOverlay(tournament.lastStandings || [], isLastTournamentRound());
+        }
+    } else if (tournament.phase === 'podium') {
+        if (!overlayIsOpen('podium-overlay')) {
+            let names = tournament.podiumNames || getTournamentRanking().map(r => `${r.n} (${r.points}p)`);
+            showRacePodium(names, 'Turnering Fullført!', 'Tilbake til lobby');
+        }
+    }
 }
 
 function setSandboxHudVisible(on) {
@@ -870,11 +892,17 @@ function awardRoundPoints(lbArr) {
 }
 
 function getTournamentRanking() {
-    return Object.values(players).map(p => ({
+    let ids = tournament.scores ? Object.keys(tournament.scores) : [];
+    let list = ids.length ? ids.map(id => ({
+        id: id,
+        n: (tournament.scores[id] && tournament.scores[id].name) || (players[id] && players[id].name) || id,
+        points: (tournament.scores[id] && tournament.scores[id].points) || 0
+    })) : Object.values(players).map(p => ({
         id: p.id,
         n: p.name,
         points: (tournament.scores[p.id] && tournament.scores[p.id].points) || p.tourneyPoints || 0
-    })).sort((a, b) => b.points - a.points || a.n.localeCompare(b.n));
+    }));
+    return list.sort((a, b) => b.points - a.points || String(a.n).localeCompare(String(b.n)));
 }
 
 function switchToTrack(trackId) {
@@ -947,6 +975,7 @@ function showTournamentPodium() {
     hideStandings();
     let rank = getTournamentRanking();
     let names = rank.map(r => `${r.n} (${r.points}p)`);
+    tournament.podiumNames = names;
     showRacePodium(names, 'Turnering Fullført!', 'Tilbake til lobby');
     if (isHost) broadcastAll({ type: 'tournamentPodium', tournament: serializeTournament(), names: names });
 }
@@ -1565,7 +1594,8 @@ function initJoiner(hostId) {
                     if (data.players) applyPlayerSnapshot(data.players, 'snap');
                     if(data.rs === 0) { raceState = 0; raceStartTime = performance.now() - 1000; } 
                     let jUi = document.getElementById('joiner-ui'); if (jUi) jUi.style.display = 'none';
-                    enterGame(); 
+                    enterGame();
+                    syncTournamentOverlays(); 
                 } 
                 else if (data.type === 'nextTrack') {
                     if (data.tournament) applyTournamentFromNet(data.tournament);
@@ -1576,12 +1606,15 @@ function initJoiner(hostId) {
                 }
                 else if (data.type === 'tournamentStandings') {
                     if (data.tournament) applyTournamentFromNet(data.tournament);
-                    showStandingsOverlay(data.rows || [], !!data.isLast);
+                    tournament.phase = 'standings';
+                    if (data.rows) tournament.lastStandings = data.rows;
+                    showStandingsOverlay(data.rows || tournament.lastStandings || [], !!data.isLast);
                 }
                 else if (data.type === 'tournamentPodium') {
                     if (data.tournament) applyTournamentFromNet(data.tournament);
                     tournament.phase = 'podium';
-                    showRacePodium(data.names || [], 'Turnering Fullført!', 'Tilbake til lobby');
+                    if (data.names) tournament.podiumNames = data.names;
+                    showRacePodium(data.names || tournament.podiumNames || [], 'Turnering Fullført!', 'Tilbake til lobby');
                 }
                 else if (data.type === 'returnLobby') {
                     returnToLobbyKeepSession();
@@ -1589,15 +1622,11 @@ function initJoiner(hostId) {
                 else if (data.type === 'state') {
                     if(data.laps) totalLaps = data.laps; if(data.raceState !== undefined) raceState = data.raceState;
                     if(data.settings) serverSettings = data.settings;
-                    if (data.tournament) {
-                        tournament.active = !!data.tournament.active;
-                        if (data.tournament.tracks) tournament.tracks = data.tournament.tracks;
-                        if (data.tournament.currentRound !== undefined) tournament.currentRound = data.tournament.currentRound;
-                        if (data.tournament.laps) tournament.laps = data.tournament.laps;
-                    }
+                    if (data.tournament) applyTournamentFromNet(data.tournament);
                     
                     applyPlayerSnapshot(data.players, 'lerp');
                     pruneMissingRemotes(data.players);
+                    syncTournamentOverlays();
                 }
             });
         });
@@ -2238,7 +2267,7 @@ function update() {
         
         if (now - lastNetUpdate > 40) {
             let stateMsg = { type: 'state', raceState: raceState, laps: totalLaps, settings: serverSettings, players: outState.players };
-            if (tournament.active) stateMsg.tournament = { active: true, tracks: tournament.tracks, currentRound: tournament.currentRound, laps: tournament.laps, phase: tournament.phase };
+            if (tournament.active) stateMsg.tournament = serializeTournament();
             Object.values(connections).forEach(c => { try { c.send(stateMsg); } catch(e){} });
             lastNetUpdate = now;
         }
@@ -2322,7 +2351,9 @@ function update() {
 
     let allFinished = Object.keys(players).length > 0 && Object.values(players).every(p => p.finished);
 
-    if(raceState === 0 && allFinished) {
+    if (tournament.active && (tournament.phase === 'standings' || tournament.phase === 'podium')) {
+        syncTournamentOverlays();
+    } else if(raceState === 0 && allFinished) {
         if(!window.finishTimer) window.finishTimer = performance.now();
         if(performance.now() - window.finishTimer > 2500 && !window.podiumClosed) {
             if (tournament.active) {
@@ -2341,10 +2372,8 @@ function update() {
     } else {
         if (raceState !== 0) {
             window.finishTimer = null; window.podiumClosed = false;
-            if (!tournament.active || (tournament.phase !== 'standings' && tournament.phase !== 'podium')) {
-                hidePodium();
-                hideStandings();
-            }
+            hidePodium();
+            hideStandings();
         }
     }
 
