@@ -417,25 +417,57 @@ class AIManager {
         this.processedTracks[trackId] = true;
     }
 
-    spawnAI(playersObject, trackStartX, trackStartY, trackStartAngle, presetId = 'ai_standard') {
+    spawnAI(playersObject, trackStartX, trackStartY, trackStartAngle, presetId = 'jaguar') {
         let currentCount = Object.keys(this.aiList).length;
-        if (currentCount >= this.maxAI) return;
+        if (currentCount >= this.maxAI) return null;
+
+        let safePreset = presetId;
+        if (typeof vehiclePresets !== 'undefined' && !vehiclePresets[safePreset]) safePreset = 'jaguar';
+        if (!safePreset) safePreset = 'jaguar';
 
         let aiId = 'AI_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
         let newAI = new AIDriver(aiId);
         this.aiList[aiId] = newAI;
 
-        playersObject[aiId] = {
-            id: aiId, name: "[AI] " + newAI.name, presetId: presetId, color: newAI.color,
-            x: trackStartX, y: trackStartY, prevX: trackStartX, prevY: trackStartY,
-            vx: 0, vy: 0, angle: trackStartAngle, yawRate: 0,
-            gear: 1, rpm: 1000, steer: 0, targetX: trackStartX, targetY: trackStartY, targetAngle: trackStartAngle,
-            inputs: { steering: 0, throttle: 0, handbrake: false, driftAssist: true, shiftUp: false, shiftDown: false },
-            frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0, fuel: 100, maxFuel: 100,
-            lastSeen: performance.now(), clutchDump: 0, prevThrottle: 0,
-            lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, lastLap: 0, totalTime: 0, finished: false,
-            isAI: true, ghostTimer: 0, isGhost: false
-        };
+        let record;
+        if (typeof createPlayerRecord === 'function') {
+            record = createPlayerRecord(aiId, safePreset, "[AI] " + newAI.name, newAI.color);
+        } else {
+            record = {
+                id: aiId, name: "[AI] " + newAI.name, presetId: safePreset, color: newAI.color,
+                x: trackStartX, y: trackStartY, prevX: trackStartX, prevY: trackStartY,
+                vx: 0, vy: 0, angle: trackStartAngle, yawRate: 0,
+                gear: 1, rpm: 1000, steer: 0, targetX: trackStartX, targetY: trackStartY, targetAngle: trackStartAngle,
+                inputs: { steering: 0, throttle: 0, handbrake: false, driftAssist: true, shiftUp: false, shiftDown: false },
+                frontSpinSeverity: 0, rearSpinSeverity: 0, appliesBrake: false, speedKmh: 0, fuel: 100, maxFuel: 100,
+                lastSeen: performance.now(), clutchDump: 0, prevThrottle: 0,
+                lap: 0, cp: false, lapStartTime: performance.now(), currentLapTime: 0, bestLap: Infinity, lastLap: 0, totalTime: 0, finished: false
+            };
+        }
+        record.name = "[AI] " + newAI.name;
+        record.presetId = safePreset;
+        record.color = newAI.color;
+        record.x = trackStartX;
+        record.y = trackStartY;
+        record.prevX = trackStartX;
+        record.prevY = trackStartY;
+        record.angle = trackStartAngle;
+        record.targetX = trackStartX;
+        record.targetY = trackStartY;
+        record.targetAngle = trackStartAngle;
+        record.isAI = true;
+        record.ghostTimer = 0;
+        record.isGhost = false;
+        if (record.inputs) record.inputs.driftAssist = true;
+        playersObject[aiId] = record;
+        return aiId;
+    }
+
+    removeAI(playersObject, aiId) {
+        if (!aiId) return false;
+        delete this.aiList[aiId];
+        if (playersObject) delete playersObject[aiId];
+        return true;
     }
 
     clearAI(playersObject) {

@@ -426,8 +426,26 @@ button.menu-tile {
 .track-slot-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .track-slot-row span { color: var(--menu-gold); font-weight: bold; width: 18px; font-size: 12px; flex-shrink: 0; }
 .track-slot-row select { margin-top: 0; padding: 8px; font-size: 13px; }
-.lobby-player-list { list-style: none; margin: 6px 0 10px; text-align: left; }
+.lobby-player-list { list-style: none; margin: 6px 0 10px; text-align: left; max-height: min(38vh, 320px); overflow-y: auto; scrollbar-width: thin; }
 .lobby-player-list li { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 13px; color: #ddd; border-bottom: 1px dotted rgba(255,255,255,0.08); }
+.lobby-player-list li.is-ai { opacity: 0.96; }
+.lobby-ai-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(142, 68, 173, 0.28);
+    border: 1px solid rgba(155, 89, 182, 0.55);
+    color: #d7b3ea;
+    font-size: 9px;
+    font-style: normal;
+    letter-spacing: 0.08em;
+    vertical-align: middle;
+}
+.lobby-ai-panel { margin: 4px 0 8px; }
+.lobby-ai-panel .input-text { margin-top: 4px; }
+.lobby-ai-row { display: flex; gap: 8px; margin-top: 8px; }
+.lobby-ai-row .btn { width: auto; flex: 1; margin-top: 0; font-size: 12px; padding: 8px 10px; }
 .lobby-car-thumb {
     width: 72px;
     height: 40px;

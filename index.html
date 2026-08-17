@@ -246,7 +246,16 @@
 
         <p id="player-count" class="menu-player-count">Spillere i lobby: 1</p>
         <ul id="host-player-list" class="lobby-player-list"></ul>
-        <p class="tourney-hint">Velg bil i garasjen til høyre. Dette låses når turneringen starter.</p>
+        <div class="lobby-ai-panel">
+            <label class="menu-field-label" for="lobby-ai-preset">AI-bil</label>
+            <select id="lobby-ai-preset" class="input-text"></select>
+            <div class="lobby-ai-row">
+                <button type="button" class="btn" id="btn-lobby-add-ai">Legg til AI</button>
+                <button type="button" class="btn btn-back" id="btn-lobby-remove-ai">Fjern siste AI</button>
+            </div>
+            <p class="tourney-hint">Velg bil og legg til AI her i lobbyen. De vises i listen og blir med når turneringen starter.</p>
+        </div>
+        <p class="tourney-hint">Velg din egen bil i garasjen til høyre. Dette låses når turneringen starter.</p>
         <div class="lobby-actions">
             <button class="btn btn-green" id="btn-enter-game">Start turnering</button>
             <button type="button" class="btn btn-back" id="btn-host-back">← Tilbake</button>
@@ -422,25 +431,6 @@
         <button id="btn-start-race" class="btn btn-green">🏁 Start Race</button>
         <button id="btn-force-end" class="btn" style="background:#f39c12;">🛑 Avslutt Løp</button>
         <button id="btn-reset" class="btn" style="background:#e74c3c;">↺ Reset Grid</button>
-        
-        <div style="display: flex; gap: 5px; margin-bottom: 5px; width: 100%;">
-            <select id="ai-preset-selector" class="input-text" style="flex: 1; padding: 5px;">
-                <option value="ai_standard" selected>AI: Skyline R34</option>
-                <option value="jaguar">AI: Jaguar I-PACE</option>
-                <option value="gokart">AI: Go-Kart</option>
-                <option value="kartrent">AI: Utleiekart GX390</option>
-                <option value="kartrace">AI: Race-Kart GX390</option>
-                <option value="f1">AI: Formel 1</option>
-                <option value="mx5">AI: Mazda MX-5</option>
-                <option value="r32">AI: Skyline R32</option>
-                <option value="s15">AI: Silvia S15</option>
-                <option value="gt3rs">AI: Porsche 911 GT3</option>
-                <option value="amggt">AI: Mercedes AMG GT</option>
-                <option value="valkyrie">AI: Aston Valkyrie</option>
-                <option value="jesko">AI: Koenigsegg Jesko</option>
-            </select>
-            <button id="btn-add-ai" class="btn" style="background:#8e44ad; width: 120px; font-size: 12px; margin: 0;">🤖 Legg til AI</button>
-        </div>
 
         <select id="track-selector">
             <optgroup label="Lekeplasser">
