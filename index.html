@@ -22,6 +22,7 @@
     <script src="waypoints.js" defer></script>
     <script src="audio.js" defer></script>
     <script src="vehicles.js" defer></script>
+    <script src="vehicle-bench.js" defer></script>
     <script src="vehicle-garage.js" defer></script>
     <script src="app.js" defer></script>
 </head>
@@ -301,38 +302,38 @@
                 </div>
                 <div class="stats-bars anim-target" id="garage-anim-stats">
                     <div class="stat-row">
+                        <div class="stat-label">Effekt/vekt</div>
+                        <div class="stat-bar-container">
+                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-power"></div></div>
+                            <div class="stat-value" id="garage-val-power">0 hk/t</div>
+                        </div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">0–100</div>
+                        <div class="stat-bar-container">
+                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-accel"></div></div>
+                            <div class="stat-value" id="garage-val-accel">—</div>
+                        </div>
+                    </div>
+                    <div class="stat-row">
                         <div class="stat-label">Toppfart</div>
                         <div class="stat-bar-container">
                             <div class="bar-bg"><div class="bar-fill" id="garage-bar-speed"></div></div>
-                            <div class="stat-value" id="garage-val-speed">0.0</div>
+                            <div class="stat-value" id="garage-val-speed">0 km/t</div>
                         </div>
                     </div>
                     <div class="stat-row">
-                        <div class="stat-label">Akselerasjon</div>
+                        <div class="stat-label">Sidegrep</div>
                         <div class="stat-bar-container">
-                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-accel"></div></div>
-                            <div class="stat-value" id="garage-val-accel">0.0</div>
+                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-grip"></div></div>
+                            <div class="stat-value" id="garage-val-grip">0,0 g</div>
                         </div>
                     </div>
                     <div class="stat-row">
-                        <div class="stat-label">Bremsing</div>
+                        <div class="stat-label">Styrevinkel</div>
                         <div class="stat-bar-container">
-                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-brake"></div></div>
-                            <div class="stat-value" id="garage-val-brake">0.0</div>
-                        </div>
-                    </div>
-                    <div class="stat-row">
-                        <div class="stat-label">Sving</div>
-                        <div class="stat-bar-container">
-                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-corner"></div></div>
-                            <div class="stat-value" id="garage-val-corner">0.0</div>
-                        </div>
-                    </div>
-                    <div class="stat-row">
-                        <div class="stat-label">Stabilitet</div>
-                        <div class="stat-bar-container">
-                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-stab"></div></div>
-                            <div class="stat-value" id="garage-val-stab">0.0</div>
+                            <div class="bar-bg"><div class="bar-fill" id="garage-bar-steer"></div></div>
+                            <div class="stat-value" id="garage-val-steer">0°</div>
                         </div>
                     </div>
                 </div>
@@ -342,8 +343,8 @@
                         <div class="highlight-label">Effekt</div>
                     </div>
                     <div class="highlight-box">
-                        <div class="highlight-val" id="garage-hl-topspeed">0 KM/T</div>
-                        <div class="highlight-label">Toppfart</div>
+                        <div class="highlight-val" id="garage-hl-drive">—</div>
+                        <div class="highlight-label">Drivlinje</div>
                     </div>
                     <div class="highlight-box">
                         <div class="highlight-val" id="garage-hl-weight">0 KG</div>

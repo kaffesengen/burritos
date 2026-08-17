@@ -38,40 +38,67 @@ window.vehicleGarage = {
         { id: 'yaris', name: 'Toyota GR Yaris', maker: 'Toyota', group: 'Rally', year: '2020', flag: '🇯🇵' }
     ],
 
-    clamp10(n) {
-        return Math.round(Math.max(0.5, Math.min(10, n)) * 10) / 10;
+    hpPerTon(pre) {
+        return (pre.power / Math.max(pre.mass, 1)) * 1000;
     },
 
-    estimate0100(pre) {
-        let hpPerTon = (pre.power / Math.max(pre.mass, 1)) * 1000;
-        let launch = Math.sqrt(Math.max(0.7, pre.grip) / 1.8);
-        let seconds = 850 / Math.max(80, hpPerTon * launch);
-        if (pre.ev) seconds *= 0.88;
-        return Math.round(Math.max(1.9, Math.min(13.5, seconds)) * 10) / 10;
+    latG(pre) {
+        return (pre.grip ?? 0) * 1.4;
     },
 
-    estimateTopSpeed(pre) {
-        let ratio = pre.power / Math.max(pre.mass, 1);
-        return Math.round(90 + Math.sqrt(ratio) * 190);
+    steerDeg(pre) {
+        return (pre.turn ?? 0) * 10;
     },
 
-    ratings(pre) {
-        let hpPerTon = (pre.power / Math.max(pre.mass, 1)) * 1000;
-        let accelSec = this.estimate0100(pre);
-        let turn = pre.turn ?? 4.5;
-        let roll = pre.roll ?? 0.04;
-        let grip = pre.grip ?? 1.6;
-        let cornerBoost = turn > 2 ? turn * 0.45 : 2.5;
-        let stab = 4.5;
-        if (pre.drivetrain === 'AWD') stab += 1.4;
-        stab += (0.06 - roll) * 40;
-        stab += Math.min(2, pre.mass / 1200);
+    formatNb(n, digits) {
+        return Number(n).toLocaleString('nb-NO', {
+            minimumFractionDigits: digits,
+            maximumFractionDigits: digits
+        });
+    },
+
+    catalogMax(getter) {
+        let max = 0;
+        this.visibleCars().forEach(c => {
+            let pre = window.vehiclePresets[c.id];
+            if (!pre) return;
+            let v = getter(pre);
+            if (isFinite(v) && v > max) max = v;
+        });
+        return max;
+    },
+
+    barScale(value, max) {
+        if (!max || max <= 0 || !isFinite(value)) return 0;
+        return Math.max(0, Math.min(1, value / max));
+    },
+
+    measures(pre) {
         return {
-            speed: this.clamp10(Math.sqrt(hpPerTon) / 3.8),
-            accel: this.clamp10(10 * (13.5 - accelSec) / 11.6),
-            brake: this.clamp10(grip * 2.7),
-            corner: this.clamp10(grip * 2.2 + cornerBoost),
-            stab: this.clamp10(stab)
+            hpPerTon: this.hpPerTon(pre),
+            latG: this.latG(pre),
+            steerDeg: this.steerDeg(pre)
+        };
+    },
+
+    benchResult(id) {
+        if (!window.vehicleBench || !window.vehiclePresets || !window.vehiclePresets[id]) {
+            return { t100: null, vmax: 0 };
+        }
+        return vehicleBench.result(id);
+    },
+
+    catalogBench() {
+        let t100s = [];
+        let vmaxs = [];
+        this.visibleCars().forEach(c => {
+            let r = this.benchResult(c.id);
+            if (r.t100 != null) t100s.push(r.t100);
+            if (r.vmax > 0) vmaxs.push(r.vmax);
+        });
+        return {
+            minT100: t100s.length ? Math.min(...t100s) : 0,
+            maxVmax: vmaxs.length ? Math.max(...vmaxs) : 1
         };
     },
 
@@ -79,6 +106,8 @@ window.vehicleGarage = {
         let pre = (window.vehiclePresets || {})[id];
         if (!pre) return null;
         let meta = this.catalog.find(c => c.id === id) || { name: id, maker: '', group: '', year: '', flag: '' };
+        let m = this.measures(pre);
+        let b = this.benchResult(id);
         return {
             id: id,
             name: meta.name,
@@ -90,9 +119,11 @@ window.vehicleGarage = {
             hk: Math.round(pre.power),
             kg: Math.round(pre.mass),
             grip: pre.grip,
-            accel: this.estimate0100(pre),
-            topSpeed: this.estimateTopSpeed(pre),
-            ratings: this.ratings(pre)
+            hpPerTon: m.hpPerTon,
+            latG: m.latG,
+            steerDeg: m.steerDeg,
+            t100: b.t100,
+            vmax: b.vmax
         };
     },
 
@@ -168,7 +199,9 @@ window.vehicleGarage = {
             <span>Grip ${s.grip.toFixed(2)}</span>
             <span>${s.hk} hk</span>
             <span>${s.kg} kg</span>
-            <span>0–100 ${s.accel.toFixed(1)} s</span>
+            <span>${Math.round(s.hpPerTon)} hk/t</span>
+            <span>${s.t100 == null ? '0–100 —' : '0–100 ' + this.formatNb(s.t100, 2) + ' s'}</span>
+            <span>${s.vmax} km/t</span>
         `;
     },
 
@@ -177,13 +210,13 @@ window.vehicleGarage = {
         if (el) el.textContent = text;
     },
 
-    setBar(id, rating) {
+    setBar(id, fraction) {
         let el = document.getElementById(id);
-        if (el) el.style.width = `${(rating / 10) * 100}%`;
+        if (el) el.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
     },
 
     resetBars() {
-        ['garage-bar-speed', 'garage-bar-accel', 'garage-bar-brake', 'garage-bar-corner', 'garage-bar-stab']
+        ['garage-bar-power', 'garage-bar-accel', 'garage-bar-speed', 'garage-bar-grip', 'garage-bar-steer']
             .forEach(id => this.setBar(id, 0));
     },
 
@@ -200,13 +233,13 @@ window.vehicleGarage = {
         this.setText('garage-spec-logo', (s.maker || s.name).substring(0, 3).toUpperCase());
         this.setText('garage-spec-title', s.name);
         this.setText('garage-spec-year', s.year ? `${s.year} · ${s.drivetrain}` : s.drivetrain);
-        this.setText('garage-val-speed', s.ratings.speed.toFixed(1));
-        this.setText('garage-val-accel', s.ratings.accel.toFixed(1));
-        this.setText('garage-val-brake', s.ratings.brake.toFixed(1));
-        this.setText('garage-val-corner', s.ratings.corner.toFixed(1));
-        this.setText('garage-val-stab', s.ratings.stab.toFixed(1));
+        this.setText('garage-val-power', `${Math.round(s.hpPerTon)} hk/t`);
+        this.setText('garage-val-accel', s.t100 == null ? '—' : `${this.formatNb(s.t100, 2)} s`);
+        this.setText('garage-val-speed', `${s.vmax} km/t`);
+        this.setText('garage-val-grip', `${this.formatNb(s.latG, 2)} g`);
+        this.setText('garage-val-steer', `${Math.round(s.steerDeg)}°`);
         this.setText('garage-hl-power', `${s.hk} HK`);
-        this.setText('garage-hl-topspeed', `${s.topSpeed} KM/T`);
+        this.setText('garage-hl-drive', s.drivetrain || '—');
         this.setText('garage-hl-weight', `${s.kg.toLocaleString('nb-NO')} KG`);
         this.drawPreview(document.getElementById('garage-hero-canvas'), id, this.color(), true);
         this.renderFooter(id);
@@ -215,11 +248,12 @@ window.vehicleGarage = {
     playBars(id) {
         let s = this.stats(id);
         if (!s) return;
-        this.setBar('garage-bar-speed', s.ratings.speed);
-        this.setBar('garage-bar-accel', s.ratings.accel);
-        this.setBar('garage-bar-brake', s.ratings.brake);
-        this.setBar('garage-bar-corner', s.ratings.corner);
-        this.setBar('garage-bar-stab', s.ratings.stab);
+        let benchScale = this.catalogBench();
+        this.setBar('garage-bar-power', this.barScale(s.hpPerTon, this.catalogMax(pre => this.hpPerTon(pre))));
+        this.setBar('garage-bar-accel', s.t100 == null || !benchScale.minT100 ? 0 : this.barScale(benchScale.minT100, s.t100));
+        this.setBar('garage-bar-speed', this.barScale(s.vmax, benchScale.maxVmax));
+        this.setBar('garage-bar-grip', this.barScale(s.latG, this.catalogMax(pre => this.latG(pre))));
+        this.setBar('garage-bar-steer', this.barScale(s.steerDeg, this.catalogMax(pre => this.steerDeg(pre))));
     },
 
     schedulePanel(id, immediate) {
