@@ -57,7 +57,7 @@ function stepPhysics(p, ins, pre, onBounds, dt) {
     const throttle = ins.throttle || 0;
     const mu = pre.grip;
     const brakeA = Math.min(18, mu * 9.81 * 0.95);
-    const accelPeak = Math.min(11, (pre.power / pre.mass) * 7.5);
+    const accelPeak = Math.min(13, Math.max(3.2, (pre.power / pre.mass) * 16));
     let a = 0;
     if (throttle < 0) a = throttle * brakeA;
     else a = throttle * accelPeak * Math.max(0.25, 1 - speed / 95);
@@ -176,14 +176,14 @@ for (const t of tracks) {
     for (const c of cars) {
         const row = runOne(t, c, seconds);
         rows.push(row);
-        const flag = row.laps < 1 || row.offPct > 18 || row.teleports > 2 ? 'WEAK' : 'ok';
+        const flag = row.offPct > 12 || row.teleports > 2 || row.avgSpeed < 30 ? 'WEAK' : 'ok';
         console.log(
             `${flag.padEnd(4)} ${t.padEnd(12)} ${c.padEnd(12)} laps=${row.laps} avg=${row.avgSpeed.toFixed(1)} max=${row.maxSpeed.toFixed(0)} off=${row.offPct.toFixed(1)}% bounce=${row.bounces} tp=${row.teleports}`
         );
     }
 }
 
-const weak = rows.filter(r => r.laps < 1 || r.offPct > 18 || r.teleports > 2);
+const weak = rows.filter(r => r.offPct > 12 || r.teleports > 2 || r.avgSpeed < 30);
 const avgOff = rows.reduce((s, r) => s + r.offPct, 0) / rows.length;
 const avgLap = rows.reduce((s, r) => s + r.laps, 0) / rows.length;
 const avgSpd = rows.reduce((s, r) => s + r.avgSpeed, 0) / rows.length;

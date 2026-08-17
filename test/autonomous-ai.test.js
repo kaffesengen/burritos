@@ -74,4 +74,12 @@ const lobby = {};
 assert.ok(sandbox.aiManager.spawnAI(lobby, 10, 20, 0, 'f1'));
 assert.strictEqual(sandbox.aiManager.driveMode, 'autonomous');
 
+for (const id of ['standard', 'monaco', 'mini1', 'gokart', 'spa']) {
+    const t = TRACKS[id];
+    const on = (x, y) => strokeFromCmds(t.cmds, 160).contains(x, y);
+    const line = A.processCenterline(A.traceCenterline(on, t.startX, t.startY, t.startAngle));
+    assert.ok(line.closed && line.length > 80, id + ' must trace a closed line, got n=' + line.length + ' closed=' + line.closed);
+    assert.ok(line.every(p => on(p.x, p.y)), id + ' centerline must stay on asphalt');
+}
+
 console.log('autonomous-ai tests ok');

@@ -9,8 +9,8 @@ const ASPHALT_WIDTH = 160;
 const BOUNDS_WIDTH = 240;
 const TRACE_STEP = 26;
 const CAR_MARGIN = 20;
-const GRIP_UTIL = 0.84;
-const BRAKE_UTIL = 0.90;
+const GRIP_UTIL = 0.80;
+const BRAKE_UTIL = 0.92;
 const MIN_SPEED_MPS = 8;
 const MAX_SPEED_MPS = 92;
 
@@ -68,18 +68,52 @@ function rayDistance(onTrack, x, y, angle, maxD, step) {
 }
 
 function snapToCenter(onTrack, x, y, heading) {
-    let left = edgeDistance(onTrack, x, y, heading + Math.PI / 2, 130);
-    let right = edgeDistance(onTrack, x, y, heading - Math.PI / 2, 130);
-    let nx = Math.cos(heading + Math.PI / 2);
-    let ny = Math.sin(heading + Math.PI / 2);
-    let shift = (right - left) * 0.5;
-    return {
-        x: x + nx * shift,
-        y: y + ny * shift,
-        halfWidth: Math.max(16, (left + right) * 0.5),
-        left: left,
-        right: right
-    };
+    let frame = localFrame(onTrack, x, y, heading);
+    if (!frame) {
+        return { x: x, y: y, halfWidth: 16, left: 0, right: 0, heading: heading };
+    }
+    return frame;
+}
+
+function localFrame(onTrack, x, y, headingHint) {
+    if (!onTrack(x, y)) {
+        let found = searchOnTrack(onTrack, x, y, 90);
+        if (!found) return null;
+        x = found.x;
+        y = found.y;
+    }
+    let bestA = 0;
+    let bestW = 1e9;
+    let bestL = 0;
+    let bestR = 0;
+    for (let i = 0; i < 16; i++) {
+        let a = i * Math.PI / 16;
+        let l = edgeDistance(onTrack, x, y, a, 145);
+        let r = edgeDistance(onTrack, x, y, a + Math.PI, 145);
+        let w = l + r;
+        if (w < bestW) {
+            bestW = w;
+            bestA = a;
+            bestL = l;
+            bestR = r;
+        }
+    }
+    let half = Math.max(14, bestW * 0.5);
+    if (bestW > 150) {
+        let tan1 = headingHint;
+        return { x: x, y: y, heading: tan1, halfWidth: half, left: bestL, right: bestR, wide: true };
+    }
+    let shift = (bestL - bestR) * 0.5;
+    let cx = x + Math.cos(bestA) * shift;
+    let cy = y + Math.sin(bestA) * shift;
+    if (!onTrack(cx, cy)) {
+        cx = x;
+        cy = y;
+    }
+    let tan1 = bestA + Math.PI / 2;
+    let tan2 = bestA - Math.PI / 2;
+    let heading = Math.abs(wrapAngle(tan1 - headingHint)) <= Math.abs(wrapAngle(tan2 - headingHint)) ? tan1 : tan2;
+    return { x: cx, y: cy, heading: heading, halfWidth: half, left: bestL, right: bestR, wide: false };
 }
 
 function bestHeading(onTrack, x, y, heading, spread, rays, maxD) {
@@ -120,59 +154,94 @@ function wrapIndex(i, n, closed) {
 
 function traceCenterline(onTrack, startX, startY, startAngle) {
     let seed = searchOnTrack(onTrack, startX, startY, 90) || { x: startX, y: startY };
-    let heading = startAngle;
-    let snap0 = snapToCenter(onTrack, seed.x, seed.y, heading);
-    let x = snap0.x;
-    let y = snap0.y;
+    let frame0 = localFrame(onTrack, seed.x, seed.y, startAngle);
+    if (!frame0) return [];
+    let x = frame0.x;
+    let y = frame0.y;
+    let heading = frame0.heading;
     let pts = [];
     let closed = false;
 
-    for (let i = 0; i < 1800; i++) {
-        if (!onTrack(x, y)) {
-            let found = searchOnTrack(onTrack, x, y, 90);
-            if (!found) break;
-            x = found.x;
-            y = found.y;
-        }
-        let snap = snapToCenter(onTrack, x, y, heading);
-        x = snap.x;
-        y = snap.y;
-        let look = bestHeading(onTrack, x, y, heading, 1.2, 17, 460);
-        let trialH = heading + wrapAngle(look.heading - heading) * 0.65;
-        let nx = x + Math.cos(trialH) * TRACE_STEP;
-        let ny = y + Math.sin(trialH) * TRACE_STEP;
-        if (!onTrack(nx, ny)) {
-            look = bestHeading(onTrack, x, y, heading, 1.7, 19, 380);
-            trialH = look.heading;
+    for (let i = 0; i < 1400; i++) {
+        let frame = localFrame(onTrack, x, y, heading);
+        if (!frame) break;
+        x = frame.x;
+        y = frame.y;
+        let dH = wrapAngle(frame.heading - heading);
+        heading += Math.max(-0.38, Math.min(0.38, dH));
+
+        let tight = frame.halfWidth < 42 || rayDistance(onTrack, x, y, heading, 90, 14) < 70;
+        let spread = tight ? 1.45 : 0.85;
+        let maxTurn = tight ? 0.95 : 0.36;
+        let look = bestHeading(onTrack, x, y, heading, spread, tight ? 17 : 13, 420);
+        let trialH = heading + Math.max(-maxTurn, Math.min(maxTurn, wrapAngle(look.heading - heading)));
+        let stepLen = tight ? 14 : TRACE_STEP;
+        let nx = x + Math.cos(trialH) * stepLen;
+        let ny = y + Math.sin(trialH) * stepLen;
+        let next = localFrame(onTrack, nx, ny, trialH);
+        if (!next) {
+            look = bestHeading(onTrack, x, y, heading, 1.6, 19, 360);
+            trialH = heading + Math.max(-1.05, Math.min(1.05, wrapAngle(look.heading - heading)));
             nx = x + Math.cos(trialH) * TRACE_STEP;
             ny = y + Math.sin(trialH) * TRACE_STEP;
-            if (!onTrack(nx, ny)) {
-                let found = searchOnTrack(onTrack, nx, ny, 80);
-                if (!found) break;
-                nx = found.x;
-                ny = found.y;
+            next = localFrame(onTrack, nx, ny, trialH);
+        }
+        if (!next) {
+            let recovered = null;
+            for (let k = 0; k < 12; k++) {
+                let sign = k % 2 === 0 ? 1 : -1;
+                let mag = 0.45 + Math.floor(k / 2) * 0.28;
+                let h = heading + sign * mag;
+                let cand = localFrame(onTrack, x + Math.cos(h) * 16, y + Math.sin(h) * 16, h);
+                if (cand && Math.hypot(cand.x - x, cand.y - y) > 8) {
+                    recovered = cand;
+                    look = { heading: h, clear: 40 };
+                    break;
+                }
+            }
+            if (!recovered) break;
+            next = recovered;
+        }
+
+        let stepH = Math.atan2(next.y - y, next.x - x);
+        let stepD = Math.hypot(next.x - x, next.y - y);
+        if (stepD < 6) {
+            look = bestHeading(onTrack, x, y, heading, 1.7, 19, 300);
+            trialH = heading + wrapAngle(look.heading - heading);
+            next = localFrame(onTrack, x + Math.cos(trialH) * TRACE_STEP, y + Math.sin(trialH) * TRACE_STEP, trialH);
+            if (!next) break;
+            stepH = Math.atan2(next.y - y, next.x - x);
+            stepD = Math.hypot(next.x - x, next.y - y);
+            if (stepD < 6) break;
+        }
+        let turn = wrapAngle(stepH - heading);
+        heading += Math.max(-maxTurn, Math.min(maxTurn, turn));
+        x = next.x;
+        y = next.y;
+
+        let reverse = false;
+        if (pts.length > 6) {
+            for (let k = pts.length - 6; k < pts.length; k++) {
+                if (Math.hypot(x - pts[k].x, y - pts[k].y) < 12) reverse = true;
             }
         }
-        let snapped = snapToCenter(onTrack, nx, ny, trialH);
-        let fromSnap = Math.atan2(snapped.y - y, snapped.x - x);
-        if (Math.hypot(snapped.x - x, snapped.y - y) > 2) {
-            heading = heading + wrapAngle(fromSnap - heading) * 0.92;
-        } else {
-            heading = trialH;
+        if (reverse) {
+            x += Math.cos(heading) * 8;
+            y += Math.sin(heading) * 8;
         }
-        x = snapped.x;
-        y = snapped.y;
+
         pts.push({
             x: x,
             y: y,
             heading: heading,
-            halfWidth: snapped.halfWidth,
+            halfWidth: next.halfWidth,
             clear: look.clear
         });
-        if (i > 48) {
+
+        if (i > 50) {
             let d0 = Math.hypot(x - pts[0].x, y - pts[0].y);
             let ha = Math.abs(wrapAngle(heading - pts[0].heading));
-            if (d0 < 42 && ha < 0.85) {
+            if (d0 < 90 && ha < 0.95) {
                 closed = true;
                 break;
             }
@@ -186,7 +255,7 @@ function processCenterline(points) {
     let n = points.length;
     if (n < 12) return points;
     let closed = points.closed !== false;
-    let step = 3;
+    let step = 6;
     for (let i = 0; i < n; i++) {
         let pA = points[wrapIndex(i - step, n, closed)];
         let pB = points[i];
@@ -197,6 +266,13 @@ function processCenterline(points) {
         let oux = pC.x - pB.x;
         let ouy = pC.y - pB.y;
         pB.turn = Math.atan2(inx * ouy - iny * oux, inx * oux + iny * ouy);
+    }
+    let radii = points.map(p => p.radiusWu);
+    for (let i = 0; i < n; i++) {
+        let win = [];
+        for (let j = -2; j <= 2; j++) win.push(radii[wrapIndex(i + j, n, closed)]);
+        win.sort((a, b) => a - b);
+        points[i].radiusWu = win[2];
     }
 
     for (let i = 0; i < n; i++) {
@@ -216,7 +292,7 @@ function processCenterline(points) {
             else bias = Math.sign(maxTurn);
         }
         let usable = Math.max(0, points[i].halfWidth - CAR_MARGIN);
-        points[i].lineOffset = bias * usable * 0.58;
+        points[i].lineOffset = bias * usable * 0.36;
     }
     return points;
 }
@@ -236,7 +312,7 @@ function buildSpeedProfile(points, preset) {
         let rM = Math.max(rMin * (lowLock ? 1.15 : 0.82), points[i].radiusWu / WORLD_PER_METER);
         let speed = Math.sqrt(mu * g * rM);
         if (points[i].halfWidth < 48) speed *= 0.86;
-        if (lowLock) speed *= 0.90;
+        if (lowLock) speed *= 0.78;
         v[i] = Math.max(MIN_SPEED_MPS, Math.min(MAX_SPEED_MPS, speed));
     }
 
@@ -346,6 +422,7 @@ const AIAutonomous = {
     edgeDistance: edgeDistance,
     rayDistance: rayDistance,
     snapToCenter: snapToCenter,
+    localFrame: localFrame,
     bestHeading: bestHeading,
     searchOnTrack: searchOnTrack,
     traceCenterline: traceCenterline,
@@ -605,16 +682,23 @@ class AIDriver {
             let aimX;
             let aimY;
 
+            let idx = 0;
             if (points && points.length > 12 && profile) {
                 this.progressIndex = nearestIndex(points, vehicle.x, vehicle.y, vehicle.angle, this.progressIndex);
-                let idx = this.progressIndex;
+                idx = this.progressIndex;
+                let lineDist = Math.hypot(vehicle.x - points[idx].x, vehicle.y - points[idx].y);
+                if (lineDist > (points[idx].halfWidth || 80) + 36) {
+                    points = null;
+                }
+            }
+            if (points && points.length > 12 && profile) {
                 let lookWu = Math.max(48, Math.min(340, (vehicle.speedKmh / 3.6) * WORLD_PER_METER * (preset.turn < 1.2 ? 0.72 : 0.56)));
                 let aim = pointAlong(points, idx, lookWu, lineScale);
                 let half = points[idx].halfWidth;
                 let extra = Math.max(-half + CAR_MARGIN, Math.min(half - CAR_MARGIN, this.lateralOffset));
                 aimX = aim.x + Math.cos(aim.heading + Math.PI / 2) * extra;
                 aimY = aim.y + Math.sin(aim.heading + Math.PI / 2) * extra;
-                let lookPts = Math.max(6, Math.round(lookWu / TRACE_STEP) + 4);
+                let lookPts = 2;
                 targetKmh = lookaheadSpeed(profile, damp || [], idx, lookPts) * 3.6;
                 targetKmh += this.draftBoost + this.aggression * 4;
                 if (!onA) targetKmh = Math.min(targetKmh, 48);
@@ -703,7 +787,7 @@ class AIDriver {
             left: left,
             right: right,
             avoid: Math.max(-1.1, Math.min(1.1, avoid)),
-            wallClose: Math.min(left, right, leftN, rightN) < 28
+            wallClose: Math.min(left, right) < 16
         };
         this.visionAge = 0;
         return this.vision;
