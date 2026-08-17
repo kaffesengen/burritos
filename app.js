@@ -132,6 +132,8 @@ let localPlayers = [];
 
 let raceState = -1, totalLaps = 3, raceStartTime = 0;
 let gameLoopId = null;
+let raceCountdownTimer = null;
+let autoStartTimer = null;
 let isRecording = false; let recordedWaypoints = [];
 
 const TOURNAMENT_POINTS = [3, 2, 1];
@@ -436,6 +438,109 @@ function assignGridPositions() {
         p.shiftTimer = 0;
         p.gridLockUntil = performance.now() + 500;
     });
+}
+
+function carsMustHoldGrid() {
+    if (raceState === 0) return false;
+    if (myId === 'sandbox' && raceState < 0) return false;
+    if (tournament.active) return true;
+    if (isSplitScreen) return true;
+    return raceState > 0;
+}
+
+function holdPlayerOnGrid(p, index, t) {
+    if (!p) return;
+    let slot = gridSlot(index, t);
+    p.x = slot.x;
+    p.y = slot.y;
+    p.prevX = slot.x;
+    p.prevY = slot.y;
+    p.angle = slot.angle;
+    p.vx = 0;
+    p.vy = 0;
+    p.yawRate = 0;
+    p.speedKmh = 0;
+    p.steer = 0;
+    p.targetX = slot.x;
+    p.targetY = slot.y;
+    p.targetAngle = slot.angle;
+    p.appliesBrake = true;
+    p.gridLockUntil = performance.now() + 400;
+}
+
+function netPlayerState(p) {
+    return {
+        x: p.x, y: p.y, a: p.angle, s: p.steer || 0,
+        fS: p.frontSpinSeverity || 0, rS: p.rearSpinSeverity || 0,
+        presetId: p.presetId, c: p.color, g: p.gear, rpm: p.rpm,
+        v: p.speedKmh || 0, f: p.fuel, b: !!p.appliesBrake, n: p.name,
+        l: p.lap || 0, bl: p.bestLap === Infinity ? null : p.bestLap,
+        lL: p.lastLap || 0, fin: !!p.finished, cLT: p.currentLapTime || 0,
+        tT: p.totalTime || 0, tp: p.tourneyPoints || 0
+    };
+}
+
+function clearRaceCountdown() {
+    if (raceCountdownTimer) {
+        clearInterval(raceCountdownTimer);
+        raceCountdownTimer = null;
+    }
+    if (autoStartTimer) {
+        clearTimeout(autoStartTimer);
+        autoStartTimer = null;
+    }
+}
+
+function syncStartRaceButton() {
+    let btn = document.getElementById('btn-start-race');
+    if (!btn) return;
+    btn.style.display = (tournament.active || isSplitScreen) ? 'none' : '';
+}
+
+function beginRaceCountdown() {
+    if (!isHost) return;
+    if (raceState > 0) return;
+    if (tournament.active && (tournament.phase === 'standings' || tournament.phase === 'podium')) return;
+    placeFieldOnGrid();
+    if (tournament.active) {
+        totalLaps = tournament.laps;
+        tournament.phase = 'racing';
+    } else if (isSplitScreen) {
+        let hl = document.getElementById('ss-laps');
+        totalLaps = hl ? parseInt(hl.value) : totalLaps || 3;
+    }
+    clearRaceCountdown();
+    let count = 5;
+    raceState = count;
+    Object.values(connections).forEach(c => {
+        try { c.send({ type: 'state', laps: totalLaps, raceState: raceState, players: snapshotPlayers(), tournament: tournament.active ? serializeTournament() : undefined }); } catch (e) {}
+    });
+    raceCountdownTimer = setInterval(() => {
+        count--;
+        raceState = count;
+        if (count === 0) {
+            let tNow = performance.now();
+            raceStartTime = tNow;
+            for (let pid in players) {
+                players[pid].lapStartTime = tNow;
+                players[pid].lap = 0;
+                players[pid].cp = false;
+                players[pid].finished = false;
+                players[pid].bestLap = Infinity;
+                players[pid].lastLap = 0;
+            }
+            clearRaceCountdown();
+        }
+    }, 1000);
+}
+
+function scheduleAutoStart(delayMs) {
+    if (!isHost || myId === 'sandbox') return;
+    if (autoStartTimer) clearTimeout(autoStartTimer);
+    autoStartTimer = setTimeout(() => {
+        autoStartTimer = null;
+        beginRaceCountdown();
+    }, delayMs || 900);
 }
 
 function getTrackLabel(id) {
@@ -779,6 +884,7 @@ function switchToTrack(trackId) {
     generateEnvironment();
     assignGridPositions();
     raceState = -1;
+    clearRaceCountdown();
     if (typeof skidmarks !== 'undefined' && Array.isArray(skidmarks)) skidmarks.length = 0;
     window.finishTimer = null;
     window.podiumClosed = false;
@@ -805,6 +911,7 @@ function startTournamentSession() {
     switchToTrack(trackList[0]);
     let tSel = document.getElementById('track-selector');
     if (tSel) tSel.style.display = 'none';
+    syncStartRaceButton();
     broadcastAll(startRacePayload());
 }
 
@@ -862,12 +969,14 @@ function advanceTournamentTrack() {
         tournament: serializeTournament(),
         players: snapshotPlayers()
     });
+    scheduleAutoStart(1100);
 }
 
 function returnToLobbyKeepSession() {
     gameActive = false;
     if (gameLoopId) cancelAnimationFrame(gameLoopId);
     raceState = -1;
+    clearRaceCountdown();
     window.finishTimer = null;
     window.podiumClosed = false;
 
@@ -875,6 +984,7 @@ function returnToLobbyKeepSession() {
     hidePodium();
     setLoadoutLocked(false);
     tournament = freshTournament();
+    syncStartRaceButton();
 
     let tSel = document.getElementById('track-selector');
     if (tSel) tSel.style.display = '';
@@ -962,6 +1072,7 @@ function enterGame() {
     if(isHost) { 
         let hActions = document.getElementById('host-actions'); if(hActions) hActions.style.display = 'flex';
         placeFieldOnGrid();
+        syncStartRaceButton();
     }
     resize();
     requestAnimationFrame(() => {
@@ -1066,6 +1177,7 @@ if (btnStartSS) {
         
         document.getElementById('splitscreen-setup').style.display = 'none';
         enterGame();
+        scheduleAutoStart(900);
     });
 }
 
@@ -1151,6 +1263,7 @@ if (inputSelector) {
 function exitToMenu() {
     gameActive = false;
     if(gameLoopId) cancelAnimationFrame(gameLoopId);
+    clearRaceCountdown();
     if(hostConnection) { hostConnection.close(); hostConnection = null; }
     for(let id in connections) { connections[id].close(); delete connections[id]; }
     if(peer) { peer.destroy(); peer = null; }
@@ -1163,6 +1276,7 @@ function exitToMenu() {
     hidePodium();
     setLoadoutLocked(false);
     tournament = freshTournament();
+    syncStartRaceButton();
     let tSel = document.getElementById('track-selector');
     if (tSel) tSel.style.display = '';
     
@@ -1323,7 +1437,8 @@ if (btnEnter) {
         startTournamentSession();
         let hActions = document.getElementById('host-actions');
         if (hActions) hActions.style.display = 'flex';
-        enterGame(); 
+        enterGame();
+        scheduleAutoStart(900);
     }); 
 }
 
@@ -1339,7 +1454,14 @@ if (trackSel) {
 }
 
 let btnReset = document.getElementById('btn-reset');
-if (btnReset) { btnReset.addEventListener('click', () => { if(isHost) { assignGridPositions(); raceState = -1; } }); }
+if (btnReset) {
+    btnReset.addEventListener('click', () => {
+        if (!isHost) return;
+        assignGridPositions();
+        if (tournament.active || isSplitScreen) beginRaceCountdown();
+        else raceState = -1;
+    });
+}
 
 let btnLobbyAddAi = document.getElementById('btn-lobby-add-ai');
 if (btnLobbyAddAi) {
@@ -1372,27 +1494,13 @@ if (btnForceEnd) {
 let btnStart = document.getElementById('btn-start-race');
 if (btnStart) {
     btnStart.addEventListener('click', () => {
-        if(!isHost || raceState > 0) return;
+        if (!isHost || raceState > 0) return;
         if (tournament.active && (tournament.phase === 'standings' || tournament.phase === 'podium')) return;
-        placeFieldOnGrid();
-        if (tournament.active) {
-            totalLaps = tournament.laps;
-            tournament.phase = 'racing';
-        } else {
-            let hl = isSplitScreen ? document.getElementById('ss-laps') : document.getElementById('host-laps'); 
+        if (!tournament.active && !isSplitScreen) {
+            let hl = document.getElementById('host-laps');
             totalLaps = hl ? parseInt(hl.value) : 3;
         }
-        
-        let count = 5; raceState = count;
-        Object.values(connections).forEach(c => { try { c.send({ type: 'state', laps: totalLaps, raceState: raceState, players: snapshotPlayers() }); } catch(e){} }); 
-        let int = setInterval(() => {
-            count--; raceState = count;
-            if(count === 0) { 
-                let now = performance.now(); raceStartTime = now;
-                for(let pid in players) { players[pid].lapStartTime = now; players[pid].lap = 0; players[pid].cp = false; players[pid].finished = false; players[pid].bestLap = Infinity; players[pid].lastLap = 0; }
-                clearInterval(int); 
-            }
-        }, 1000);
+        beginRaceCountdown();
     });
 }
 
@@ -1736,8 +1844,16 @@ function update() {
             }
 
             if (hasActiveGamepad) {
-                if (gp.buttons[3]?.pressed && !window.prevGamepadState[gpIdx+'_3']) { let btnStart = document.getElementById('btn-start-race'); if(isHost && raceState <= 0 && btnStart) btnStart.click(); }
-                if (gp.buttons[2]?.pressed && !window.prevGamepadState[gpIdx+'_2']) { if(isHost) { assignGridPositions(); raceState = -1; } }
+                if (gp.buttons[3]?.pressed && !window.prevGamepadState[gpIdx+'_3']) {
+                    if (isHost && raceState <= 0) beginRaceCountdown();
+                }
+                if (gp.buttons[2]?.pressed && !window.prevGamepadState[gpIdx+'_2']) {
+                    if (isHost) {
+                        assignGridPositions();
+                        if (tournament.active || isSplitScreen) beginRaceCountdown();
+                        else raceState = -1;
+                    }
+                }
                 if (gp.buttons[14]?.pressed && !window.prevGamepadState[gpIdx+'_14']) adjustZoom(-0.15);
                 if (gp.buttons[15]?.pressed && !window.prevGamepadState[gpIdx+'_15']) adjustZoom(0.15);
                 if (gp.buttons[12]?.pressed && !window.prevGamepadState[gpIdx+'_12']) {
@@ -1805,6 +1921,7 @@ function update() {
 
     if (isHost) {
         let outState = { players: {} }; let pkeys = Object.keys(players);
+        let holdIds = carsMustHoldGrid() ? gridOrderIds() : null;
         
         for (let pid of pkeys) {
             let p = players[pid]; 
@@ -1815,6 +1932,16 @@ function update() {
                 if (isLocal) applySafePose(p, gridSlot(0, track));
                 else { p.x = track.startX; p.y = track.startY; p.prevX = p.x; p.prevY = p.y; p.angle = track.startAngle; }
                 p.vx=0; p.vy=0; p.yawRate=0; p.rpm=1000; p.speedKmh=0; p.prevThrottle = 0;
+            }
+
+            if (holdIds) {
+                let holdIndex = holdIds.indexOf(pid);
+                if (holdIndex >= 0) {
+                    holdPlayerOnGrid(p, holdIndex, track);
+                    p.inputs = { steering: 0, throttle: 0, handbrake: true, driftAssist: false, shiftUp: false, shiftDown: false };
+                    outState.players[pid] = netPlayerState(p);
+                    continue;
+                }
             }
 
             let preset = vehiclePresets[p.presetId] || vehiclePresets['jaguar']; 
@@ -2087,7 +2214,7 @@ function update() {
 
             p.frontSpinSeverity = Math.abs(-vSlipF * MeffF) > gripF * dt ? Math.min(1.0, (Math.abs(-vSlipF * MeffF)-gripF * dt)/(gripF * dt)) : 0; p.rearSpinSeverity = Math.abs(-vSlipR * MeffR) > gripR * dt ? Math.min(1.0, (Math.abs(-vSlipR * MeffR)-gripR * dt)/(gripR * dt)) : 0; if (Math.abs(fLongR)/maxGrip > 0.95) p.rearSpinSeverity = 1.0; if (Math.abs(fLongF)/maxGrip > 0.95) p.frontSpinSeverity = 1.0; 
 
-            outState.players[pid] = { x: p.x, y: p.y, a: p.angle, s: p.steer, fS: p.frontSpinSeverity, rS: p.rearSpinSeverity, presetId: p.presetId, c: p.color, g: p.gear, rpm: p.rpm, v: p.speedKmh, f: p.fuel, b: p.appliesBrake, n: p.name, l: p.lap, bl: p.bestLap === Infinity ? null : p.bestLap, lL: p.lastLap, fin: p.finished, cLT: p.currentLapTime, tT: p.totalTime, tp: p.tourneyPoints || 0 };
+            outState.players[pid] = netPlayerState(p);
         }
 
         for(let i=0; i<pkeys.length; i++) {
@@ -2106,7 +2233,7 @@ function update() {
             }
         }
 
-        let raceIsRunning = (raceState === 0 || raceState === -1);
+        let raceIsRunning = (raceState === 0);
         if (typeof aiManager !== 'undefined') aiManager.updateAll(players, activeTrackId, track, ctx, raceIsRunning);
         
         if (now - lastNetUpdate > 40) {
