@@ -304,7 +304,7 @@ function snapshotPlayers() {
             v: p.speedKmh || 0, f: p.fuel, b: !!p.appliesBrake, n: p.name,
             l: p.lap || 0, bl: p.bestLap === Infinity ? null : p.bestLap,
             lL: p.lastLap || 0, fin: !!p.finished, cLT: p.currentLapTime || 0,
-            tT: p.totalTime || 0, tp: p.tourneyPoints || 0
+            tT: p.totalTime || 0, tp: p.tourneyPoints || 0, isAI: !!p.isAI
         };
     }
     return out;
@@ -317,6 +317,7 @@ function applyPlayerSnapshot(netPlayers, mode) {
         if (!pData) continue;
         if (!players[pid]) players[pid] = createPlayerRecord(pid, pData.presetId, pData.n, pData.c);
         let p = players[pid];
+        if (pData.isAI || String(pid).startsWith('AI_')) p.isAI = true;
         if (pData.x !== null && isFinite(pData.x)) {
             p.targetX = pData.x;
             if (mode === 'snap') { p.x = pData.x; p.prevX = pData.x; }
@@ -580,8 +581,61 @@ function renderTrackSlots() {
     broadcastLobbyState();
 }
 
+function lobbyPlayerSort(a, b, hostId) {
+    if (hostId) {
+        if (a.id === hostId) return -1;
+        if (b.id === hostId) return 1;
+    }
+    if (!!a.isAI !== !!b.isAI) return a.isAI ? 1 : -1;
+    return String(a.id || '').localeCompare(String(b.id || ''));
+}
+
 function lobbyPlayerPayload() {
-    return Object.values(players).map(p => ({ id: p.id, n: p.name, c: p.color, presetId: p.presetId }));
+    return Object.values(players)
+        .slice()
+        .sort((a, b) => lobbyPlayerSort(a, b, myId))
+        .map(p => ({ id: p.id, n: p.name, c: p.color, presetId: p.presetId, isAI: !!p.isAI }));
+}
+
+function canManageLobbyAI() {
+    return !!(isHost && !gameActive);
+}
+
+function fillLobbyAISelector() {
+    let sel = document.getElementById('lobby-ai-preset');
+    if (!sel) return;
+    let previous = sel.value;
+    let cars = window.vehicleGarage && typeof vehicleGarage.visibleCars === 'function'
+        ? vehicleGarage.visibleCars()
+        : Object.keys(vehiclePresets || {}).filter(id => id !== 'ai_standard').map(id => ({ id, name: id }));
+    sel.innerHTML = cars.map(c => `<option value="${escapeLobbyText(c.id)}">${escapeLobbyText(c.name)}</option>`).join('');
+    if (previous && [...sel.options].some(o => o.value === previous)) sel.value = previous;
+    else if ([...sel.options].some(o => o.value === 'jaguar')) sel.value = 'jaguar';
+}
+
+function addLobbyAI(presetId) {
+    if (!canManageLobbyAI() || typeof aiManager === 'undefined') return null;
+    let preset = presetId || document.getElementById('lobby-ai-preset')?.value || 'jaguar';
+    if (!vehiclePresets[preset]) preset = 'jaguar';
+    let t = getTrack();
+    let id = aiManager.spawnAI(players, t.startX, t.startY, t.startAngle, preset);
+    if (id) broadcastLobbyState();
+    return id || null;
+}
+
+function removeLastLobbyAI() {
+    if (!canManageLobbyAI()) return false;
+    let botIds = Object.keys(players).filter(id => players[id] && players[id].isAI);
+    if (!botIds.length) return false;
+    let botToRemove = botIds[botIds.length - 1];
+    if (typeof aiManager !== 'undefined' && typeof aiManager.removeAI === 'function') {
+        aiManager.removeAI(players, botToRemove);
+    } else {
+        delete players[botToRemove];
+        if (typeof aiManager !== 'undefined' && aiManager.aiList) delete aiManager.aiList[botToRemove];
+    }
+    broadcastLobbyState();
+    return true;
 }
 
 function escapeLobbyText(value) {
@@ -597,10 +651,11 @@ function renderLobbyPlayers(list) {
         let color = p.c || p.color || '#3498db';
         let preset = p.presetId || 'jaguar';
         let carName = window.vehicleGarage ? vehicleGarage.carName(preset) : preset;
-        return `<li>
+        let aiMark = p.isAI ? ' <em class="lobby-ai-badge">AI</em>' : '';
+        return `<li class="${p.isAI ? 'is-ai' : ''}">
             <canvas class="lobby-car-thumb" width="88" height="48" data-car="${escapeLobbyText(preset)}" data-color="${escapeLobbyText(color)}"></canvas>
             <div class="lobby-player-meta">
-                <strong>${escapeLobbyText(name)}</strong>
+                <strong>${escapeLobbyText(name)}${aiMark}</strong>
                 <span>${escapeLobbyText(carName)}</span>
             </div>
         </li>`;
@@ -816,10 +871,6 @@ function returnToLobbyKeepSession() {
     window.finishTimer = null;
     window.podiumClosed = false;
 
-    Object.keys(players).forEach(pid => {
-        if (players[pid].isAI) delete players[pid];
-    });
-
     hideStandings();
     hidePodium();
     setLoadoutLocked(false);
@@ -877,6 +928,7 @@ function leaveLobbyScreen() {
     for (let id in connections) { connections[id].close(); delete connections[id]; }
     if (peer) { peer.destroy(); peer = null; }
     for (let id in players) delete players[id];
+    if (typeof aiManager !== 'undefined') aiManager.aiList = {};
     localPlayers = [];
     isSplitScreen = false;
     isHost = true;
@@ -1103,6 +1155,7 @@ function exitToMenu() {
     for(let id in connections) { connections[id].close(); delete connections[id]; }
     if(peer) { peer.destroy(); peer = null; }
     for(let id in players) delete players[id];
+    if (typeof aiManager !== 'undefined') aiManager.aiList = {};
     localPlayers = [];
     isSplitScreen = false;
     raceState = -1;
@@ -1164,6 +1217,7 @@ if (btnHost) {
         let hUi = document.getElementById('host-ui'); if(hUi) hUi.style.display = 'block'; 
         setLobbyBackVisible(true);
         setGarageVisible(true);
+        fillLobbyAISelector();
         renderTrackSlots();
         showMsg('Oppretter Host...');
         peer = new Peer();
@@ -1287,17 +1341,19 @@ if (trackSel) {
 let btnReset = document.getElementById('btn-reset');
 if (btnReset) { btnReset.addEventListener('click', () => { if(isHost) { assignGridPositions(); raceState = -1; } }); }
 
-let btnAddAi = document.getElementById('btn-add-ai');
-if (btnAddAi) { 
-    btnAddAi.addEventListener('click', () => { 
-        if(isHost) { 
-            let t = getTrack(); 
-            let aiPreset = document.getElementById('ai-preset-selector')?.value || 'ai_standard';
-            aiManager.spawnAI(players, t.startX, t.startY, t.startAngle, aiPreset); 
-            assignGridPositions(); 
-        } 
-    }); 
+let btnLobbyAddAi = document.getElementById('btn-lobby-add-ai');
+if (btnLobbyAddAi) {
+    btnLobbyAddAi.addEventListener('click', () => {
+        addLobbyAI(document.getElementById('lobby-ai-preset')?.value);
+    });
 }
+let btnLobbyRemoveAi = document.getElementById('btn-lobby-remove-ai');
+if (btnLobbyRemoveAi) {
+    btnLobbyRemoveAi.addEventListener('click', () => {
+        removeLastLobbyAI();
+    });
+}
+fillLobbyAISelector();
 
 let btnForceEnd = document.getElementById('btn-force-end');
 if (btnForceEnd) {
@@ -1524,7 +1580,7 @@ window.addEventListener('keydown', e => {
     if(e.key === '+' || e.key === '=') adjustZoom(0.15); if(e.key === '-' || e.key === '_') adjustZoom(-0.15);
     if(e.key.toLowerCase() === 'h') { window.pendingSmartAssistToggle = true; }
     
-    if(e.key.toLowerCase() === 'k' && isHost) { let botIds = Object.keys(players).filter(id => players[id].isAI); if (botIds.length > 0) { let botToRemove = botIds[botIds.length - 1]; delete players[botToRemove]; } }
+    if(e.key.toLowerCase() === 'k') removeLastLobbyAI();
     if(e.key.toLowerCase() === 'r') {
         isRecording = !isRecording; let recInd = document.getElementById('recording-indicator'); if (recInd) recInd.style.display = isRecording ? 'block' : 'none';
         if (!isRecording) {
@@ -1685,18 +1741,10 @@ function update() {
                 if (gp.buttons[14]?.pressed && !window.prevGamepadState[gpIdx+'_14']) adjustZoom(-0.15);
                 if (gp.buttons[15]?.pressed && !window.prevGamepadState[gpIdx+'_15']) adjustZoom(0.15);
                 if (gp.buttons[12]?.pressed && !window.prevGamepadState[gpIdx+'_12']) {
-                    if(isHost) { 
-                        let t = getTrack(); 
-                        let aiPreset = document.getElementById('ai-preset-selector')?.value || 'ai_standard';
-                        aiManager.spawnAI(players, t.startX, t.startY, t.startAngle, aiPreset); 
-                        assignGridPositions(); 
-                    }
+                    addLobbyAI(document.getElementById('lobby-ai-preset')?.value);
                 }
                 if (gp.buttons[13]?.pressed && !window.prevGamepadState[gpIdx+'_13']) {
-                    if(isHost) {
-                        let botIds = Object.keys(players).filter(id => players[id].isAI);
-                        if (botIds.length > 0) { let botToRemove = botIds[botIds.length - 1]; delete players[botToRemove]; }
-                    }
+                    removeLastLobbyAI();
                 }
             }
         }
