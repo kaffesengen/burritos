@@ -11,6 +11,8 @@ const css = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
     'vehicle-garage-specs',
     'garage-hero-canvas',
     'garage-bar-power',
+    'garage-bar-accel',
+    'garage-bar-speed',
     'garage-bar-grip',
     'garage-bar-steer',
     'garage-hl-power',
@@ -25,9 +27,11 @@ assert.ok(html.includes('Velg kjøretøy'));
 assert.ok(html.includes('Piltaster'));
 assert.ok(html.includes('garasjen til høyre'));
 assert.ok(html.includes('Effekt/vekt'));
+assert.ok(html.includes('0–100'));
+assert.ok(html.includes('Toppfart'));
 assert.ok(html.includes('Sidegrep'));
 assert.ok(html.includes('Styrevinkel'));
-assert.ok(!html.includes('>Toppfart<'));
+assert.ok(html.includes('vehicle-bench.js'));
 assert.ok(!html.includes('>Akselerasjon<'));
 assert.ok(!html.includes('>Bremsing<'));
 assert.ok(!html.includes('>Stabilitet<'));

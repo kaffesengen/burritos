@@ -27,9 +27,9 @@ assert.strictEqual(jag.drivetrain, 'AWD');
 assert.ok(Math.abs(jag.hpPerTon - 181.818) < 0.01, 'I-PACE hk/t, got ' + jag.hpPerTon);
 assert.ok(Math.abs(jag.latG - 2.59) < 0.001, 'I-PACE lat g is 1.4 * grip, got ' + jag.latG);
 assert.strictEqual(jag.steerDeg, 40);
-assert.strictEqual(jag.accel, undefined, 'fake 0-100 must be gone');
-assert.strictEqual(jag.topSpeed, undefined, 'fake top speed must be gone');
 assert.strictEqual(jag.ratings, undefined, '0-10 personality ratings must be gone');
+assert.strictEqual(jag.t100, null, 'no bench in this sandbox');
+assert.strictEqual(jag.vmax, 0);
 
 const f1 = garage.stats('f1');
 assert.ok(f1.hpPerTon > jag.hpPerTon, 'F1 power-to-weight must beat I-PACE');
@@ -58,6 +58,6 @@ assert.strictEqual(garage.gridBuilt, false, 'select without a grid must not pret
 const src = fs.readFileSync(path.join(__dirname, '..', 'vehicle-garage.js'), 'utf8');
 assert.ok(!src.includes('estimate0100'));
 assert.ok(!src.includes('estimateTopSpeed'));
-assert.ok(!src.includes('0–100'));
+assert.ok(src.includes('benchResult'));
 
 console.log('vehicle-garage tests ok', jag.hpPerTon.toFixed(1), f1.hpPerTon.toFixed(1), jag.latG, f1.steerDeg);
